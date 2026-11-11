@@ -91,6 +91,11 @@ def total_return_index(daily_close: pd.Series, actions: pd.DataFrame,
             raise ValueError("events outside price coverage must be reviewed separately")
         if not events.ex_date.isin(p.index).all():
             raise ValueError("an ex-date has no corresponding trading close")
+    if len(events):
+        terminal_days=set(events.loc[events["event_type"]=="delisting_cash","ex_date"])
+        conflicting=events.loc[events["ex_date"].isin(terminal_days)]
+        if any((conflicting.groupby("ex_date").size()>1)):
+            raise ValueError("cash delisting combined with other same-day events requires separate economic modeling")
     if price_basis == "total_return_adjusted" and len(events):
         raise ValueError("already total-return-adjusted series must not apply events again")
     cash=pd.Series(0.,index=p.index)
