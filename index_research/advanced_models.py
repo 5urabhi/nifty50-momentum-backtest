@@ -112,7 +112,8 @@ def covariance_stress_loss(weights: pd.Series, covariance: pd.DataFrame,
     if c.isna().any().any() or not np.isfinite(c.to_numpy()).all():
         raise ValueError("covariance missing or nonfinite")
     w=weights.astype(float).to_numpy()
-    if (w<0).any() or w.sum()<=0 or w.sum()>1+1e-8 or z_score<=0:
+    if (not np.isfinite(w).all() or not np.isfinite(z_score) or (w<0).any()
+            or w.sum()<=0 or w.sum()>1+1e-8 or z_score<=0):
         raise ValueError("invalid weights or quantile")
     v=float(w@c.to_numpy()@w)
     if v < -1e-10:
