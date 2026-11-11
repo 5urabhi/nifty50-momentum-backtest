@@ -230,3 +230,25 @@ CSV files, and a test summary in `visual_validation_manifest.json`.
 The additional test file is `tests/test_visual_validation.py`; it is included
 in the normal future **local** `unittest` discovery command. Neither this
 feature nor the charts are executed in GitHub Actions.
+
+## DhanHQ historical data onboarding
+
+Full local setup and security instructions: [Dhan API Guide](DHAN_API_SETUP.md).
+The `Dhan Data Setup` Streamlit page displays local instrument mapping,
+required evidence and downloaded raw-close/volume charts. It never asks for
+access tokens and does not trigger live trading.
+
+```bash
+python scripts/dhan_data.py instrument-master
+python scripts/dhan_data.py instrument-search --query "RELIANCE"
+# Review and edit data/dhan/instruments.csv before making live data calls
+python scripts/dhan_data.py download --instruments data/dhan/instruments.csv \
+  --from-date 2018-01-01 --to-date 2026-11-11 \
+  --output-dir data/dhan/raw
+python scripts/dhan_data.py monthly --instruments data/dhan/instruments.csv \
+  --raw-dir data/dhan/raw --output-dir data/dhan/monthly_research
+```
+
+Dhan raw OHLCV is **not** a complete point-in-time total-return dataset.
+A trustworthy index study still requires real historical membership,
+benchmark, corporate actions, publication-dated fundamentals, and data rights.
