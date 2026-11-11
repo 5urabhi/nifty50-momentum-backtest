@@ -7,6 +7,7 @@ import io
 import numpy as np
 import pandas as pd
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -17,6 +18,7 @@ from index_research.math_models import (
 )
 
 st.set_page_config(page_title="Equity Index Quant Research Lab",layout="wide")
+show_workflow_nav()
 st.title("Equity Index Quantitative Research Laboratory")
 st.caption("Research demonstrations only · Not an investable strategy or MSCI methodology")
 st.warning("The legacy 3.34 Sharpe and 132.86% annualized return are not audited. No historical index performance is claimed here.")
