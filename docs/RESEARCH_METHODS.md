@@ -70,3 +70,29 @@ Same-close mode is available for sensitivity studies but marked idealized.
 
 The code is made available for local review; a *completed empirical research
 study* cannot be claimed until historical evidence and experiments are supplied.
+
+
+## Extended implementation scope
+
+The index-construction Python routine accepts date-specific sector matrices
+from `sectors.csv` and enforces sector allocation constraints at each
+reconstitution. Missing historical classification for selected companies
+blocks constrained construction. Between rebalances exposures can drift.
+
+The new research analytics produce issuer concentration histories, rolling
+tracking error, relative wealth, risk/turnover metrics, and fixed-trade-path
+transaction-cost sensitivity. The dashboard also runs controlled side-by-side
+momentum equal-weight, momentum score-weight, low-volatility equal-weight and
+the user-selected composite under matched historical dates and costs.
+
+The generated PDF research paper uses the experiment manifest, split
+statistics, factor weights, configuration and SHA-256 dataset fingerprints.
+It is explicitly an **unverified draft** until historical inputs and code are
+checked locally. No formal statistical significance or real-market superiority
+is inferred from template results.
+
+**Known limitations retained:** Data-vendor security and dividend-adjustment
+quality, missing corporate actions, regulatory index maintenance rules,
+delistings, implementation price/impact, source-history licensing, historical
+sector-vintage quality and a truly frozen final holdout cannot be proven by
+source code alone. Empirical conclusions remain blocked.
