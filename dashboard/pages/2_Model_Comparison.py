@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from dashboard.workstation_nav import show_workflow_nav
+from dashboard.workspace_data import active_asset_returns, active_source_label
 
 from index_research.advanced_models import (
     principal_components, fit_garch11, simulate_ou, covariance_stress_loss,
@@ -19,6 +20,10 @@ st.title("Quantitative Model Comparison Laboratory")
 st.caption("PCA · factor regression · GARCH · EWMA · stochastic mean reversion")
 st.warning("Inputs must be real, date-aligned observations. Synthetic demonstrations are not validated financial forecasts.")
 
+use_active=st.checkbox("Use returns from the active Index Research experiment (PCA and Volatility tabs)",value=False)
+if use_active:
+    st.warning("Shared source: "+active_source_label()+". These inputs are not independent historical validation.")
+st.page_link("dashboard/pages/1_Index_Research.py",label="Run or change active experiment →",icon="📈")
 tab1,tab2,tab3,tab4=st.tabs(["PCA Exposures","Volatility Models","Factor Regression","Mean-Reverting Processes"])
 
 def return_data(upload, minimum):
@@ -40,7 +45,7 @@ with tab1:
     st.subheader("Principal component analysis of standardized return exposures")
     up=st.file_uploader("Upload historical returns CSV",type="csv",key="pca")
     try:
-        values=return_data(up,12)
+        values=return_data(up,12) if up is not None else (active_asset_returns(12) if use_active else None)
         if values is not None:
             if values.shape[1]<2: raise ValueError("PCA requires >=2 securities")
             count=st.slider("Number of components",1,min(values.shape),min(3,values.shape[1]))
@@ -57,7 +62,7 @@ with tab2:
     st.subheader("Sample, EWMA, shrinkage, and GARCH volatility")
     up=st.file_uploader("Upload monthly returns CSV (>=60 observations for GARCH)",type="csv",key="vol")
     try:
-        values=return_data(up,60)
+        values=return_data(up,60) if up is not None else (active_asset_returns(60) if use_active else None)
         if values is not None:
             asset=st.selectbox("Select security",values.columns,key="vol_asset")
             x=values[asset]
