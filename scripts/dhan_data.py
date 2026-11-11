@@ -6,6 +6,7 @@ Credentials: export DHAN_ACCESS_TOKEN=... in your local terminal.
 import argparse
 import csv
 from pathlib import Path
+import pandas as pd
 from urllib.request import Request, urlopen
 
 from index_research.dhan_data import (
@@ -20,6 +21,10 @@ def main(argv=None):
     master=sub.add_parser("instrument-master",help="Download official detailed instrument CSV, no token required")
     master.add_argument("--output",default="data/dhan/instrument_master.csv")
     master.add_argument("--max-mb",type=int,default=100)
+    search=sub.add_parser("instrument-search",help="Search downloaded scrip-master locally for a symbol/company")
+    search.add_argument("--master",default="data/dhan/instrument_master.csv")
+    search.add_argument("--query",required=True)
+    search.add_argument("--limit",type=int,default=15)
     fetch=sub.add_parser("download",help="Download OHLCV for explicitly mapped Dhan security IDs")
     fetch.add_argument("--instruments",required=True,help="CSV mapping label,security_id,exchange_segment,instrument")
     fetch.add_argument("--from-date",required=True,help="YYYY-MM-DD inclusive")
@@ -52,6 +57,24 @@ def main(argv=None):
             print("NOTE: verify instrument CSV header/columns against Dhan docs.")
         dest.write_bytes(data)
         print("Downloaded master to",dest)
+    elif args.command=="instrument-search":
+        if not args.query.strip() or not 1<=args.limit<=100:
+            parser.error("Provide nonempty --query and --limit between 1 and 100")
+        master=pd.read_csv(args.master,dtype=str,low_memory=False)
+        # Instrument-master column names vary between compact/detailed formats.
+        columns=[col for col in master.columns if any(word in col.upper()
+            for word in ("SYMBOL","SECURITY","DISPLAY","SERIES","INSTRUMENT","EXCH","SEGMENT","NAME"))]
+        if not columns:
+            columns=list(master.columns)
+        values=master[columns].fillna("").astype(str)
+        match=values.apply(lambda col:col.str.contains(args.query,case=False,
+                           regex=False,na=False)).any(axis=1)
+        results=master.loc[match,columns].head(args.limit)
+        if results.empty:
+            print("No matching instruments: check spelling and master freshness")
+        else:
+            print(results.to_string(index=False,max_colwidth=35))
+        print("Verify exchange, segment and Security ID against the master before editing your mapping.")
     elif args.command=="download":
         instruments=read_instruments(args.instruments)
         for inst in instruments:
