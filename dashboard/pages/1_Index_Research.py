@@ -17,6 +17,7 @@ from index_research.pdf_report import generate_pdf_report
 from index_research.fixtures import make_fixture
 from index_research.sector_data import read_sector_history, asof_sectors, sector_exposure, concentration_metrics
 from index_research.research_analytics import rolling_relative_metrics, cost_sensitivity
+from index_research.comparison import compare_index_methods
 
 st.set_page_config(page_title="Index Construction Research",layout="wide")
 st.title("Equity Factor Index Construction")
@@ -110,6 +111,16 @@ if go:
                 raise ValueError("Historical sector cap requires sectors.csv")
             result,scores,metadata=run_experiment(prices,membership,benchmark,fundamentals,config,sectors=sectors)
             output=root/"output"
+            output.mkdir(parents=True,exist_ok=True)
+            comparison_warning=None
+            try:
+                comparison_returns,comparison_summary=compare_index_methods(
+                    prices,membership,benchmark,fundamentals,config,sectors=sectors)
+                comparison_returns.to_csv(output/"methodology_returns.csv",index_label="date")
+                comparison_summary.to_csv(output/"methodology_summary.csv",index_label="methodology")
+            except (ValueError,RuntimeError) as exc:
+                comparison_warning=str(exc)
+                comparison_returns,comparison_summary=None,None
             save_experiment(result,scores,metadata,output,input_dir,sectors=sectors)
             build_html_report(output)
             generate_pdf_report(output)
@@ -129,6 +140,9 @@ if go:
                 "rolling":rolling_relative_metrics(result.returns,result.benchmark_returns),
                 "sensitivity":cost_sensitivity(result.gross_returns,result.turnover) if len(result.returns)>=12 else None,
                 "metadata":metadata,
+                "comparison_returns":comparison_returns,
+                "comparison_summary":comparison_summary,
+                "comparison_warning":comparison_warning,
                 "html":(output/"research_report.html").read_text(),
                 "pdf":(output/"research_paper_draft.pdf").read_bytes(),
                 "archive":zipfile_path.read_bytes(),
