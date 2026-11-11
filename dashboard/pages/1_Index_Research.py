@@ -21,6 +21,8 @@ from index_research.comparison import compare_index_methods
 from index_research.data_audit import audit_dataset
 from index_research.robustness import sensitivity_grid, parameter_dispersion
 from index_research.diagnostics import evaluate_factor_panel, exposure_panel, data_quality_report
+from index_research.data_audit import audit_dataset
+from index_research.robustness import sensitivity_grid
 
 st.set_page_config(page_title="Index Construction Research",layout="wide")
 st.title("Equity Factor Index Construction")
@@ -60,7 +62,7 @@ factor_weights={k:v for k,v in {
 
 def safe_zip_extract(blob: bytes, folder: Path) -> None:
     required={"prices.csv","membership.csv","benchmark.csv"}
-    allowed=required|{"fundamentals.csv","sectors.csv"}
+    allowed=required|{"fundamentals.csv","sectors.csv","corporate_actions.csv"}
     if len(blob)>25*1024*1024:
         raise ValueError("ZIP upload exceeds 25 MB size limit")
     with zipfile.ZipFile(io.BytesIO(blob)) as z:
@@ -123,9 +125,19 @@ if go:
                 volatility_lookback=config.volatility_lookback)
             factor_portfolio_exposures,_=exposure_panel(result.weights,factor_score_panels,sectors)
             quality=data_quality_report(prices,membership,fundamentals,sectors)
+            audit=audit_dataset(input_dir)
+            (output/"dataset_audit.json").write_text(json.dumps(audit,indent=2,allow_nan=False))
             factor_ic.to_csv(output/"factor_rank_ic.csv",index_label="date")
             factor_portfolio_exposures.to_csv(output/"portfolio_factor_exposures.csv",index_label="date")
             (output/"data_quality.json").write_text(json.dumps(quality,indent=2,allow_nan=False))
+            robustness_warning=None
+            try:
+                grid=sensitivity_grid(prices,membership,benchmark,fundamentals,
+                    config,sectors=sectors,segment="validation" if config.validation_start else "full_history")
+                grid.to_csv(output/"robustness_grid.csv",index=False)
+            except (ValueError,RuntimeError) as exc:
+                robustness_warning=str(exc)
+                grid=None
             comparison_warning=None
             try:
                 comparison_returns,comparison_summary=compare_index_methods(
@@ -170,6 +182,9 @@ if go:
                 "factor_ic":factor_ic,
                 "factor_portfolio_exposures":factor_portfolio_exposures,
                 "data_quality":quality,
+                "audit":audit,
+                "robustness":grid,
+                "robustness_warning":robustness_warning,
                 "comparison_returns":comparison_returns,
                 "comparison_summary":comparison_summary,
                 "comparison_warning":comparison_warning,
