@@ -58,7 +58,7 @@ def generate_pdf_report(folder: str | Path) -> Path:
     p("Can rules-based combinations of Momentum, Value, Quality, Size and Low Volatility deliver improved benchmark-relative risk-adjusted performance without excessive sector concentration, tracking error or turnover? No superiority claim is made absent rigorous independent holdout validation.")
     heading("Data Sources and Integrity")
     p("Prices cover "+str(manifest["first_price_date"])+" through "+str(manifest["last_price_date"])+". The input dataset is user-supplied or synthetic, and its source declaration is not independent validation.")
-    rows=[["Input CSV","SHA-256 fingerprint"]]+[[k,v] for k,v in manifest.get("input_sha256",{}).items()]
+    rows=[["Input CSV","SHA-256 fingerprint"]]+[[k," ".join(v[i:i+16] for i in range(0,len(v),16))] for k,v in manifest.get("input_sha256",{}).items()]
     if len(rows)>1:table(rows,[145,360])
     else:p("No dataset fingerprints recorded.")
     heading("Index Methodology")
@@ -103,7 +103,7 @@ def generate_pdf_report(folder: str | Path) -> Path:
         canvas.saveState()
         canvas.setFont("Helvetica",8)
         canvas.setFillColor(colors.HexColor("#60768e"))
-        canvas.drawString(51,30,"INDEPENDENT RESEARCH • UNVERIFIED DATA")
+        canvas.drawString(51,30,"INDEPENDENT RESEARCH - UNVERIFIED DATA")
         canvas.drawRightString(560,30,f"Page {document.page}")
         canvas.restoreState()
     doc.build(story,onFirstPage=footer,onLaterPages=footer)
