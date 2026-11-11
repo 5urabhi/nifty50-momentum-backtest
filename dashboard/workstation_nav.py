@@ -22,6 +22,7 @@ PAGES = (
         ("dashboard/pages/9_Risk_Attribution.py", "Risk Attribution", "🎯"),
         ("dashboard/pages/9_Robustness.py", "Robustness", "🛡️"),
         ("dashboard/pages/8_Research_Report.py", "Research Reports", "📑"),
+        ("dashboard/pages/11_Run_History.py", "Saved Run History", "🗂️"),
     )),
 )
 
