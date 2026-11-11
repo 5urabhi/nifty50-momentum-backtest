@@ -18,6 +18,7 @@ from index_research.fixtures import make_fixture
 from index_research.sector_data import read_sector_history, asof_sectors, sector_exposure, concentration_metrics
 from index_research.research_analytics import rolling_relative_metrics, cost_sensitivity
 from index_research.comparison import compare_index_methods
+from index_research.diagnostics import evaluate_factor_panel, exposure_panel, data_quality_report
 
 st.set_page_config(page_title="Index Construction Research",layout="wide")
 st.title("Equity Factor Index Construction")
@@ -112,6 +113,16 @@ if go:
             result,scores,metadata=run_experiment(prices,membership,benchmark,fundamentals,config,sectors=sectors)
             output=root/"output"
             output.mkdir(parents=True,exist_ok=True)
+            factor_ic,factor_score_panels=evaluate_factor_panel(
+                prices,membership,fundamentals,
+                momentum_formation=config.momentum_formation,
+                momentum_skip=config.momentum_skip,
+                volatility_lookback=config.volatility_lookback)
+            factor_portfolio_exposures,_=exposure_panel(result.weights,factor_score_panels,sectors)
+            quality=data_quality_report(prices,membership,fundamentals,sectors)
+            factor_ic.to_csv(output/"factor_rank_ic.csv",index_label="date")
+            factor_portfolio_exposures.to_csv(output/"portfolio_factor_exposures.csv",index_label="date")
+            (output/"data_quality.json").write_text(json.dumps(quality,indent=2,allow_nan=False))
             comparison_warning=None
             try:
                 comparison_returns,comparison_summary=compare_index_methods(
@@ -140,6 +151,9 @@ if go:
                 "rolling":rolling_relative_metrics(result.returns,result.benchmark_returns),
                 "sensitivity":cost_sensitivity(result.gross_returns,result.turnover) if len(result.returns)>=12 else None,
                 "metadata":metadata,
+                "factor_ic":factor_ic,
+                "factor_portfolio_exposures":factor_portfolio_exposures,
+                "data_quality":quality,
                 "comparison_returns":comparison_returns,
                 "comparison_summary":comparison_summary,
                 "comparison_warning":comparison_warning,
