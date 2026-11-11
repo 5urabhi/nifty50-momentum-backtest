@@ -1,0 +1,15 @@
+# Local research environments and outputs (existing tracked legacy artifacts remain tracked)
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.streamlit/
+.env
+.env.*
+!.env.example
+results/
+data/
+!data/README.md
+*.log
+.DS_Store
