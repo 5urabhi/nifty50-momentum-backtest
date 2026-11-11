@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 
 from index_research.portfolio_theory import (
     optimize_portfolio,risk_parity,maximum_diversification,
@@ -23,6 +24,7 @@ from index_research.derivatives import (
 from index_research.math_models import black_scholes
 
 st.set_page_config(page_title="Advanced Quantitative Mathematics",layout="wide")
+show_workflow_nav()
 st.title("Advanced Quantitative Mathematics")
 st.caption("Index optimization · tail risk · academic factor inference · derivatives")
 st.warning("All outputs are exploratory. No empirical excess-return or investability claims are made.")
