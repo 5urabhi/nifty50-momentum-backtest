@@ -2,9 +2,11 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 from index_research.robustness import parameter_dispersion
 
 st.set_page_config(page_title="Robustness & Research Audit",layout="wide")
+show_workflow_nav()
 st.title("Research Robustness & Data Audit")
 st.caption("Parameter uncertainty, market-data coverage, chronology and validation gates")
 
