@@ -77,26 +77,33 @@ def variance_forecast_scores(forecasts: pd.DataFrame,
 def rolling_covariance_portfolios(returns: pd.DataFrame, train_window: int=36,
                                   rebalance_every: int=3,max_weight: float=1.0,
                                   shrinkage_intensity: float=0.25,
-                                  ewma_decay: float=0.94) -> pd.DataFrame:
-    """One-period-ahead min-variance model comparison, monthly return inputs.
+                                  ewma_decay: float=0.94,
+                                  cost_bps: float=0.) -> pd.DataFrame:
+    """Strictly prior-history covariance comparison with drift and optional costs.
 
-    At t, estimate covariance from [t-window,t), choose weights, then apply
-    weights to return at t. This is a frictionless REBALANCE-EVERY-K-WINDOW
-    illustration; costs and drift are NOT included and must be added before
-    index-performance claims.
+    At time t, fit on [t-window,t), rebalance only on schedule, then apply
+    return at t. Between rebalances portfolio weights drift as shares are
+    held. Turnover is sum absolute differences from *pre-trade drifted*
+    positions. Cost uses a proportion-of-wealth approximation. A complete
+    monthly security-return panel is required, with simple return > -100%.
+
+    The experiment is still a friction/market-impact simplification, not a
+    substitute for corporate-action and exchange execution validation.
     """
     if not isinstance(returns,pd.DataFrame) or returns.empty or returns.columns.has_duplicates:
         raise ValueError("returns must be a security return matrix")
     r=returns.astype(float)
     if (not isinstance(r.index,pd.DatetimeIndex) or not r.index.is_monotonic_increasing
         or r.index.has_duplicates or r.isna().any().any()
-        or not np.isfinite(r.to_numpy()).all() or train_window<12
-        or rebalance_every<1 or len(r)<train_window+12):
-        raise ValueError("need 12+ observation train, holdout and complete ordered returns")
-    if not 0<=shrinkage_intensity<=1 or not 0<ewma_decay<1:
-        raise ValueError("invalid estimator settings")
+        or not np.isfinite(r.to_numpy()).all() or (r.to_numpy()<=-1).any()
+        or train_window<12 or rebalance_every<1 or len(r)<train_window+12):
+        raise ValueError("need complete ordered returns > -100%, training and holdout")
+    n=len(r.columns)
+    if (not 1/n-1e-12<=max_weight<=1 or not 0<=shrinkage_intensity<=1
+        or not 0<ewma_decay<1 or not np.isfinite(cost_bps) or cost_bps<0):
+        raise ValueError("invalid estimator, cap or transaction cost")
     models=["equal_weight","sample_min_variance","shrinkage_min_variance","ewma_min_variance"]
-    weights={}
+    holdings={}
     outputs=[]
     for j,t in enumerate(range(train_window,len(r))):
         if j%rebalance_every==0:
@@ -106,16 +113,32 @@ def rolling_covariance_portfolios(returns: pd.DataFrame, train_window: int=36,
                 "shrinkage_min_variance":shrinkage_covariance(training,shrinkage_intensity,12),
                 "ewma_min_variance":ewma_covariance(training,ewma_decay,12),
             }
-            weights={"equal_weight":pd.Series(1/len(r.columns),index=r.columns)}
+            targets={"equal_weight":pd.Series(1/n,index=r.columns)}
             for name,cov in covariances.items():
                 try:
-                    weights[name]=optimize_portfolio(cov,max_weight=max_weight).weights
-                except RuntimeError as exc:
+                    targets[name]=optimize_portfolio(cov,max_weight=max_weight).weights
+                except (RuntimeError,ValueError) as exc:
                     raise RuntimeError(f"{name} estimator failed at {r.index[t]}: {exc}") from exc
         realized=r.iloc[t]
         row={"date":r.index[t]}
         for name in models:
-            row[name]=float(weights[name]@realized)
+            pre=holdings.get(name,pd.Series(0.,index=r.columns))
+            if j%rebalance_every==0:
+                target=targets[name].reindex(r.columns)
+                turnover=float(np.abs(target-pre).sum())
+                current=target.copy()
+            else:
+                turnover=0.
+                current=pre
+            gross=float(current@realized)
+            fraction=turnover*cost_bps/10000
+            if fraction>=1 or gross<=-1:
+                raise ValueError("portfolio bankrupted by returns or costs")
+            row[name]=(1-fraction)*(1+gross)-1
+            row[f"{name}_turnover"]=turnover
+            row[f"{name}_gross"]=gross
+            # Reweight shares at the observed end-of-period values.
+            holdings[name]=current*(1+realized)/(1+gross)
         outputs.append(row)
     return pd.DataFrame(outputs).set_index("date")
 
