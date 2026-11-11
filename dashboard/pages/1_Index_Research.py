@@ -14,6 +14,8 @@ from index_research.data import load_research_inputs
 from index_research.experiment import ExperimentConfig, run_experiment, save_experiment
 from index_research.reports import build_html_report
 from index_research.fixtures import make_fixture
+from index_research.sector_data import read_sector_history, asof_sectors, sector_exposure, concentration_metrics
+from index_research.research_analytics import rolling_relative_metrics, cost_sensitivity
 
 st.set_page_config(page_title="Index Construction Research",layout="wide")
 st.title("Equity Factor Index Construction")
@@ -32,6 +34,8 @@ with st.sidebar:
     top_n=st.number_input("Target constituents",min_value=2,max_value=500,value=10)
     method=st.selectbox("Weighting method",["equal","score","inverse_volatility"])
     cap=st.slider("Maximum stock weight",0.05,1.0,0.20,step=0.01)
+    sector_limit=st.toggle("Enable historical sector cap (requires sectors.csv)",False)
+    max_sector=st.slider("Maximum sector allocation",0.10,1.0,0.40,step=0.05,disabled=not sector_limit)
     rebalance=st.selectbox("Reconstitution / rebalancing (months)",[1,3,6,12],index=1)
     cost=st.number_input("Cost per unit turnover (bps)",0.0,500.0,10.0,5.0)
     lag=st.selectbox("Execution timing",["1 month delayed (conservative)","Same-close idealization"],index=0)
@@ -51,7 +55,7 @@ factor_weights={k:v for k,v in {
 
 def safe_zip_extract(blob: bytes, folder: Path) -> None:
     required={"prices.csv","membership.csv","benchmark.csv"}
-    allowed=required|{"fundamentals.csv"}
+    allowed=required|{"fundamentals.csv","sectors.csv"}
     if len(blob)>25*1024*1024:
         raise ValueError("ZIP upload exceeds 25 MB size limit")
     with zipfile.ZipFile(io.BytesIO(blob)) as z:
@@ -88,7 +92,8 @@ if go:
             final_test_start=final_start or None,
             dataset_status="static_universe_demo" if demo else "unverified",
             benchmark_name="synthetic_market" if demo else "user_supplied",
-            source_note="SYNTHETIC — do not cite" if demo else "User data: provenance NOT independently verified")
+            source_note="SYNTHETIC — do not cite" if demo else "User data: provenance NOT independently verified",
+            sector_cap=max_sector if sector_limit else None)
         with tempfile.TemporaryDirectory(prefix="index_research_") as temporary:
             root=Path(temporary)
             input_dir=root/"inputs"
@@ -98,9 +103,13 @@ if go:
             else:
                 safe_zip_extract(upload.getvalue(),input_dir)
             prices, membership, benchmark, fundamentals=load_research_inputs(input_dir)
-            result,scores,metadata=run_experiment(prices,membership,benchmark,fundamentals,config)
+            sector_file=input_dir/"sectors.csv"
+            sectors=asof_sectors(read_sector_history(str(sector_file)),prices.index,prices.columns) if sector_file.exists() else None
+            if config.sector_cap is not None and sectors is None:
+                raise ValueError("Historical sector cap requires sectors.csv")
+            result,scores,metadata=run_experiment(prices,membership,benchmark,fundamentals,config,sectors=sectors)
             output=root/"output"
-            save_experiment(result,scores,metadata,output,input_dir)
+            save_experiment(result,scores,metadata,output,input_dir,sectors=sectors)
             build_html_report(output)
             zipfile_path=root/"research_artifacts.zip"
             with zipfile.ZipFile(zipfile_path,"w",compression=zipfile.ZIP_DEFLATED) as archive:
@@ -113,6 +122,10 @@ if go:
                     "turnover":result.turnover,"cost":result.costs}),
                 "weights":result.weights.copy(),
                 "scores":scores.copy(),
+                "concentration":concentration_metrics(result.weights),
+                "sectors":sector_exposure(result.weights,sectors.reindex(index=result.weights.index,columns=result.weights.columns)) if sectors is not None else None,
+                "rolling":rolling_relative_metrics(result.returns,result.benchmark_returns),
+                "sensitivity":cost_sensitivity(result.gross_returns,result.turnover) if len(result.returns)>=12 else None,
                 "metadata":metadata,
                 "html":(output/"research_report.html").read_text(),
                 "archive":zipfile_path.read_bytes(),
@@ -165,6 +178,15 @@ with tabs[2]:
     latest_scores=saved["scores"].iloc[-1].dropna().sort_values(ascending=False)
     st.dataframe(latest_scores.rename("composite_score").to_frame().head(50),use_container_width=True)
     st.metric("Average one-step rank IC (descriptive)",str(meta["coverage"]["rank_ic_mean_descriptive"]))
+    st.write("**Weight concentration through time**")
+    st.plotly_chart(px.line(saved["concentration"][["hhi","largest_weight","top_five_weight"]],
+                   title="Issuer concentration history"),use_container_width=True)
+    if saved["sectors"] is not None:
+        st.write("**Historically dated sector exposures**")
+        st.plotly_chart(px.area(saved["sectors"],title="Portfolio sector weight through time"),
+                        use_container_width=True)
+    else:
+        st.info("Sector exposures unavailable: supply date-effective sectors.csv. No historical sector allocations are invented.")
 with tabs[3]:
     st.subheader("Risk, drawdown and implementation turnover")
     wealth=(1+data["strategy"]).cumprod()
@@ -172,6 +194,12 @@ with tabs[3]:
     st.plotly_chart(px.line(drawdown,labels={"value":"Drawdown","index":"Date"},title="Portfolio drawdown"),use_container_width=True)
     st.plotly_chart(px.bar(data,y="turnover",title="One-way absolute portfolio turnover"),use_container_width=True)
     st.plotly_chart(px.line(data,y="cost",title="Modeled trading-cost fraction"),use_container_width=True)
+    st.plotly_chart(px.line(saved["rolling"][["rolling_volatility","rolling_tracking_error"]],
+                    title="Rolling annualized volatility and tracking error"),use_container_width=True)
+    if saved["sensitivity"] is not None:
+        st.plotly_chart(px.line(saved["sensitivity"],x="cost_bps",y="annualized_return",
+                        markers=True,title="Fixed-trade-path cost sensitivity"),use_container_width=True)
+        st.caption("Cost sensitivity holds trade decisions fixed, not a reoptimized backtest.")
 with tabs[4]:
     st.subheader("Research provenance and limitations")
     st.json(meta)
