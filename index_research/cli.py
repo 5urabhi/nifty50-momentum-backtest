@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from .experiment import ExperimentConfig, run_from_directory
 from .reports import build_html_report
+from .pdf_report import generate_pdf_report
 
 
 def main(argv=None):
@@ -24,12 +25,15 @@ def main(argv=None):
         return
     if args.command=="report":
         print(build_html_report(args.output_dir))
+        print(generate_pdf_report(args.output_dir))
         return
     config=ExperimentConfig(**json.loads(Path(args.config).read_text())) if args.config else ExperimentConfig()
     _,meta=run_from_directory(args.input_dir,args.output_dir,config)
     path=build_html_report(args.output_dir)
+    pdf_path=generate_pdf_report(args.output_dir)
     print(json.dumps(meta["metrics_by_split"],indent=2))
-    print("Report:",path)
+    print("HTML report:",path)
+    print("PDF research draft:",pdf_path)
     print("WARNING: Results are research-only, dataset validity must be independently audited.")
 
 
