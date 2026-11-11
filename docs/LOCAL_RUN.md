@@ -252,3 +252,23 @@ python scripts/dhan_data.py monthly --instruments data/dhan/instruments.csv \
 Dhan raw OHLCV is **not** a complete point-in-time total-return dataset.
 A trustworthy index study still requires real historical membership,
 benchmark, corporate actions, publication-dated fundamentals, and data rights.
+
+
+## Research evidence / total-return preparation
+
+New local commands:
+
+```bash
+python scripts/prepare_research_data.py --help
+python -m unittest tests.test_empirical_data -v
+```
+
+See [Empirical Data Guide](EMPIRICAL_DATA_GUIDE.md) for source schemas,
+Dhan split/bonus adjustments, dividend reinvestment, publication-dated
+filings, NSE Nifty TRI conversion and the explicit evidence-review gate.
+Open **Empirical Research Readiness** in the Streamlit sidebar to see
+actual local file completeness, factor vintages and holdout readiness.
+
+No source credential, market data retrieval, tests, or deployment is
+automatically run by GitHub. The historical analysis remains unvalidated
+until independently audited inputs are provided and the local QA passes.
