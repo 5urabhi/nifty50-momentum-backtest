@@ -40,13 +40,26 @@ def matrix_csv(upload, minimum=30):
         raise ValueError(f">={minimum} fully observed finite rows required")
     return x
 
+def research_session_returns(minimum=30):
+    source=st.session_state.get("index_research_result")
+    if not source or "research_inputs" not in source:
+        raise ValueError("Run Index Research first to activate a dataset.")
+    prices=source["research_inputs"]["prices"]
+    rets=prices.pct_change(fill_method=None).iloc[1:].dropna(axis=0,how="any")
+    if len(rets)<minimum:
+        raise ValueError(f"Active research data have only {len(rets)} complete return dates; need {minimum}. Upload a separate valid CSV.")
+    return rets
+
 t1,t2,t3,t4=st.tabs(["Portfolio Theory","Tail Risk","Statistical Inference","Option Pricing"])
 
 with t1:
     st.subheader("Markowitz, risk parity, diversification and tracking-error optimization")
-    up=st.file_uploader("Upload historical monthly asset returns",type="csv",key="port")
+    active_option=st.toggle("Use active Index Research dataset",value=False,
+                                help="Applies to the current research session and does not assert that data are audited.")
+    up=st.file_uploader("Or upload historical monthly asset returns",type="csv",key="port",
+                        disabled=active_option)
     try:
-        frame=matrix_csv(up)
+        frame=research_session_returns() if active_option else matrix_csv(up)
         if frame is not None:
             if len(frame.columns)>70:raise ValueError("Interactive optimizer limited to 70 assets")
             n=len(frame.columns)
