@@ -230,9 +230,9 @@ def save_download(frame: pd.DataFrame, instrument: Instrument, folder: str | Pat
         "from_inclusive":from_date,"to_exclusive":to_date,
         "interval_minutes":interval,"row_count":len(frame),
         "sha256":digest,
-        "price_adjustment":"UNKNOWN / NOT VERIFIED",
+        "price_adjustment":"Dhan reports DAILY candles adjusted for splits and bonus shares; dividend/other action adjustment NOT established",
         "license":"User must confirm own Dhan data usage and redistribution rights",
-        "warning":"OHLCV candles are NOT automatically total-return adjusted, PIT universe data, or complete corporate action evidence."
+        "warning":"Dhan daily split/bonus adjustment does not prove dividend total returns, PIT universe data, or complete corporate-action evidence."
     }
     manifest=root/(name+".manifest.json")
     manifest.write_text(json.dumps(metadata,indent=2))
@@ -279,8 +279,9 @@ def build_monthly_close(raw_folder: str | Path, instruments: list[Instrument],
         raise FileExistsError(f"{target} exists; refusing silent overwrite")
     prices.to_csv(target,index_label="date")
     (out/"DHAN_UNADJUSTED_DATA_WARNING.txt").write_text(
-        "Dhan raw daily CLOSE resampled to calendar month-end label. This is "
-        "NOT adjusted total-return data. No index membership, corporate actions, "
+        "Dhan daily CLOSE resampled to calendar month-end label. Dhan reports "
+        "split/bonus-adjusted DAILY closes; these are NOT established dividend-reinvested "
+        "total-return data. No index membership, corporate actions, "
         "benchmark returns or fundamental vintages have been fabricated. "
         "Supply and audit membership.csv, benchmark.csv, sectors.csv and "
         "fundamentals.csv as appropriate before research use.\n")
