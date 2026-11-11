@@ -36,6 +36,8 @@ with tabs[2]:
 with tabs[3]:
     st.download_button("Offline HTML research report",data=saved["html"],
                        file_name="index_research_report.html",mime="text/html")
-    st.download_button("Reproducible CSV/JSON/HTML bundle",data=saved["archive"],
+    st.download_button("Research paper draft (PDF)",data=saved["pdf"],
+                       file_name="index_research_paper_draft.pdf",mime="application/pdf")
+    st.download_button("Reproducible CSV/JSON/HTML/PDF bundle",data=saved["archive"],
                        file_name="index_research_artifacts.zip",mime="application/zip")
     st.markdown("Open the HTML report locally. Share it publicly only after the dataset, methodology and results have been independently validated.")
