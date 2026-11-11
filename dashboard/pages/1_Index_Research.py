@@ -18,6 +18,8 @@ from index_research.fixtures import make_fixture
 from index_research.sector_data import read_sector_history, asof_sectors, sector_exposure, concentration_metrics
 from index_research.research_analytics import rolling_relative_metrics, cost_sensitivity
 from index_research.comparison import compare_index_methods
+from index_research.data_audit import audit_dataset
+from index_research.robustness import sensitivity_grid, parameter_dispersion
 from index_research.diagnostics import evaluate_factor_panel, exposure_panel, data_quality_report
 
 st.set_page_config(page_title="Index Construction Research",layout="wide")
@@ -105,6 +107,7 @@ if go:
                 make_fixture(input_dir)
             else:
                 safe_zip_extract(upload.getvalue(),input_dir)
+            audit=audit_dataset(input_dir)
             prices, membership, benchmark, fundamentals=load_research_inputs(input_dir)
             sector_file=input_dir/"sectors.csv"
             sectors=asof_sectors(read_sector_history(str(sector_file)),prices.index,prices.columns) if sector_file.exists() else None
@@ -133,6 +136,16 @@ if go:
                 comparison_warning=str(exc)
                 comparison_returns,comparison_summary=None,None
             save_experiment(result,scores,metadata,output,input_dir,sectors=sectors)
+            (output/"data_audit.json").write_text(json.dumps(audit,indent=2,allow_nan=False))
+            robustness_warning=None
+            try:
+                sensitivity=sensitivity_grid(prices,membership,benchmark,fundamentals,config,sectors=sectors,
+                    costs_bps=(0.,20.),rebalance_months=(1,3),execution_lags=(0,1),
+                    segment="validation" if config.validation_start else "full_history")
+                sensitivity.to_csv(output/"sensitivity_grid.csv",index=False)
+            except (ValueError,RuntimeError) as exc:
+                robustness_warning=str(exc)
+                sensitivity=None
             build_html_report(output)
             generate_pdf_report(output)
             zipfile_path=root/"research_artifacts.zip"
@@ -160,6 +173,9 @@ if go:
                 "comparison_returns":comparison_returns,
                 "comparison_summary":comparison_summary,
                 "comparison_warning":comparison_warning,
+                "audit":audit,
+                "robustness":sensitivity,
+                "robustness_warning":robustness_warning,
                 "html":(output/"research_report.html").read_text(),
                 "pdf":(output/"research_paper_draft.pdf").read_bytes(),
                 "archive":zipfile_path.read_bytes(),
