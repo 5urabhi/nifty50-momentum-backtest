@@ -96,3 +96,25 @@ quality, missing corporate actions, regulatory index maintenance rules,
 delistings, implementation price/impact, source-history licensing, historical
 sector-vintage quality and a truly frozen final holdout cannot be proven by
 source code alone. Empirical conclusions remain blocked.
+
+
+## Full integration additions
+
+- Historical sectors are loaded from effective-date `sectors.csv`,
+  represented as an as-of date-by-security matrix, and passed into the
+  bounded selection optimizer. Missing classifications are not fabricated.
+- Computed concentration (HHI/effective issuers), historical sector
+  allocations, rolling benchmark-relative metrics, and cost sensitivity
+  are exported with the run.
+- Independent single-factor rank IC and holding-period factor exposures
+  are calculated using historical signals and exposed in the Factor Laboratory.
+- Controlled momentum, low-volatility, and configured composite variants
+  share input dates, benchmarking rules and implementation-cost assumptions.
+  They are **not** parameter-selection-adjusted research evidence.
+- The local Streamlit UI includes executive overview, Factor Laboratory,
+  Index Construction, Index Comparisons, Risk/Turnover, mathematical
+  model demonstrations, rolling validation, and PDF/HTML report export.
+- `scripts/local_acceptance.py` defines one user-triggered local run with
+  synthetic data, a model test suite and dashboard smoke tests.
+- The HTML/PDF report is a draft based on calculated artifacts. There is
+  no independent validation of source data or empirical findings.
