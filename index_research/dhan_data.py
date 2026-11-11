@@ -25,6 +25,11 @@ from urllib.request import Request, urlopen
 
 import numpy as np
 import pandas as pd
+from dotenv import load_dotenv
+
+# Load only the repository-local .env, never write secrets to source files.
+# An explicitly exported environment variable takes precedence.
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env", override=False)
 
 BASE = "https://api.dhan.co/v2"
 MASTER_URL = "https://images.dhan.co/api-data/api-scrip-master-detailed.csv"
