@@ -249,3 +249,17 @@ Never embed secrets in web bundles, CSV exports, manifests or public plots.
 
 The Streamlit **Dhan Data Setup** page shows local instrument-mapping status,\nrequired data readiness, and 2D charts of downloaded raw closes/volumes. It\nnever asks for your token or invokes order endpoints.\n\n**No orders, trading automation, broker secrets or investment advice are part
 of this read-only historical-data integration.**
+
+## Preparing dividend-reinvested total-return series
+
+**Source clarification:** Dhan specifically states that its **daily** history
+is adjusted for splits and bonus shares. The daily historical-candle docs do
+not certify that cash dividends and delisting payoffs are already reinvested.
+Use the new `scripts/prepare_research_data.py total-returns` command with a
+**sourced, verified** corporate action ledger and the default
+`--price-basis split_bonus_adjusted` to avoid double-counting stock splits.
+
+The returned month-end `prices.csv` is a normalized *wealth-index* matrix,
+not a quoted rupee stock-price matrix. Its percent changes represent modeled
+shareholder returns under the documented dividend convention. Read the
+[Empirical Data Guide](EMPIRICAL_DATA_GUIDE.md) before using it.
