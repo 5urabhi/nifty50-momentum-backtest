@@ -3,6 +3,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
+from .math_models import minimum_variance
+from .portfolio_theory import risk_parity
 
 
 @dataclass(frozen=True)
@@ -31,15 +33,20 @@ def construct_weights(scores: pd.DataFrame, membership: pd.DataFrame,
         raise ValueError("scores/membership alignment required")
     if top_n < 1 or rebalance_every < 1 or cap <= 0 or cap > 1:
         raise ValueError("invalid index construction parameters")
-    if weighting not in {"equal", "score", "inverse_volatility"}:
+    if weighting not in {"equal", "score", "inverse_volatility", "minimum_variance", "risk_parity"}:
         raise ValueError("unsupported weighting")
     if sector_cap is not None and (sectors is None or not 0 < sector_cap <= 1):
         raise ValueError("sector cap requires valid sector mapping")
-    if weighting == "inverse_volatility" and prices is None:
+    if weighting in {"inverse_volatility", "minimum_variance", "risk_parity"} and prices is None:
         raise ValueError("historical prices required for inverse volatility")
     vol = None
-    if prices is not None and weighting == "inverse_volatility":
-        vol = prices.pct_change(fill_method=None).shift(1).rolling(vol_lookback, min_periods=vol_lookback).std()
+    lagged_returns = None
+    if prices is not None and weighting in {"inverse_volatility", "minimum_variance", "risk_parity"}:
+        if not prices.index.equals(scores.index) or not prices.columns.equals(scores.columns):
+            raise ValueError("historical price panel must align")
+        lagged_returns=prices.pct_change(fill_method=None).shift(1)
+        if weighting == "inverse_volatility":
+            vol = lagged_returns.rolling(vol_lookback, min_periods=vol_lookback).std()
     output = pd.DataFrame(np.nan, index=scores.index, columns=scores.columns)
     for i, date in enumerate(scores.index):
         if i % rebalance_every:
@@ -56,11 +63,20 @@ def construct_weights(scores: pd.DataFrame, membership: pd.DataFrame,
             raw = pd.Series(1.0, index=selected.index)
         elif weighting == "score":
             raw = (selected - selected.min() + 0.1).clip(lower=0.1)
-        else:
+        elif weighting == "inverse_volatility":
             asset_vol = vol.loc[date, selected.index]
             if asset_vol.isna().any() or (asset_vol <= 0).any():
                 raise ValueError("not enough prior volatility data for selected names")
             raw = 1 / asset_vol
+        else:
+            history=lagged_returns.loc[:date,selected.index].tail(vol_lookback)
+            if len(history)<3 or history.isna().any().any():
+                raise ValueError("insufficient lagged complete covariance history")
+            covariance=history.cov()*12
+            if weighting == "minimum_variance":
+                raw = minimum_variance(covariance,max_weight=cap).weights
+            else:
+                raw = risk_parity(covariance,max_weight=cap).weights
         target = (raw / raw.sum()).to_numpy(dtype=float)
         keys = list(selected.index)
         constraints = [{"type":"eq","fun":lambda w: np.sum(w) - 1}]
