@@ -15,9 +15,7 @@
 
 **Personal quantitative research workstation — run your own Python models, tests and local reports. Not a company product.**
 
-You do **not** need Redis, Docker, a database, a globally installed Python
-package, Dhan credentials, Streamlit on Vercel, or a paid backend to view the
-public-facing research website. The Vite website is a static React application.
+You do **not** need Redis, Docker, Vite, npm, or Dhan credentials to run your personal Python research dashboard. The optional React showcase is separate.
 
 ## Already cloned? Run ONE command
 
@@ -35,14 +33,14 @@ checks Ubuntu system tools, installs Python dependencies into `.venv`, reads you
 
 **Research dashboard:** http://127.0.0.1:8501
 
-Leave the terminal open while using the website. Press **Ctrl+C** to stop it.
+Leave the terminal open while using the research dashboard. Press **Ctrl+C** to stop it.
 Future launches only need:
 
 ```bash
 cd ~/Desktop/codes/nifty50-momentum-backtest && bash run.sh
 ```
 
-No Dhan token is required to browse the educational mathematical explainers.
+No Dhan token is required for synthetic experiments or local mathematical models.
 No market performance is fabricated.
 
 ## First time — no clone yet?
@@ -93,14 +91,14 @@ or persistent background daemon is required. No GitHub Actions are created.
 
 - Ubuntu/Debian `apt-get` (the automated path currently targets these OSes).
 - Missing Git, curl, CA certificates and xz utilities.
-- Node.js/npm version. A compatible system Node is used if present.
+- **Only in web/both/setup modes:** Node.js/npm version. A compatible system Node is used if present.
   Otherwise a **fixed Node.js v22.16.0 LTS Linux binary** is downloaded
   directly from nodejs.org and verified against its published SHA-256 list.
   It is installed inside ignored `.local-tools/`, not globally or via
   `curl | bash`. Downloads need internet access.
-- `npm install` or `npm ci` if a package lock exists, with reinstall
+- **Only in web/both/setup modes:** `npm install` or `npm ci` if a package lock exists, with reinstall
   skipping when dependencies and package metadata have not changed.
-- A TypeScript check and `npm run build` **before** opening Vite.
+- **Only in web/both/setup modes:** a TypeScript check and `npm run build` **before** opening Vite.
 - For Python modes only: system Python 3.11+, `python3-venv`,
   an isolated `.venv`, and `requirements.txt` dependencies.
 - In Python modes only: an ignored `.env` template is created if absent.
@@ -116,10 +114,11 @@ secrets) for debugging. An already configured `.env` is never overwritten.
 
 ## Dhan API — optional research data
 
-For raw historical data collection, start Python setup, then edit the token:
+For raw historical data collection, start the local research environment (no npm setup required), then edit the token:
 
 ```bash
-bash run.sh setup
+bash run.sh research
+# In another terminal:
 nano .env
 ```
 
@@ -192,11 +191,11 @@ TRI benchmark and source-rights review. The website cannot manufacture them.
 | Message | Resolution |
 | --- | --- |
 | `bash: run.sh: No such file` | Run `git pull --ff-only origin research/multi-factor-equity-index` from the correct project folder |
-| `npm: command not found` | Use `bash run.sh` rather than running npm directly; it will install a verified local Node runtime |
+| `npm: command not found` | npm is only needed for optional `bash run.sh web` or `both`, and the launcher will install a local compatible Node runtime |
 | `pip/pandas: ModuleNotFoundError` | Use `bash run.sh research` or `./.venv/bin/python` (not system `python3`) |
 | Port 5173 already used | Stop the earlier Vite session with Ctrl+C |
 | Port 8501 already used | Stop the earlier Streamlit session |
-| Frontend TypeScript error | The launcher stops before serving; share the compiler output |
+| Frontend TypeScript error | Only applies to optional `web`/`both` modes; share the compiler output |
 | Cannot contact Node official download | Check HTTPS access to nodejs.org; retry later or install a compatible Node LTS manually |
 | Dhan token missing or expired | `nano .env`, set a valid current DhanHQ access token |
 | No historical return plots | Expected until real-market research data are separately approved and exported |
