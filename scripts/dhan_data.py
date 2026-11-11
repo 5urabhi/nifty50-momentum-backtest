@@ -9,6 +9,10 @@ from pathlib import Path
 import pandas as pd
 from urllib.request import Request, urlopen
 
+# Make project imports work when invoked directly as python scripts/<name>.py.
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from index_research.dhan_data import (
     BASE, MASTER_URL, Instrument, build_monthly_close,
     download_candles, read_instruments, save_download
