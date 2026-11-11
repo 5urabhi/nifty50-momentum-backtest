@@ -6,9 +6,60 @@ import streamlit as st
 
 st.set_page_config(page_title="Equity Index Quant Research",page_icon="📈",layout="wide",
                    initial_sidebar_state="expanded")
+from dashboard.workstation_nav import PAGES, show_workflow_nav
+show_workflow_nav()
 st.title("Equity Index Quantitative Research")
-st.caption("Your personal Python research workstation · Run models, inspect graphs, and generate reproducible evidence")
-st.info("Personal quantitative research laboratory—not a company website. Use it to run models, validate methodology, and produce evidence for a research portfolio.")
+st.caption("YOUR LOCAL WORKSTATION · Data → Experiments → Mathematical models → Evidence")
+st.markdown("## Research workflow")
+st.write("All modules are connected through the left navigation and the active experiment in this session. Start anywhere, or follow the numbered stages below.")
+stages=st.tabs(["① Data", "② Run Experiments", "③ Explore Models", "④ Validate", "⑤ Reports"])
+with stages[0]:
+    st.subheader("Collect and inspect Dhan market history")
+    st.page_link("dashboard/pages/12_Dhan_Data_Setup.py",label="Open Dhan Historical Data Manager",icon="📥")
+    st.page_link("dashboard/pages/13_Empirical_Readiness.py",label="Check historical evidence readiness",icon="🧾")
+    st.caption("Master → symbol search → verified security ID mapping → download → charts → monthly inputs. No terminal downloader required.")
+with stages[1]:
+    st.subheader("Construct and run your index strategy")
+    st.page_link("dashboard/pages/1_Index_Research.py",label="Open Index Research",icon="📈")
+    st.page_link("dashboard/pages/6_Factor_Laboratory.py",label="Factor Laboratory",icon="🧮")
+    st.page_link("dashboard/pages/7_Index_Comparisons.py",label="Index Comparisons",icon="⚖️")
+    st.caption("Choose a local dataset or labeled synthetic fixture, configure models, and run. Outputs are shared across analysis pages.")
+with stages[2]:
+    st.subheader("Run mathematical and statistical models")
+    for link,label,icon in [
+        ("dashboard/pages/3_Advanced_Mathematics.py","Portfolio optimization · statistical inference","📐"),
+        ("dashboard/pages/5_Quantitative_Models.py","Stochastic processes · options","🔬"),
+        ("dashboard/pages/2_Model_Comparison.py","PCA, GARCH and model comparison","📊")]:
+        st.page_link(link,label=label,icon=icon)
+with stages[3]:
+    st.subheader("Check robustness and model assumptions")
+    for link,label,icon in [
+        ("dashboard/pages/4_Rolling_Validation.py","Out-of-sample model diagnostics","⏱️"),
+        ("dashboard/pages/10_Visual_Validation.py","2D / 3D mathematical validation","🌀"),
+        ("dashboard/pages/9_Risk_Attribution.py","Portfolio risk attribution","🎯"),
+        ("dashboard/pages/9_Robustness.py","Robustness and audit","🛡️")]:
+        st.page_link(link,label=label,icon=icon)
+with stages[4]:
+    st.subheader("Review evidence and export your research")
+    st.page_link("dashboard/pages/8_Research_Report.py",label="Research Report and downloads",icon="📑")
+    st.markdown("For full local test reports, run `bash run.sh evaluate` in another terminal. The generated reports are saved under `results/`.")
+    st.warning("Synthetic and unverified market results are NOT résumé-ready performance claims.")
+
+st.divider()
+st.subheader("Workspace status")
+selected=st.session_state.get("research_input_dir")
+current=st.session_state.get("index_research_result")
+h1,h2,h3=st.columns(3)
+h1.metric("Selected data folder", Path(selected).name if selected else "None")
+h2.metric("Active experiment", "Synthetic" if current and current.get("demo") else ("Unverified" if current else "None"))
+h3.metric("Local Dhan daily files", len(list((Path(__file__).resolve().parents[1]/"data"/"dhan"/"raw").glob("**/*_daily.csv"))))
+if selected:
+    st.info("Selected folder: "+str(selected)+" · Evidence must be reviewed before market claims.")
+if current:
+    st.success("An experiment is active. Factor Laboratory, Index Comparisons, Risk Attribution, Robustness and Research Report can use the current session results.")
+
+
+
 
 saved=st.session_state.get("index_research_result")
 if not saved:
