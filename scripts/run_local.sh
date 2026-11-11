@@ -24,6 +24,9 @@ case "$MODE" in
   visuals)
     .venv/bin/python scripts/export_visual_validation.py --output-dir results/visual_validation
     ;;
+  empirical-help)
+    .venv/bin/python scripts/prepare_research_data.py --help
+    ;;
   dashboard)
     .venv/bin/streamlit run dashboard/app.py
     ;;
@@ -31,6 +34,6 @@ case "$MODE" in
     .venv/bin/python scripts/local_acceptance.py
     ;;
   *)
-    echo "Usage: bash scripts/run_local.sh {setup|tests|synthetic|legacy|dashboard|acceptance}"
+    echo "Usage: bash scripts/run_local.sh {setup|tests|synthetic|legacy|dashboard|acceptance|empirical-help}"
     ;;
 esac
