@@ -20,7 +20,7 @@ def construct_weights(scores: pd.DataFrame, membership: pd.DataFrame,
                       top_n: int = 20, weighting: str = "equal",
                       cap: float = 0.15, rebalance_every: int = 3,
                       prices: pd.DataFrame | None = None, vol_lookback: int = 12,
-                      sectors: dict[str, str] | None = None,
+                      sectors: dict[str, str] | pd.DataFrame | None = None,
                       sector_cap: float | None = None) -> pd.DataFrame:
     """Rank scores at decision close; reconstitution at every k-th observation.
 
@@ -65,10 +65,19 @@ def construct_weights(scores: pd.DataFrame, membership: pd.DataFrame,
         keys = list(selected.index)
         constraints = [{"type":"eq","fun":lambda w: np.sum(w) - 1}]
         if sector_cap is not None:
-            if any(k not in sectors for k in keys):
-                raise ValueError("missing sector classification")
-            for sector in sorted(set(sectors[k] for k in keys)):
-                mask = np.array([sectors[k] == sector for k in keys])
+            if isinstance(sectors, pd.DataFrame):
+                if not sectors.index.equals(scores.index) or not sectors.columns.equals(scores.columns):
+                    raise ValueError("effective-dated sector matrix must match scores")
+                current_sectors = sectors.loc[date].reindex(keys)
+                if current_sectors.isna().any():
+                    raise ValueError(f"missing effective-dated sector at {date}")
+                mapping = current_sectors.to_dict()
+            else:
+                mapping = sectors
+                if any(k not in mapping for k in keys):
+                    raise ValueError("missing sector classification")
+            for sector in sorted(set(mapping[k] for k in keys)):
+                mask = np.array([mapping[k] == sector for k in keys])
                 constraints.append({"type":"ineq", "fun": lambda w,mask=mask: sector_cap - w[mask].sum()})
         opt = minimize(lambda w: float(((w-target)**2).sum()), np.full(len(keys), 1.0/len(keys)),
                        method="SLSQP",bounds=[(0,cap)]*len(keys),constraints=constraints,
