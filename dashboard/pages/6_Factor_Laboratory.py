@@ -3,8 +3,10 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 
 st.set_page_config(page_title="Factor Research Laboratory",layout="wide")
+show_workflow_nav()
 st.title("Factor Research Laboratory")
 st.caption("Factor selection, robustness, information coefficients and portfolio exposure")
 saved=st.session_state.get("index_research_result")
