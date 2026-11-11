@@ -24,7 +24,10 @@ case "$MODE" in
   dashboard)
     .venv/bin/streamlit run dashboard/app.py
     ;;
+  acceptance)
+    .venv/bin/python scripts/local_acceptance.py
+    ;;
   *)
-    echo "Usage: bash scripts/run_local.sh {setup|tests|synthetic|legacy|dashboard}"
+    echo "Usage: bash scripts/run_local.sh {setup|tests|synthetic|legacy|dashboard|acceptance}"
     ;;
 esac
