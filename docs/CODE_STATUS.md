@@ -352,3 +352,26 @@ This is a **code-authored web presentation**, not a confirmed production
 deployment. The current environment cannot independently download and build
 the GitHub repository, and the frontend has not yet passed `npm run build`
 or visual browser inspection. See [Public website and video guide](SHOWCASE_AND_VIDEO.md).
+
+
+## Canonical one-command Ubuntu launcher (November 11, 2026)
+
+- `run.sh` is now the single public setup/start command; implementation
+  lives in `scripts/start.sh`.
+- Default mode installs only the missing Node/Vite prerequisites, verifies
+  the production frontend build, and runs the local research website.
+- `research`, `both`, `check` and `setup` modes additionally provision
+  isolated Python dependencies from root `requirements.txt`.
+- Portable Node.js is downloaded only if needed, directly from the official
+  distribution with SHA-256 verification; no third-party curl-to-shell,
+  Redis, Docker, or global npm package requirements.
+- Source tokens are read from ignored `.env` by the Python Dhan adapter
+  and never embedded in the React client bundle.
+- `GETTING_STARTED.md` is the canonical beginner-to-advanced guide;
+  the main README links it at the top.
+
+**Validation boundary:** Authored on GitHub development branch. This
+tool environment cannot resolve github.com to clone and run the repository
+for local shell/Node verification. Final one-command smoke test, TypeScript
+build, and browser review must run on Ubuntu before considering the installer
+production-verified. No deployment or merge has occurred.
