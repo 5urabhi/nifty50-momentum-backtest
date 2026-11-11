@@ -113,3 +113,14 @@ factor-specific rank IC, portfolio factor exposures, optional sector exposure,
 cost sensitivity, comparison variants, experiment manifest with source hashes,
 a self-contained HTML report, and an offline PDF research-paper draft.
 These files are descriptive until market source evidence is independently audited.
+
+## corporate_actions.csv (optional EVIDENCE ONLY)
+
+Use `date,ticker,event_type,event_source` rows to document relevant
+corporate-action events and their primary source. This file is validated by
+`data_audit.py` and included in the local evidence manifest, **but is not
+used to transform price series or estimate delisting payouts**. Adjusted
+prices/return conventions must already incorporate the appropriate dividend,
+split, merger, spin-off and other economic outcomes before simulations.
+Never claim adjusted total-return or survivorship-free accuracy from the
+presence of this metadata file alone.
