@@ -209,3 +209,22 @@ Python compute is configured.
 
 The implementation is ready **for local QA**, not for a verified empirical
 performance claim. No Actions workflows, deployment or merge was performed.
+
+## Visual validation and presentation
+
+The **Visual Validation Laboratory** adds interactive 2D and 3D Plotly charts,
+with analytical reference values and numerical PASS/FAIL checks. Option-price
+and Greek surfaces, a three-asset portfolio risk simplex, CRR/Monte Carlo
+pricing convergence, GBM confidence bands and risk contribution checks are
+available without external market data. Uploaded market observations can be
+used for rolling variance forecast diagnostics.
+
+```bash
+bash scripts/run_local.sh visuals
+```
+
+This exports a **self-contained interactive HTML report**, machine-readable
+chart data and a deterministic mathematical-check manifest to
+`results/visual_validation/`. The local Streamlit sidebar also contains the
+**Visual Validation** page. All mathematical fixtures are distinctly labeled
+as hypothetical; they do not validate the Nifty backtest.
