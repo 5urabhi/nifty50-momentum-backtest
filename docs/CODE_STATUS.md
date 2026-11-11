@@ -281,3 +281,26 @@ workflow. See [Dhan onboarding](DHAN_API_SETUP.md).
 See [Empirical Data Guide](EMPIRICAL_DATA_GUIDE.md). No credible
 historical outperformance claim or resume result can be produced from an
 unsourced event ledger or from the legacy survivorship-biased universe.
+
+
+## Final input-infrastructure implementation (November 11, 2026)
+
+The new `total_returns.py`, `fundamental_ingestion.py`,
+`benchmark_ingestion.py` and `empirical_validation.py` modules include
+canonical event schemas, guards against double-adjustment, filing vintage
+controls, strict benchmark convention, reproducible hashes and an evidence
+review gate. `data_audit.py` now validates the same corporate-action ledger
+schema rather than the older incompatible format. An Empirical Readiness
+dashboard page visualizes actual local input presence.
+
+**Code status:** Implemented for the defined dividend/split/bonus and sourced
+terminal cash events, dated filing proxies, and benchmark import.
+
+**Not supported:** Rights, spinoffs, mergers with exchange consideration,
+unobserved delisting recoveries, missing cash dividends, and a production
+execution simulator. These cannot be called complete from a formula alone.
+
+**Empirical study status:** Blocked pending genuine historical stock price
+vintages and corporate actions, filing disclosures, index membership history,
+sectors, NIFTY TRI levels, data rights, and independent review. Local
+testing/visual verification remains pending. No GitHub Actions were added.
