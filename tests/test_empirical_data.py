@@ -52,6 +52,28 @@ class MarketResearchInputTests(unittest.TestCase):
         self.assertAlmostEqual(r.wealth_index.iloc[-1],1.1)
         self.assertAlmostEqual(a.wealth_index.iloc[-1],1.1)
 
+    def test_presplit_dividend_on_adjusted_share_basis(self):
+        dates=pd.date_range("2024-01-02",periods=4,freq="D")
+        # Dhan-like backwards adjusted prices (post 2:1 split units).
+        adjusted=pd.Series([50.,49.,49.,49.],index=dates)
+        dividend=self.events(cash_per_share=2.)
+        split=self.events(ex_date="2024-01-04",event_type="split",
+                          cash_per_share=0.,share_multiplier=2.)
+        events=pd.concat([dividend,split],ignore_index=True)
+        wealth=total_return_index(adjusted,events,ticker="AAA",
+                                  price_basis="split_bonus_adjusted")
+        # Pre-split ₹2 dividend per OLD share = ₹1 per adjusted share.
+        self.assertAlmostEqual(wealth.simple_return.iloc[1],0.)
+
+    def test_delisting_recovery_replaces_terminal_price(self):
+        p=pd.Series([100.,80.,70.],index=self.days)
+        cash=self.events(ex_date="2024-01-04",event_type="delisting_cash",
+                         cash_per_share=60.,share_multiplier=1.)
+        result=total_return_index(p,cash,ticker="AAA",
+                                  price_basis="split_bonus_adjusted")
+        self.assertAlmostEqual(result.simple_return.iloc[-1],60/80-1.)
+        # Old erroneous approach (70 + 60) / 80 would inflate wealth.
+
     def test_no_double_dividend_adjustment(self):
         p=pd.Series([100.,102.,104.],index=self.days)
         with self.assertRaises(ValueError):
