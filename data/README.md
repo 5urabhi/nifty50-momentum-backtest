@@ -61,3 +61,28 @@ Static-universe demonstrations lack historical membership validity. Missing
 factor vendor coverage, dividend adjustments or benchmark licenses must be
 reported, not silently filled with estimates. A public resume claim requires
 audited source evidence, frozen specifications and out-of-sample reproduction.
+
+
+## sectors.csv (optional; mandatory for sector caps)
+
+Effective-dated historical sector classification events:
+```csv
+date,ticker,sector
+2020-01-31,STOCK_A,Banking
+2020-01-31,STOCK_B,Consumer
+2022-04-30,STOCK_A,Financial Services
+```
+
+All **held** securities must be classified on the relevant historical date.
+A missing classification cannot be inferred from the present-day sector label.
+The local fixture now includes `sectors.csv`, with explicitly synthetic names.
+A sector cap is enforced on the weight vector at each scheduled reconstitution;
+post-rebalance weights can drift over the cap until the next rebalance.
+
+## Research controls and documentation
+
+The data contract does not by itself reconstruct historical NSE membership,
+benchmark constituents, official factor definitions or delisting payouts. The
+research code fails on missing held-price observations rather than inserting
+fictional recoveries. Production-correct corporate-action and investability
+support still requires licensed event histories and a documented rulebook.
