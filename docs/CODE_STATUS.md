@@ -304,3 +304,28 @@ execution simulator. These cannot be called complete from a formula alone.
 vintages and corporate actions, filing disclosures, index membership history,
 sectors, NIFTY TRI levels, data rights, and independent review. Local
 testing/visual verification remains pending. No GitHub Actions were added.
+
+
+## Mathematical research code — acceptance-focused completion pass
+
+**Scope status:** All previously discussed CORE mathematical model families
+for this independent equity-index research prototype have source-code
+implementations. A formal acceptance matrix now lives at
+[Mathematical Acceptance](MATHEMATICAL_ACCEPTANCE.md).
+
+| Mathematical gate | Code status | Local execution |
+| --- | --- | --- |
+| BSM pricing, finite-difference Greeks, lattice and Monte Carlo | Implemented + independent assertions | Pending |
+| Minimum-variance closed-form identity | Implemented + independent assertion | Pending |
+| Risk parity budget feasibility and Euler risk contributions | Implemented with residual rejection | Pending |
+| Black-Litterman zero-residual view and CVaR LP | Implemented + assertions | Pending |
+| GBM, OU, Heston and jump process mathematical invariants | Implemented + assertions | Pending |
+| Covariance index weights drift + realized turnover/cost | Corrected + assertions | Pending |
+| Rolling optional GARCH and fair common-date QLIKE/MSE | Implemented with convergence tracking | Pending |
+| Local consolidated numerical evidence | `scripts/verify_mathematics.py` | Pending |
+| Charts, real-data validation, broker/market calibration | Code infrastructure exists | Not empirically verified |
+
+Do **not** mark numerical correctness or real-market performance as complete
+until local tests actually pass. Complex vendor-specific financial events and
+external historical data are separate research-data gates, not mathematical
+formula gaps.
