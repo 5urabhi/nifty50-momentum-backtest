@@ -199,3 +199,34 @@ upload the research inputs or select synthetic demonstration, and click
 executive overview, Factor Laboratory, Index Comparisons, Advanced
 Mathematics and Research Report pages. The PDF is a draft generated from
 the input manifest; it must not be presented as an audited empirical study.
+
+## Visual Validation Laboratory (2D + 3D)
+
+A dedicated **Visual Validation** page is included in the Streamlit sidebar.
+It provides interactive **2D** plots for pricing convergence, GBM moments,
+portfolio risk contributions and (with real uploaded observations) rolling
+volatility model diagnostics. Interactive **3D** views show theoretical
+Black-Scholes option/Greek surfaces and a feasible three-asset portfolio
+volatility landscape.
+
+Each mathematical check includes the observed result, reference value,
+numerical tolerance and PASS/FAIL badge. PASS is **not** historical
+market-model validation. There are no fabricated backtest results.
+
+Generate a shareable, self-contained offline HTML mathematical test report
+(and separate CSV and JSON evidence) without starting Streamlit:
+
+```bash
+bash scripts/run_local.sh visuals
+# or
+python scripts/export_visual_validation.py --output-dir results/visual_validation
+```
+
+Open `results/visual_validation/visual_validation_report.html` in a browser.
+The interactive Plotly JavaScript is embedded, so this file works offline.
+Numerical checks are in `mathematical_checks.csv`, model grids in separate
+CSV files, and a test summary in `visual_validation_manifest.json`.
+
+The additional test file is `tests/test_visual_validation.py`; it is included
+in the normal future **local** `unittest` discovery command. Neither this
+feature nor the charts are executed in GitHub Actions.
