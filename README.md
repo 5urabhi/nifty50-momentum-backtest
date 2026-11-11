@@ -70,6 +70,27 @@ the other model pages and Research Report to explore and export results.
 Nifty strategy earns money. Portfolio-worthy historical performance must be
 recomputed using verified point-in-time sources and an approved benchmark.
 
+### Inside the workstation — no terminal data-download commands
+
+1. **Data → Dhan Data Manager:** Download instrument master, search symbols,
+   confirm Security IDs, maintain a local watchlist, download historical
+   OHLCV, and explore observed prices and volumes.
+2. **Data → Prepare for models:** Convert saved daily candles to month-end
+   price observations and select the dataset.
+3. **Empirical Readiness:** Upload independently sourced membership,
+   benchmark, fundamentals, corporate actions or adjusted price files
+   through the UI. Missing evidence remains a hard blocker.
+4. **Index Research:** Run a configured factor experiment using that local
+   folder, a ZIP, or a clearly labeled synthetic fixture.
+5. **Labs → Model Comparison / Rolling Validation / Advanced Mathematics:**
+   Explore analytical models and optionally reuse the active experiment.
+6. **Reports → Saved Run History:** Reopen locally persisted run artifacts,
+   plots, validation tables, HTML/PDF research drafts and ZIP exports.
+
+Every page includes a grouped **WORKSTATION WORKFLOW** navigation menu.
+There are no trading/order actions and no invented historical data. Full
+instructions: [dashboard/README.md](dashboard/README.md).
+
 ## Architecture
 
 ```text
