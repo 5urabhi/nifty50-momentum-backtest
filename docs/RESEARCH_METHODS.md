@@ -118,3 +118,27 @@ source code alone. Empirical conclusions remain blocked.
   synthetic data, a model test suite and dashboard smoke tests.
 - The HTML/PDF report is a draft based on calculated artifacts. There is
   no independent validation of source data or empirical findings.
+
+
+## Integrated index and research sensitivity decisions
+
+The index weighting options now include equal, score, inverse historical
+volatility, **minimum-variance**, and **risk parity**. Covariance methods use
+historical returns lagged before the decision date. Minimum variance and risk
+parity are integrated with constituent caps and optional effective-dated sector
+constraints. Numerical solver feasibility is reported as an error, not silently
+overridden.
+
+The dashboard and terminal runner additionally produce matched factor
+methodology comparisons, development/validation sensitivity grids, data audits,
+rolling relative-risk analyses and HTML/PDF research report drafts. The
+robustness tool intentionally rejects parameter search on `final_test`.
+This does not prevent researchers from informally overfitting after reading
+results, so preregistration and audit of research choices remain essential.
+
+Monthly backtests do **not** model true exchange execution, transaction
+taxes, trades at uncertain prices, mergers/spin-offs, rights issues, dividends
+from unadjusted source prices, forced delisting cashflows, or a complete
+maintenance rulebook. Those matters need trustworthy licensed event data and
+execution policies. This version blocks missing held prices rather than
+inventing returns.
