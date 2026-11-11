@@ -239,3 +239,28 @@ financial observations separately. Mathematical PASS badges refer only to
 explicit numeric tolerances, not to source-data integrity or investable
 performance. 3D plots are included where they reveal an additional meaningful
 dimension; time-series validation remains 2D for readability.
+
+## DhanHQ data integration — implementation scope
+
+| Requirement | Code status | UI status | Verification |
+| --- | --- | --- | --- |
+| Dhan API authentication via local environment token | Implemented, read-only | Token presence indicator only | Live entitlement/token untested |
+| Detailed Dhan scrip-master download | Implemented | Instructions visible | Live download untested |
+| Local instrument symbol/security ID search | Implemented | Mapping status and values displayed | Live master schema untested |
+| Daily historical OHLCV downloads | Implemented | Local terminal action documented | Live API response untested |
+| Intraday candles and 90-day chunking | Implemented | Local terminal action documented | Live API response untested |
+| Retry/backoff, strict OHLCV checks, timezone conversion | Implemented | Failure guidance provided | Mock tests written, not executed |
+| Raw candle/volume preview charts | Implemented | Dhan Data Setup page | Visual QA pending |
+| Monthly CLOSE matrix and SHA-256 provenance | Implemented | Local file readiness checklist | Local QA pending |
+| Authentic historical Nifty constituents | **Not supplied by Dhan candles** | Required-input warning | External licensed history required |
+| Verified total-return price adjustments and corporate-action payouts | **Not supplied by current adapter** | Raw/unadjusted warning | External event data and independent validation |
+| Point-in-time Value/Quality/Size fundamentals | **Not supplied by current adapter** | Required-input warning | External primary/vendor source |
+| Official compatible benchmark series | **Not supplied by current adapter** | Required-input warning | External index history |
+| Local adapter tests | `tests/test_dhan_data.py` written | N/A | **Not run locally** |
+| Vercel-hosted API backend | Intentionally not built | Static preview separate | Future architecture; never expose token in JS |
+
+**Classification:** The scoped **Dhan historical-candle connector is code-authored
+but not runtime-verified**. The entire equity-index empirical research product
+cannot be called fully verified until the other point-in-time sources and
+correct corporate-action policies are available. There is no GitHub Actions
+workflow. See [Dhan onboarding](DHAN_API_SETUP.md).
