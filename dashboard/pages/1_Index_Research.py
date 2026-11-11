@@ -13,6 +13,7 @@ import streamlit as st
 from index_research.data import load_research_inputs
 from index_research.experiment import ExperimentConfig, run_experiment, save_experiment
 from index_research.reports import build_html_report
+from index_research.pdf_report import generate_pdf_report
 from index_research.fixtures import make_fixture
 from index_research.sector_data import read_sector_history, asof_sectors, sector_exposure, concentration_metrics
 from index_research.research_analytics import rolling_relative_metrics, cost_sensitivity
@@ -111,6 +112,7 @@ if go:
             output=root/"output"
             save_experiment(result,scores,metadata,output,input_dir,sectors=sectors)
             build_html_report(output)
+            generate_pdf_report(output)
             zipfile_path=root/"research_artifacts.zip"
             with zipfile.ZipFile(zipfile_path,"w",compression=zipfile.ZIP_DEFLATED) as archive:
                 for file in output.iterdir():
@@ -128,6 +130,7 @@ if go:
                 "sensitivity":cost_sensitivity(result.gross_returns,result.turnover) if len(result.returns)>=12 else None,
                 "metadata":metadata,
                 "html":(output/"research_report.html").read_text(),
+                "pdf":(output/"research_paper_draft.pdf").read_bytes(),
                 "archive":zipfile_path.read_bytes(),
                 "demo":demo,
             }
