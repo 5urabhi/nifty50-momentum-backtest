@@ -86,6 +86,9 @@ def run_complete_acceptance(include_streamlit: bool=True,include_legacy: bool=Fa
                 "dashboard/pages/9_Risk_Attribution.py",
                 "dashboard/pages/9_Robustness.py",
                 "dashboard/pages/10_Visual_Validation.py",
+                "dashboard/pages/11_Run_History.py",
+                "dashboard/pages/12_Dhan_Data_Setup.py",
+                "dashboard/pages/13_Empirical_Readiness.py",
             ]
             for name in pages:
                 app=AppTest.from_file(str(ROOT/name),default_timeout=60).run()
