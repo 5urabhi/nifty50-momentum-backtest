@@ -1,0 +1,2 @@
+ex_date,ticker,event_type,cash_per_share,share_multiplier,declared_at,source_url,verified
+2024-04-18,EXAMPLE_A,dividend,5,1,2024-04-01,https://example.com/placeholder,true
