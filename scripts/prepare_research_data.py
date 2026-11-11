@@ -5,6 +5,10 @@ from authorized independent primary data sources.
 """
 import argparse
 from pathlib import Path
+# Make project imports work when invoked directly as python scripts/<name>.py.
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from index_research.dhan_data import read_instruments
 from index_research.total_returns import build_research_total_returns
 from index_research.fundamental_ingestion import export_factor_inputs
