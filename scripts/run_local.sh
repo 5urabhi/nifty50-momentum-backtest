@@ -21,6 +21,9 @@ case "$MODE" in
     .venv/bin/python scripts/prepare_legacy_demo.py
     .venv/bin/python -m index_research.cli run --input-dir data/legacy_static_demo --output-dir results/legacy_static_demo --config config/research_legacy_demo.json
     ;;
+  visuals)
+    .venv/bin/python scripts/export_visual_validation.py --output-dir results/visual_validation
+    ;;
   dashboard)
     .venv/bin/streamlit run dashboard/app.py
     ;;
