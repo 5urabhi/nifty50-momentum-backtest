@@ -102,3 +102,28 @@ proof of empirically profitable or officially published index methodologies.
 | `model_validation.py`: rolling variance scoring, covariance model comparison, group-neutral factor spreads | Implemented | Pending | Market input provenance required |
 | `dashboard/pages/4_Rolling_Validation.py`: diagnostics UI | Implemented | Visual QA pending | Historical data required |
 | `tests/test_model_validation.py`: rolling leakage regression tests | Written | Not run locally | N/A |
+
+
+## Integration completion pass — 2026-11-11
+
+| Previously missing area | Source files | Code status | Verification status |
+| --- | --- | --- | --- |
+| Unified executive overview | `dashboard/app.py` | Connected to session results | Visual QA pending |
+| Dedicated Factor Laboratory | `dashboard/pages/6_Factor_Laboratory.py` | Connected | Visual QA pending |
+| Dedicated Index Comparisons | `dashboard/pages/7_Index_Comparisons.py` | Connected | Visual QA pending |
+| Research-report UI / exports | `dashboard/pages/8_Research_Report.py` | Connected | Visual QA pending |
+| Historical sector classification | `sector_data.py` + `index.py` | Integrated optional input | Real vintages unavailable |
+| Sector cap configuration | `experiment.py` + Index Research sidebar | Connected | Local QA pending |
+| Sector exposure and concentration | `sector_data.py` / `research_analytics.py` | Connected | Local QA pending |
+| Rolling active risk and transaction cost sensitivity | `research_analytics.py` | Connected | Local QA pending |
+| Comparable index methodology results | `comparison.py` | Connected with matched inputs | Local QA pending |
+| Research PDF draft | `pdf_report.py` / CLI / UI | Connected | Rendering inspection pending |
+| Integrated regression tests | `tests/test_research_integration.py` | Written | Not run locally |
+| Corporate actions / delisting cash flows | Requires dated source data + event policy | Not production-complete | Blocked on source evidence |
+| Point-in-time benchmark and security fundamentals | Input contracts in place | **Source data not provided** | Research validity blocked |
+| Detailed research paper conclusions | PDF/HTML templates only | Actual conclusions not written | Pending verified experiment |
+
+**Release judgment:** A materially broader source-code prototype exists, but
+its complete end-to-end runtime correctness and empirical finance claims remain
+unverified. The repository contains no GitHub Actions workflow. The user plans
+one future local QA round; do not treat "connected" as proof of "works."
