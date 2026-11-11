@@ -1,4 +1,6 @@
 {
   "version": 2,
-  "outputDirectory": "web"
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist"
 }
