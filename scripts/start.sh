@@ -13,13 +13,13 @@ case "$MODE" in
     cat <<'HELP'
 Usage: bash scripts/start.sh [web|research|both|check|setup]
 
-  web       Default: install missing prerequisites, verify web build,
+  web       Default: install only Node/Vite prerequisites, verify build,
             then open the Vite research website at http://127.0.0.1:5173.
-  research  Install prerequisites and start the local Streamlit research lab.
-  both      Start research lab in background and Vite website in foreground.
-  check     Validate Python imports, execute full Python unittest suite,
+  research  Install Python + Node prerequisites, start local Streamlit lab.
+  both      Install both stacks; launch both apps together.
+  check     Install both stacks; execute full Python unittest suite,
             check mathematics, then build the Vite website. No servers.
-  setup     Install missing prerequisites and build the Vite website. No servers.
+  setup     Install both stacks and build the Vite website. No servers.
 
 Stop running servers with Ctrl+C.
 Never paste Dhan tokens here; place them in the ignored .env file.
@@ -38,9 +38,7 @@ fi
 if ! command_exists apt-get; then
   fail "This automated bootstrap currently supports Ubuntu/Debian with apt-get. See GETTING_STARTED.md for other systems."
 fi
-if ! command_exists sudo && ! command_exists python3; then
-  fail "Missing Python and sudo. Install python3, python3-venv, curl, ca-certificates and git using your administrator."
-fi
+
 
 install_apt_missing() {
   local packages=() package
@@ -58,7 +56,10 @@ install_apt_missing() {
 }
 
 info "Inspecting operating-system dependencies"
-install_apt_missing git curl ca-certificates python3 python3-venv python3-pip
+install_apt_missing git curl ca-certificates xz-utils
+
+if [ "$MODE" != web ]; then
+install_apt_missing python3 python3-venv python3-pip
 
 PYTHON=python3
 "$PYTHON" - <<'PY' || fail "Python >=3.11 is required. Update your distribution's Python interpreter."
@@ -94,6 +95,7 @@ if [ ! -f .env ] && [ -f .env.example ]; then
   info "Created private .env template (Dhan token optional; edit with nano .env)"
 fi
 if [ -f .env ]; then chmod 600 .env; fi
+fi
 
 # The public website needs no Redis or application server. Node is used
 # only to build and serve local development assets.
