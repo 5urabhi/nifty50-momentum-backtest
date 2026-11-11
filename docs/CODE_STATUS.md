@@ -375,3 +375,36 @@ tool environment cannot resolve github.com to clone and run the repository
 for local shell/Node verification. Final one-command smoke test, TypeScript
 build, and browser review must run on Ubuntu before considering the installer
 production-verified. No deployment or merge has occurred.
+
+
+## Interactive research workstation integration (Nov 11, 2026)
+
+**The intended primary interface is local Streamlit, not the Vercel showcase.**
+
+| Workflow | Branch implementation | Validation still needed |
+| --- | --- | --- |
+| Home | Clickable five-stage workflow and active research/data status | AppTest + browser |
+| Sidebar | Shared grouped navigation across the 13 existing pages plus run history | Navigation QA |
+| Dhan connectivity | Local ignored .env is auto-loaded; token-present status only | Real token/entitlement QA |
+| Instrument master | Browser button refreshes cached official CSV, with schema sanity checks | Online network smoke |
+| Instrument search | Master search by symbol/name/ID; NSE/BSE equity/index row prefill | Real-master schema QA |
+| Watchlist | Validate Security IDs; atomically persist mapping in ignored data folder | Interactive create/remove |
+| Historical downloads | Select instruments, range, daily/intraday resolution; Dhan read-only adapter + retry | Authorized real API session |
+| Data inspection | OHLCV plots, volumes, last observations and CSV export | Actual data preview |
+| Research preparation | Dhan daily close → month-end observed close matrix; select shared folder | Real file/dates QA |
+| Evidence readiness | Same selected local folder across pages; rejects absent audited inputs | Source/license review |
+| Index Research | Local folder / ZIP / synthetic inputs, clear missing-data gate | Run with independent data |
+| Shared model data | Active research asset returns feed Advanced Math, PCA/GARCH, Rolling Validation, Quantitative covariance | Inter-page smoke |
+| Saved experiments | Timestamped local results/workstation_runs archive and persistent run-history graphs/export | End-to-end run test |
+| QA | local_acceptance now includes Dhan, empirical and run-history pages; check mode calls acceptance | Execute on user's Ubuntu |
+
+The branch **has not been executed** inside the developer tool environment,
+because its external container cannot resolve github.com. Commit does not
+equal tested functionality. Test with `bash run.sh check` and then
+`bash run.sh` on Ubuntu. Fix failed pages before any merge.
+
+**Empirical limitations:** Dhan OHLCV data do not independently establish
+historic Nifty membership, complete dividends/delistings, genuine TRI returns
+or source-vintage fundamentals; no such evidence is invented. Source
+authorization/licensing, Dhan entitlement, and reproducible out-of-sample
+research remain open gates.
