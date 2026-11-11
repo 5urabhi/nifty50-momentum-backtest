@@ -33,6 +33,24 @@ if len(dates):
                             title=f"Top 30 ranked securities — {decision.date()}"),
                     use_container_width=True)
     st.dataframe(ranking.rename("score").to_frame(),use_container_width=True)
+st.subheader("Factor-specific information coefficients")
+ic=saved.get("factor_ic")
+if ic is not None:
+    st.plotly_chart(px.line(ic,title="Next-period cross-sectional factor rank IC"),
+                    use_container_width=True)
+    st.dataframe(ic.agg(["count","mean","std"]).T.rename(columns={
+        "count":"periods","mean":"mean_rank_ic","std":"ic_std"
+    }),use_container_width=True)
+else:
+    st.info("No factor IC panel is available for this experiment.")
+st.subheader("Portfolio factor exposures")
+factor_exposures=saved.get("factor_portfolio_exposures")
+if factor_exposures is not None:
+    st.plotly_chart(px.line(factor_exposures,
+                    title="Holding-period factor exposures using prior decision signals"),
+                    use_container_width=True)
+else:
+    st.info("No portfolio factor-exposure history available.")
 st.subheader("Portfolio exposure and concentration")
 st.plotly_chart(px.line(saved["concentration"][["effective_names","nonzero_holdings"]],
                        title="Effective number of names versus number held"),use_container_width=True)
@@ -50,3 +68,7 @@ st.markdown("""Rank IC and high-minus-low diagnostics describe cross-sectional r
 and are not independently validated future forecasts. Factor scores require
 verified publication dates, sector histories, corporate actions and a
 chronologically frozen test design before public investment conclusions.""")
+
+st.subheader("Input data coverage")
+st.json(saved.get("data_quality",{}))
+st.caption("A complete numeric data matrix is not proof that price adjustments, membership, sector assignments or filing dates were historically correct.")
