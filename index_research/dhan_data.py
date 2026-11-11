@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import asdict, dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import hashlib
 import json
 import os
@@ -46,6 +46,8 @@ class Instrument:
             raise ValueError("unsafe instrument label")
         if not str(self.security_id).isdigit():
             raise ValueError("security_id must be a numeric Dhan identifier")
+        if str(self.security_id) in {"00000","00001"}:
+            raise ValueError("replace illustrative Security IDs with reviewed Dhan master values")
 
 
 def read_instruments(path: str | Path) -> list[Instrument]:
@@ -223,8 +225,7 @@ def save_download(frame: pd.DataFrame, instrument: Instrument, folder: str | Pat
     digest=hashlib.sha256(csv_path.read_bytes()).hexdigest()
     metadata={
         "source":"DhanHQ REST API v2",
-        "retrieved_utc":datetime.now().astimezone().astimezone(
-            __import__("datetime").timezone.utc).isoformat(),
+        "retrieved_utc":datetime.now(timezone.utc).isoformat(),
         "instrument":asdict(instrument),
         "from_inclusive":from_date,"to_exclusive":to_date,
         "interval_minutes":interval,"row_count":len(frame),
