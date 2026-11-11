@@ -29,6 +29,73 @@ st.session_state["research_input_dir"]=str(root.resolve())
 runs=Path("results/research_v1")
 st.page_link("dashboard/pages/12_Dhan_Data_Setup.py",label="Back to Dhan Historical Data →",icon="📥")
 st.page_link("dashboard/pages/1_Index_Research.py",label="Continue to Index Research →",icon="📈")
+
+st.subheader("Import missing evidence into this local dataset")
+st.caption("Upload reviewed CSV/JSON files here instead of moving files in a terminal. The tool only checks basic structure; importing a file does NOT independently validate its origin or historical correctness.")
+allowed_names={
+    "prices.csv": {"date"},
+    "membership.csv": {"date","ticker","eligible"},
+    "benchmark.csv": {"date","return"},
+    "fundamentals.csv": {"ticker","available_at","value","quality","size"},
+    "sectors.csv": {"date","ticker","sector"},
+    "corporate_actions.csv": set(),
+    "EVIDENCE_REVIEW.json": set(),
+}
+uploads=st.file_uploader("Select source evidence files",type=["csv","json"],
+    accept_multiple_files=True,key="evidence_import")
+replace_existing=st.checkbox("Replace matching existing local files after explicit review",
+    value=False,key="evidence_overwrite")
+acknowledge=st.checkbox("I understand that file upload does not certify market-data provenance",
+    value=False,key="evidence_ack")
+if st.button("Save reviewed evidence files to selected local dataset",
+             disabled=not(bool(uploads) and acknowledge),type="primary"):
+    import io
+    import json
+    import tempfile
+    try:
+        payloads={}
+        for upload in uploads:
+            filename=upload.name
+            if filename not in allowed_names:
+                raise ValueError("Unrecognized filename: "+filename+
+                    ". Use the exact contract names from the evidence inventory.")
+            if filename in payloads:
+                raise ValueError("Duplicate uploaded filename: "+filename)
+            data=upload.getvalue()
+            if not data or len(data)>25*1024*1024:
+                raise ValueError("Each file must contain 1–25 MiB maximum: "+filename)
+            if (root/filename).exists() and not replace_existing:
+                raise FileExistsError(filename+" already exists. Check explicit replace option to overwrite.")
+            if filename.endswith(".csv"):
+                frame=pd.read_csv(io.BytesIO(data),nrows=100,dtype=str)
+                required=allowed_names[filename]
+                missing=required-set(frame.columns)
+                if missing:
+                    raise ValueError(filename+" lacks mandatory columns: "+", ".join(sorted(missing)))
+            else:
+                review=json.loads(data)
+                if not isinstance(review,dict):
+                    raise ValueError(filename+" must contain a JSON object")
+            payloads[filename]=data
+        root.mkdir(parents=True,exist_ok=True)
+        # Each file is fully validated and staged before any destination change.
+        staged=[]
+        try:
+            for filename,data in payloads.items():
+                with tempfile.NamedTemporaryFile(dir=root,prefix=".evidence_",delete=False) as temp:
+                    temp.write(data)
+                    staged.append((Path(temp.name),root/filename))
+            for temporary,destination in staged:
+                temporary.replace(destination)
+        finally:
+            for temporary,_ in staged:
+                temporary.unlink(missing_ok=True)
+        st.success(f"Saved {len(payloads)} input files locally. Now review the evidence gate and inspect data before running experiments.")
+        st.rerun()
+    except Exception as exc:
+        st.error("Import blocked: "+str(exc))
+st.caption("Never upload broker credentials or private customer holdings. The files remain in the ignored local data folder and are never sent to the React website.")
+
 items=[
     ("prices.csv","Normalized shareholder-return wealth indices"),
     ("corporate_actions.csv","Dated cash dividends, splits and delistings"),
