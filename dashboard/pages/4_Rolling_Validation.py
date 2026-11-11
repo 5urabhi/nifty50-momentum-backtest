@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from dashboard.workstation_nav import show_workflow_nav
+from dashboard.workspace_data import active_asset_returns, active_source_label
 from index_research.model_validation import (
     rolling_volatility_forecasts,variance_forecast_scores,
     rolling_covariance_portfolios
@@ -16,20 +17,27 @@ st.caption("Rolling covariance and volatility comparisons; input data never uplo
 st.warning("These are exploratory risk-estimator comparisons, NOT investable portfolio backtests. "
            "No transaction costs, delisting treatment, or benchmark methodology are modeled in this page.")
 
-upload=st.file_uploader("Monthly decimal simple returns: date + >=2 security columns",type="csv")
-if upload is None:
-    st.info("Supply a CSV to calculate leakage-aware rolling model diagnostics. "
-            "There are no prefilled performance numbers.")
+use_active=st.checkbox("Use active Index Research experiment data",value=False)
+if use_active:
+    st.warning("Using "+active_source_label()+". This does not certify genuine market performance.")
+st.page_link("dashboard/pages/1_Index_Research.py",label="Open Index Research to activate or change inputs →",icon="📈")
+upload=st.file_uploader("Or upload monthly decimal simple returns: date + >=2 securities",type="csv",
+                        disabled=use_active)
+if upload is None and not use_active:
+    st.info("Run Index Research and enable the shared-data checkbox, or upload a CSV.")
     st.stop()
 try:
-    data=pd.read_csv(upload)
-    if len(data.columns)<3:
-        raise ValueError("date and at least two security columns required")
-    dates=pd.to_datetime(data.iloc[:,0],errors="raise")
-    if dates.duplicated().any() or dates.isna().any() or not dates.is_monotonic_increasing:
-        raise ValueError("ordered, unique and valid dates required")
-    x=data.iloc[:,1:].apply(pd.to_numeric,errors="raise")
-    x.index=pd.DatetimeIndex(dates)
+    if use_active:
+        x=active_asset_returns(minimum=48,max_assets=30)
+    else:
+        data=pd.read_csv(upload)
+        if len(data.columns)<3:
+            raise ValueError("date and at least two security columns required")
+        dates=pd.to_datetime(data.iloc[:,0],errors="raise")
+        if dates.duplicated().any() or dates.isna().any() or not dates.is_monotonic_increasing:
+            raise ValueError("ordered, unique and valid dates required")
+        x=data.iloc[:,1:].apply(pd.to_numeric,errors="raise")
+        x.index=pd.DatetimeIndex(dates)
     if len(x)<48 or x.isna().any().any() or not np.isfinite(x.to_numpy()).all():
         raise ValueError("at least 48 fully observed rows required")
     if len(x.columns)>30:
