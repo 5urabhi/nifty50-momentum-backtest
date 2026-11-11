@@ -7,8 +7,8 @@ import streamlit as st
 st.set_page_config(page_title="Equity Index Quant Research",page_icon="📈",layout="wide",
                    initial_sidebar_state="expanded")
 st.title("Equity Index Quantitative Research")
-st.caption("Independent quantitative research workstation · Python · Local-first")
-st.info("A methodology research environment, not an official MSCI/NSE product or investment recommendation.")
+st.caption("Your personal Python research workstation · Run models, inspect graphs, and generate reproducible evidence")
+st.info("Personal quantitative research laboratory—not a company website. Use it to run models, validate methodology, and produce evidence for a research portfolio.")
 
 saved=st.session_state.get("index_research_result")
 if not saved:
@@ -26,7 +26,28 @@ imply validated market performance.""")
     b.metric("Research mode","LOCAL")
     c.metric("Empirical claims","NOT AUDITED")
     st.warning("Legacy optimized returns are unverified; point-in-time constituents and fundamental evidence are required.")
-    st.markdown("**Start:** Sidebar → Index Research → Synthetic demonstration / Upload data → Run")
+    st.subheader("How to use your research workstation")
+    st.markdown("""**1. Run an experiment:** Sidebar → **Index Research** → select
+**Synthetic demonstration** (software testing) or upload approved historical
+inputs → **Run**.
+
+**2. Inspect your models:** Sidebar → **Advanced Mathematics**,
+**Quantitative Models**, **Rolling Validation** and **Visual Validation**.
+
+**3. Compare outputs:** Open **Factor Laboratory**, **Index Comparisons**,
+**Risk Attribution**, and **Robustness**.
+
+**4. Save your results:** Open **Research Report** to review and export available
+reports, methodology, charts and summary data.
+
+**5. Run the full local suite:** Open another Ubuntu terminal and enter
+`bash run.sh evaluate`. The test output, mathematical reports and
+clearly labeled synthetic demonstrations are saved under `results/`.
+
+**Important:** Synthetic tests establish software behavior, not real
+Nifty performance. Historical results require independently verified data.
+""")
+    st.caption("Optional animated presentation: bash run.sh web. You do not need Vite or npm to run the Python research lab.")
     st.stop()
 
 meta=saved["metadata"]
