@@ -2,11 +2,13 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 from index_research.research_analytics import (
     benchmark_comparison, rolling_relative_metrics, cost_sensitivity
 )
 
 st.set_page_config(page_title="Index Comparisons and Risk",layout="wide")
+show_workflow_nav()
 st.title("Index Comparisons & Portfolio Risk")
 st.caption("Benchmark-relative analytics, rolling tracking error, costs and drawdowns")
 saved=st.session_state.get("index_research_result")
