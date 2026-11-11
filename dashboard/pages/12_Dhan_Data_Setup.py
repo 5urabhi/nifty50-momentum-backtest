@@ -235,7 +235,8 @@ with tabs[3]:
     today = date.today()
     left, right, third = st.columns(3)
     start = left.date_input("Start date (inclusive)", value=today - timedelta(days=365), max_value=today)
-    end = right.date_input("End date (exclusive)", value=today, min_value=start + timedelta(days=1))
+    end = right.date_input("End date (exclusive)", value=today + timedelta(days=1),
+                           min_value=start + timedelta(days=1), max_value=today + timedelta(days=1))
     resolution = third.selectbox("Candle resolution", ["Daily", "1 minute", "5 minutes", "15 minutes", "25 minutes", "60 minutes"])
     intraday = None if resolution == "Daily" else int(resolution.split()[0])
     st.caption("Dhan API access, rate limits and historical availability depend on your account. Intraday requests may be large or unavailable for older dates.")
