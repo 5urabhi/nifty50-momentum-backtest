@@ -1,188 +1,115 @@
-# Nifty 50 Momentum Strategy Backtest
+# Equity Index Quantitative Research & Construction Framework
 
+**Local-first research software | Independent project | Development branch**
 
+This repository extends an original Nifty 50 cross-sectional momentum study
+into a reproducible research environment for factor methodologies, index
+construction, constrained optimization, quantitative risk, and model comparison.
 
-## Table of Contents
+> **Research integrity:** The historical legacy notebook contains an
+> optimized Sharpe of 3.34 and annualized return of 132.86%. These are
+> **unverified legacy claims**, not audited outputs of this framework. The
+> static ticker universe can introduce survivorship bias. Do not cite these
+> performance figures or claim investability without point-in-time validation.
 
-- [Project Overview](#project-overview)
-- [Research Motivation](#research-motivation)
-- [Data Pipeline](#data-pipeline)
-- [Strategy Logic](#strategy-logic)
-- [How to Run](#how-to-run)
-- [Key Results & Plots](#key-results--plots)
-- [Customization & Extensions](#customization--extensions)
-- [Dependencies](#dependencies)
-- [Acknowledgements](#acknowledgements)
+## What this research project provides
 
----
+| Area | Implementation |
+| --- | --- |
+| Legacy research | Original `main.ipynb`, data exports, and legacy findings preserved |
+| Factor engine | Momentum, Low Volatility, Value, Quality, Size |
+| Index design | Top-N eligibility, equal/score/inverse-vol weighting, caps, periodic reconstitution |
+| Historical-data controls | Membership events, source-date fundamentals, strict benchmark alignment |
+| Simulation | Drift-aware long-only monthly backtest, explicit execution lag, cost sensitivity |
+| Quantitative models | Sample/shrinkage/EWMA covariance; Markowitz min variance; historical VaR/ES |
+| Mathematical laboratory | GBM, OU, PCA, Gaussian GARCH(1,1), BSM pricing/Greeks, factor OLS |
+| Presentation | Local Streamlit research dashboard and offline HTML report |
+| Reproducibility | Deterministic synthetic fixture, CLI, JSON configs, SHA-256 input manifest |
+| Optional publication | Static Vercel viewer exported from explicitly approved public aggregate data |
+| Tests | Local `unittest` suite; **no GitHub Actions execution** |
 
-## Project Overview
+No official MSCI or NSE index methodology is claimed. This is an independent
+research and educational framework, not investment advice.
 
+## Start locally (Python 3.11+)
 
-This repository presents a **reproducible empirical study** of the **cross-sectional momentum anomaly** on India’s **Nifty-50** equity universe (2012–2025).  
-It follows the canonical *Jegadeesh & Titman (1993)* methodology while extending it with modern, vectorized Python backtesting and robust statistical inference.
-
-The code builds an end-to-end pipeline — from data acquisition and cleaning, through signal construction and portfolio rebalancing, to full statistical evaluation and visualization.
-
----
-## Research Motivation
-
-Momentum remains one of the most persistent return anomalies documented in global markets.  
-While it has been extensively studied in U.S. and developed markets, its behavior in **emerging markets such as India** remains under-explored.  
-This project aims to provide a **transparent, reproducible** evaluation of whether the anomaly persists after realistic frictions.
-
----
-
-## Data Pipeline
-
-1. **Universe Definition:**  
-   - Uses a static list of Nifty 50 tickers compatible with Yahoo Finance.
-2. **Data Download:**  
-   - Fetches fully adjusted monthly close prices for all Nifty 50 stocks using `yfinance`.
-   - Handles missing or delisted stocks gracefully.
-3. **Data Cleaning:**  
-   - Forward-fills missing data, drops periods where all prices are NaN.
-   - Stores the clean dataset as `nifty50_prices_monthly.csv` for reproducibility.
-
----
-### Methodology
-
-| Component | Description |
-|------------|--------------|
-| **Universe** | Static Nifty-50 constituents (Yahoo Finance tickers, 2012–2025) |
-| **Data** | Adjusted monthly close prices via `yfinance` |
-| **Signal** | Past cumulative return over a `formation` period, skipping last `skip` month |
-| **Portfolio** | Long top *N* and short bottom *N* stocks (long-short) or long-only variant |
-| **Weighting** | Equal or volatility-scaled |
-| **Holding Period** | Rebalanced monthly |
-| **Transaction Costs** | Modeled via proportional `tc_bps` per side |
-| **Statistics** | Annualized return/volatility, Sharpe, Sortino, max drawdown, turnover |
-| **Inference** | Newey-West HAC t-stats, bootstrap Sharpe confidence intervals |
-
----
-## Strategy Logic
-
-- **Momentum Signal Calculation:**  
-  For each stock and month, computes the cumulative return over a configurable "formation period" (e.g., 12 months), skipping the most recent "skip period" (e.g., 1 month) to mitigate mean reversion.
-
-    - **Signal Formula:**  
-      \[
-      Secret
-      \]
-    - **Portfolio Formation:**
-        - Ranks all stocks by signal value at each rebalance date.
-        - Longs the top N stocks, shorts the bottom N stocks (e.g., N=5).
-        - Dollar-neutral: equal weights long and short.
-        - Holds the portfolio for a configurable holding period (default: 1 month).
-
-- **Return Calculation:**
-    - Calculates monthly returns for each stock.
-    - Tracks the P&L for the rebalanced portfolio.
-
-- **Performance Visualization:**
-    - Plots cumulative strategy returns and enables extension to add Sharpe, drawdown, or rolling stats.
-
-
----
-
-## How to Run
-
-1. **Clone the repo and install dependencies:**
-    ```bash
-    git clone https://github.com/5urabhi/nifty50-momentum-backtest.git
-    cd nifty50-momentum-backtest
-    pip install -r requirements.txt
-    ```
-2. **Launch Jupyter Notebook:**
-    ```bash
-    jupyter notebook main.ipynb
-    ```
-3. **Run all cells.**
-    - The notebook will download fresh data and output both tables and performance plots.
-
----
-
-## Key Results & Plots
-
-###  Key Findings
-
-Baseline vs Optimized Configuration
-
-| Metric | **Baseline (Naïve)** | **Optimized** |
-|:--|--:|--:|
-| **Annualized Return** | 0.28 % | **132.86 %** |
-| **Annualized Volatility** | 12.43 % | **39.73 %** |
-| **Sharpe Ratio** | 0.02 | **3.34** |
-| **Max Drawdown** | −39.97 % | −41.55 % |
-| **Formation Period** | 12 m | **9 m** |
-| **Skip Period** | 1 m | 1 m |
-| **Holding Period** | 1 m | 1 m |
-| **Signal Type** | Cumulative Return | **Cumulative Return** |
-| **Long Only** | ❌ (Long–Short) | ✅ (Long Only) |
-| **Weighting Scheme** | Equal Weight | **Volatility-Scaled (exp = 2.0)** |
-| **Top N / Bottom N** | 5 / 5 | **6 / 0** |
-| **Transaction Cost (bps)** | 10 | **20** |
-| **Max Weight** | — | **20 %** |
-
-> The optimized long-only, volatility-scaled strategy achieves **over 3× higher risk-adjusted returns** than the naïve baseline,  
-> with a Sharpe ratio of **3.34** despite realistic transaction costs.
-
-
- ![image](https://github.com/user-attachments/assets/3e1afe61-3c21-40a2-94f1-e579d778ffe8)
-
-- **Portfolio statistics:**  
-  - Monthly and annualized return
-  - Sharpe ratio, max drawdown (add as needed)
-  - Table of monthly P&L and top holdings per rebalance
-
----
-### Interpretation
-
-- The **baseline** (equal-weighted, long–short) portfolio barely outperformed cash after costs — typical when signal, horizon, or weighting are not tuned.  
-- The **optimized** configuration (long-only, volatility-adjusted weights, 9-month formation) effectively captures medium-term momentum while reducing noise and turnover.  
-- Volatility scaling (`pow_vol = 2.0`) penalizes high-variance names, stabilizing returns and improving Sharpe.  
-- Performance remains robust under bootstrap and HAC/Newey–West inference, confirming **statistical significance (t ≈ 3.4)**.  
-
-
-
----
-
-## Customization & Extensions
-
-- **Universe:**  
-  Modify the ticker list to backtest other indices (e.g., S&P 500, Bank Nifty).
-- **Parameters:**  
-  Change `FORMATION_PERIOD`, `SKIP_PERIOD`, `HOLDING_PERIOD`, `TOP_N`, `BOTTOM_N` at the top of the notebook.
-- **Transaction Costs:**  
-  Add slippage/commission in the portfolio return calculation for more realistic simulation.
-- **Analytics:**  
-  Extend plots and stats: rolling Sharpe, drawdown, heatmaps, etc.
-- **Alternative Signals:**  
-  Swap the cumulative return for other factors (e.g., volatility, value, quality).
-
----
-
-## Dependencies
-
-- `yfinance`
-- `pandas`
-- `numpy`
-- `matplotlib`
-- `tqdm`
-- `openpyxl`
-
-Install with:
 ```bash
-pip install -r requirements.txt
+git clone --branch research/multi-factor-equity-index https://github.com/5urabhi/nifty50-momentum-backtest.git
+cd nifty50-momentum-backtest
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r dashboard/requirements.txt
+```
 
- ```
-## Acknowledgements
+When you choose to test locally:
 
-- **Yahoo Finance** for free and programmatic access to historical stock price data.
-- **NSE India** for providing official index definitions and stock lists.
-- Classic finance research, especially:
-    - Jegadeesh, N. and Titman, S. (1993). “Returns to Buying Winners and Selling Losers: Implications for Stock Market Efficiency.” *Journal of Finance*, 48(1), 65-91.
-- Developers and maintainers of open-source libraries:  
-  `pandas`, `numpy`, `yfinance`, `matplotlib`, and `tqdm`.
+```bash
+python -m unittest discover -s tests -v
+python -m index_research.cli make-fixture --output-dir data/synthetic_example
+python -m index_research.cli run --input-dir data/synthetic_example --output-dir results/synthetic --config config/research_momentum.json
+streamlit run dashboard/app.py
+```
 
+**Synthetic experiment data are NOT Nifty history.** You must supply historical
+membership events, compatible prices and benchmark returns, and publication-dated
+fundamental factors before claiming a market-valid index experiment.
 
+## Architecture
+
+```text
+index_research/
+  core.py             Initial momentum baseline utilities
+  data.py             Local CSV validation and publication-date eligibility
+  factors.py          Five factor scores and rank information coefficient
+  index.py            Index construction + drift-aware monthly simulator
+  experiment.py       Experiment config, holdout metrics, provenance manifest
+  math_models.py      Covariance, Markowitz, empirical risk, GBM, BSM, OLS
+  advanced_models.py  PCA, OU, GARCH and covariance stress approximation
+  reports.py          Offline HTML methodology/performance report
+  fixtures.py         Clearly labeled synthetic test inputs
+  cli.py              Local run interface
+dashboard/
+  app.py                        Mathematical modeling laboratory
+  pages/1_Index_Research.py     Multi-factor index research + export
+  pages/2_Model_Comparison.py   PCA/GARCH/OLS/OU comparison
+scripts/
+  export_static_dashboard.py   Manual static publication boundary
+web/                            Static future Vercel presentation
+config/                         Frozen experimental configuration examples
+tests/                          Local unit and integrated tests
+docs/                           Methodology, runbook, research protocol
+main.ipynb                      Original notebook (preserved)
+```
+
+## Research workflow
+
+1. Declare hypotheses and chronological development / validation / final-test splits.
+2. Prepare **verified point-in-time** historical securities and adjusted prices;
+   record vendor licensing, security identifiers, delisting treatment, corporate
+   actions, and publication dates.
+3. Calculate factor scores only from observations available to the decision.
+4. Construct and backtest index methodology with documented weight constraints.
+5. Compare against return-convention-compatible benchmarks and estimate
+   transaction costs, turnover, drawdowns and risk.
+6. Evaluate holdout robustness. Do not tune on the frozen final test.
+7. Export machine-readable artifacts and the offline report for independent review.
+8. Present verified findings, assumptions and limitations in the portfolio and resume.
+
+## Documentation
+
+- [Local runbook](docs/LOCAL_RUN.md)
+- [CSV and point-in-time data contract](data/README.md)
+- [Research methods and acceptance matrix](docs/RESEARCH_METHODS.md)
+- [Research protocol](docs/RESEARCH_PROTOCOL.md)
+- [Mathematical models](docs/MATHEMATICAL_MODELS.md)
+- [Legacy README](docs/LEGACY_MOMENTUM_README.md)
+
+## Remaining research gates
+
+**Code-implemented does not mean empirical validation completed.** The code
+needs first local execution, numerical QA, independent historical data,
+a documented benchmark, and reproducibility review before any positive
+backtested return or professional impact claim is published.
+
+The legacy notebooks and exports are preserved as the historical baseline,
+not silently overwritten by the new model results.
