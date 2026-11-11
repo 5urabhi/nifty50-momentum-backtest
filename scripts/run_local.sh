@@ -30,10 +30,13 @@ case "$MODE" in
   dashboard)
     .venv/bin/streamlit run dashboard/app.py
     ;;
+  math)
+    .venv/bin/python scripts/verify_mathematics.py --output-dir results/math_acceptance
+    ;;
   acceptance)
     .venv/bin/python scripts/local_acceptance.py
     ;;
   *)
-    echo "Usage: bash scripts/run_local.sh {setup|tests|synthetic|legacy|dashboard|acceptance|empirical-help}"
+    echo "Usage: bash scripts/run_local.sh {setup|tests|synthetic|legacy|visuals|math|dashboard|acceptance|empirical-help}"
     ;;
 esac
