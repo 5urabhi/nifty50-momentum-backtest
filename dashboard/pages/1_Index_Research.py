@@ -37,7 +37,7 @@ with st.sidebar:
         upload=st.file_uploader("Upload research data ZIP",type="zip",
             help="ZIP containing prices.csv, membership.csv, benchmark.csv, optionally fundamentals.csv")
     top_n=st.number_input("Target constituents",min_value=2,max_value=500,value=10)
-    method=st.selectbox("Weighting method",["equal","score","inverse_volatility"])
+    method=st.selectbox("Weighting method",["equal","score","inverse_volatility","minimum_variance","risk_parity"])
     cap=st.slider("Maximum stock weight",0.05,1.0,0.20,step=0.01)
     sector_limit=st.toggle("Enable historical sector cap (requires sectors.csv)",False)
     max_sector=st.slider("Maximum sector allocation",0.10,1.0,0.40,step=0.05,disabled=not sector_limit)
