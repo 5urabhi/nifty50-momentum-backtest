@@ -119,7 +119,39 @@ with tabs[1]:
             results = master_matches(query.strip())
             st.caption(f"Showing up to 70 matching rows from your local Dhan master. Verify exchange and instrument type.")
             st.dataframe(results, hide_index=True, use_container_width=True)
-            st.info("Dhan's detailed instrument columns can vary. Copy the verified Security ID, segment and type to the next tab. Do not assume one search result represents historical Nifty membership.")
+            # Only prefill exchange equity/index instruments. Derivative expiry
+            # codes and reused contract identifiers require separate review.
+            cols=set(results.columns)
+            security_col=next((k for k in ("SEM_SMST_SECURITY_ID","SECURITY_ID") if k in cols),None)
+            exchange_col=next((k for k in ("SEM_EXM_EXCH_ID","EXCH_ID") if k in cols),None)
+            segment_col=next((k for k in ("SEM_SEGMENT","SEGMENT") if k in cols),None)
+            instrument_col=next((k for k in ("SEM_INSTRUMENT_NAME","INSTRUMENT") if k in cols),None)
+            symbol_col=next((k for k in ("SEM_TRADING_SYMBOL","DISPLAY_NAME","SEM_CUSTOM_SYMBOL","SYMBOL_NAME") if k in cols),None)
+            if all((security_col,exchange_col,segment_col,instrument_col,symbol_col)):
+                simple=results.loc[
+                    (results[segment_col].astype(str).str.upper()=="E") &
+                    (results[instrument_col].astype(str).str.upper().isin(["EQUITY","INDEX"])) &
+                    results[exchange_col].astype(str).str.upper().isin(["NSE","BSE"])
+                ].copy()
+                if not simple.empty:
+                    selection=st.selectbox("Choose a verified equity / index mapping",
+                        list(range(len(simple))),
+                        format_func=lambda i:(
+                            str(simple.iloc[i][symbol_col])+" · "+
+                            str(simple.iloc[i][exchange_col])+" · ID "+
+                            str(simple.iloc[i][security_col])
+                        ),key="dhan_master_choice")
+                    if st.button("Prefill watchlist form from selected master row"):
+                        import re
+                        chosen=simple.iloc[selection]
+                        proposed=re.sub(r"[^A-Z0-9_-]","_",
+                            str(chosen[symbol_col]).upper())[:48].strip("_")
+                        st.session_state["dhan_prefill_label"]=proposed
+                        st.session_state["dhan_prefill_security_id"]=str(chosen[security_col])
+                        st.session_state["dhan_prefill_segment"]=str(chosen[exchange_col]).upper()+"_EQ"
+                        st.session_state["dhan_prefill_instrument"]=str(chosen[instrument_col]).upper()
+                        st.success("Form prefilled. Open the Watchlist mapping tab and confirm the reviewed fields.")
+            st.info("Verify exchange and Security ID before saving. The instrument master is a current lookup, NOT historical index membership.")
         except Exception as exc:
             st.error(f"Master search failed: {exc}")
     else:
@@ -159,10 +191,12 @@ with tabs[2]:
         st.info("No reviewed mapping yet. Add the first instrument below.")
     st.caption("Mappings are stored only in ignored data/dhan/instruments.csv. Adding an instrument never changes existing downloaded candles.")
     with st.form("dhan_add_mapping"):
-        label = st.text_input("Unique short label", placeholder="RELIANCE")
-        security_id = st.text_input("Verified Dhan Security ID", placeholder="Enter numeric ID from instrument master")
-        segment = st.selectbox("Exchange segment", ["NSE_EQ", "BSE_EQ", "NSE_FNO", "NSE_CURRENCY", "BSE_FNO"])
-        instrument_type = st.selectbox("Instrument", ["EQUITY", "INDEX", "FUTIDX", "FUTSTK", "OPTIDX", "OPTSTK"])
+        label = st.text_input("Unique short label", value=st.session_state.get("dhan_prefill_label",""), placeholder="RELIANCE")
+        security_id = st.text_input("Verified Dhan Security ID", value=st.session_state.get("dhan_prefill_security_id",""), placeholder="Enter numeric ID from instrument master")
+        segments=["NSE_EQ", "BSE_EQ", "NSE_FNO", "NSE_CURRENCY", "BSE_FNO"]
+        segment = st.selectbox("Exchange segment", segments, index=segments.index(st.session_state.get("dhan_prefill_segment","NSE_EQ")) if st.session_state.get("dhan_prefill_segment","NSE_EQ") in segments else 0)
+        instruments_supported=["EQUITY", "INDEX", "FUTIDX", "FUTSTK", "OPTIDX", "OPTSTK"]
+        instrument_type = st.selectbox("Instrument", instruments_supported, index=instruments_supported.index(st.session_state.get("dhan_prefill_instrument","EQUITY")) if st.session_state.get("dhan_prefill_instrument","EQUITY") in instruments_supported else 0)
         add = st.form_submit_button("Add instrument to watchlist", type="primary")
     if add:
         try:
