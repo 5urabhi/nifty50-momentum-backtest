@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 # Ubuntu local-first one-command bootstrap and launcher.
-# Usage: bash scripts/start.sh [web|research|both|check|setup]
+# Usage: bash scripts/start.sh [research|evaluate|check|web|both|setup]
 # No Redis, Docker, global npm packages, GitHub Actions or Dhan token needed.
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-MODE="${1:-web}"
+MODE="${1:-research}"
 case "$MODE" in
-  web|research|both|check|setup) ;;
+  web|research|both|check|setup|evaluate) ;;
   -h|--help|help)
     cat <<'HELP'
 Usage: bash scripts/start.sh [web|research|both|check|setup]
 
-  web       Default: install only Node/Vite prerequisites, verify build,
-            then open the Vite research website at http://127.0.0.1:5173.
-  research  Install Python + Node prerequisites, start local Streamlit lab.
+  research  DEFAULT: install Python dependencies and start your local research lab.
+  web       Optional: install Node/Vite, build and start the presentation website.
   both      Install both stacks; launch both apps together.
-  check     Install both stacks; execute full Python unittest suite,
-            check mathematics, then build the Vite website. No servers.
-  setup     Install both stacks and build the Vite website. No servers.
+  check     Run complete Python unit and mathematical tests. No servers.
+  evaluate  Run tests, math checks, synthetic research and visual reports,
+            writing artifacts to results/. No servers.
+  setup     Prepare Python and frontend dependencies; start no servers.
 
 Stop running servers with Ctrl+C.
 Never paste Dhan tokens here; place them in the ignored .env file.
@@ -95,6 +95,38 @@ if [ ! -f .env ] && [ -f .env.example ]; then
   info "Created private .env template (Dhan token optional; edit with nano .env)"
 fi
 if [ -f .env ]; then chmod 600 .env; fi
+fi
+
+# Research-only operation must not depend on npm, Vite or the web build.
+if [ "$MODE" = research ]; then
+  info "Opening YOUR quantitative research lab on http://127.0.0.1:8501"
+  info "Sidebar: Index Research -> enable synthetic example -> Run experiment"
+  info "Press Ctrl+C to stop"
+  exec .venv/bin/streamlit run dashboard/app.py --server.address 127.0.0.1 --server.port 8501
+fi
+
+if [ "$MODE" = check ] || [ "$MODE" = evaluate ]; then
+  info "Running full Python test suite"
+  .venv/bin/python -m unittest discover -s tests -v
+  info "Running mathematical acceptance (persistent HTML and JSON reports)"
+  .venv/bin/python scripts/verify_mathematics.py --output-dir results/math_acceptance
+  if [ "$MODE" = evaluate ]; then
+    info "Running labeled synthetic factor experiment"
+    # The synthetic generator is deterministic; existing files are retained.
+    if [ ! -f data/synthetic_example/prices.csv ]; then
+      .venv/bin/python -m index_research.cli make-fixture --output-dir data/synthetic_example
+    fi
+    # Experiments may refuse overwriting an existing output directory.
+    RUN_DIR="results/synthetic_$(date +%Y%m%d_%H%M%S)"
+    .venv/bin/python -m index_research.cli run --input-dir data/synthetic_example --output-dir "$RUN_DIR" --config config/research_multifactor.json
+    info "Generating 2D/3D analytical validation report"
+    .venv/bin/python scripts/export_visual_validation.py --output-dir results/visual_validation
+    info "Experiment output: $RUN_DIR"
+    info "Mathematics report: results/math_acceptance/mathematics_acceptance.html"
+    info "Visual report directory: results/visual_validation"
+  fi
+  info "Python research checks completed"
+  exit 0
 fi
 
 # The public website needs no Redis or application server. Node is used
