@@ -106,7 +106,7 @@ NOT a real Nifty 50 benchmark study**:
 
 ```bash
 python scripts/prepare_legacy_demo.py
-python -m index_research.cli run --input-dir data/legacy_static_demo --output-dir results/legacy_static_demo --config config/research_momentum.json
+python -m index_research.cli run --input-dir data/legacy_static_demo --output-dir results/legacy_static_demo --config config/research_legacy_demo.json
 ```
 
 It produces `data/legacy_static_demo/DEMONSTRATION_LIMITATIONS.json`.
