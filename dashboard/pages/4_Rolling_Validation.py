@@ -57,17 +57,20 @@ try:
         models=rolling_covariance_portfolios(
             x,train_window=window,rebalance_every=3,
             max_weight=cap,shrinkage_intensity=shrinkage,ewma_decay=decay)
-        wealth=(1+models).cumprod()
+        net_columns=[name for name in models.columns if not name.endswith(("_turnover","_gross"))]
+        net_models=models[net_columns]
+        wealth=(1+net_models).cumprod()
         st.plotly_chart(px.line(wealth,title="Frictionless rolling covariance portfolio wealth (illustrative)",
                       labels={"value":"Wealth multiple","index":"Date"}),use_container_width=True)
         summary=pd.DataFrame({
-            "model":models.columns,
-            "monthly_mean":[float(models[c].mean()) for c in models],
-            "monthly_volatility":[float(models[c].std(ddof=1)) for c in models],
-            "holdout_observations":[len(models)]*len(models.columns),
+            "model":net_columns,
+            "monthly_mean":[float(net_models[c].mean()) for c in net_columns],
+            "monthly_volatility":[float(net_models[c].std(ddof=1)) for c in net_columns],
+            "annualized_turnover":[float(models[f"{c}_turnover"].mean()*12) for c in net_columns],
+            "holdout_observations":[len(models)]*len(net_columns),
         })
         st.dataframe(summary,hide_index=True,use_container_width=True)
-        st.caption("No drift-aware turnover, sector caps, trading frictions or real benchmark; "
+        st.caption("Drift-aware turnover is included; sector caps, full market-impact costs and official benchmark are absent; "
                    "these curves are diagnostic, not evidence of an investable index.")
 except Exception as exc:
     st.error(f"Model validation blocked: {exc}")
