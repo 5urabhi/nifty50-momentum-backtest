@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 
 from index_research.advanced_models import (
     principal_components, fit_garch11, simulate_ou, covariance_stress_loss,
@@ -13,6 +14,7 @@ from index_research.math_models import (
 )
 
 st.set_page_config(page_title="Quantitative Model Comparison",layout="wide")
+show_workflow_nav()
 st.title("Quantitative Model Comparison Laboratory")
 st.caption("PCA · factor regression · GARCH · EWMA · stochastic mean reversion")
 st.warning("Inputs must be real, date-aligned observations. Synthetic demonstrations are not validated financial forecasts.")
