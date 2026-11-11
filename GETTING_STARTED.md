@@ -127,7 +127,7 @@ Home page has five clickable workflow tabs; every module has a
 | Download OHLCV | **Download history** | Choose symbols, dates and timeframe; read-only API downloads with per-run folders |
 | Inspect and chart | **Explore candles** | Raw OHLCV tables, price chart, volume, first/last observations and CSV export |
 | Prepare inputs | **Prepare for models** | Month-end observed close matrix; select the folder for later pages |
-| Evidence review | **Empirical Readiness** | Inspect required fields, publication dates, source review and benchmark coverage |
+| Evidence import + review | **Empirical Readiness** | Upload missing membership, benchmark, fundamentals, corporate actions or adjusted-price CSVs locally; inspect dates, source review and benchmark coverage |
 | Run factor model | **Index Research** | Pick the prepared local folder, a ZIP, or clearly labeled synthetic fixture; configure strategy |
 | Explore outputs | **Factor Lab / Index Comparisons / Risk Attribution / Robustness** | Reuse the active experiment from Streamlit session state |
 | Run math labs | **Advanced Mathematics / Quantitative Models / Model Comparison / 2D-3D Validation** | Adjust numerical model parameters, inspect graphs and export evidence |
@@ -148,7 +148,7 @@ Vercel** without licensing, confidentiality and provenance review.
 **Critical:** Dhan candles can be converted to month-end observed closes,
 but cannot prove a dividend-reinvested total-return history. Dhan does not
 supply a historical Nifty membership timeline, corporate-action completeness,
-an official TRI benchmark, or publication-dated factors. Index Research
+an official TRI benchmark, or publication-dated factors. The Empirical Readiness page provides a local **Import missing evidence** form so these separate files can be selected without copying them in a terminal. Index Research
 correctly **blocks** the dataset until the required input files are supplied;
 the missing evidence must not be fabricated.
 
