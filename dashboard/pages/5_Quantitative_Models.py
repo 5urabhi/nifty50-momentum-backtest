@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from dashboard.workstation_nav import show_workflow_nav
+from dashboard.workspace_data import active_asset_returns, active_source_label
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -23,15 +24,23 @@ st.title("Equity Index Quantitative Research Laboratory")
 st.caption("Research demonstrations only · Not an investable strategy or MSCI methodology")
 st.warning("The legacy 3.34 Sharpe and 132.86% annualized return are not audited. No historical index performance is claimed here.")
 
+st.page_link("dashboard/pages/1_Index_Research.py",label="Run Index Research to share its data with this lab →",icon="📈")
+use_active_cov=st.checkbox("Use active research experiment data for covariance models",value=False)
+if use_active_cov:
+    st.warning("Shared dataset: "+active_source_label()+". Covariance models are descriptive and unverified.")
 tabs=st.tabs(["Covariance & Optimization","Downside Risk","Stochastic Processes","Black–Scholes","Stochastic Volatility & Jumps"])
 
 with tabs[0]:
     st.subheader("Empirical covariance and long-only minimum-variance weights")
     st.write("Upload monthly **simple total returns** in decimal units, with a date column and one column per stock. Example: 0.01 = 1%. No missing values.")
-    uploaded=st.file_uploader("Historical monthly returns CSV",type="csv")
-    if uploaded is not None:
+    uploaded=st.file_uploader("Historical monthly returns CSV",type="csv",disabled=use_active_cov)
+    if uploaded is not None or use_active_cov:
         try:
-            raw=pd.read_csv(uploaded)
+            if use_active_cov:
+                active=active_asset_returns(minimum=12,max_assets=70)
+                raw=active.reset_index()
+            else:
+                raw=pd.read_csv(uploaded)
             if raw.shape[1] < 3:
                 raise ValueError("Expected date + at least two numeric security columns")
             dates=pd.to_datetime(raw.iloc[:,0],errors="raise")
