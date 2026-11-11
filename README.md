@@ -128,3 +128,16 @@ volatility, tail risk and numerical derivatives pricing.
 - [Advanced Mathematics dashboard page](dashboard/pages/3_Advanced_Mathematics.py)
 
 All new models await local runtime QA. GitHub Actions remains disabled.
+
+
+### Rolling model validation
+
+An additional **Rolling Validation** dashboard page compares sample/EWMA
+variance forecasts using QLIKE and forecast error, plus rolling (historical
+only) sample/shrinkage/EWMA covariance portfolios. The illustrated
+portfolio paths are **frictionless diagnostic comparisons**, not a production
+index backtest. See [Model Mathematics Catalog](docs/MATH_CATALOG.md).
+
+- [Rolling validation module](index_research/model_validation.py)
+- [Rolling validation dashboard](dashboard/pages/4_Rolling_Validation.py)
+- [Local rolling diagnostics tests](tests/test_model_validation.py)
