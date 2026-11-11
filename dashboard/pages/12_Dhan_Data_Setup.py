@@ -6,6 +6,7 @@ All API calls are made through the read-only local terminal downloader.
 from pathlib import Path
 import os
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 st.set_page_config(page_title="Dhan Data Connection", layout="wide")
@@ -93,3 +94,38 @@ Official DhanHQ documentation: [Historical Candles](https://dhanhq.co/docs/v2/hi
 Dhan historical candles alone are **not** point-in-time Nifty constituent history,
 corporate-action-adjusted total returns, or publication-dated fundamental data.
 The Dhan API page is an onboarding guide; **no token is sent or stored from this UI**.""")
+
+st.subheader("6. Local downloaded data inspection")
+raw=Path("data/dhan/raw")
+if raw.exists():
+    files=sorted(raw.glob("*_daily.csv"))
+    if files:
+        chosen=st.selectbox("Inspect raw OHLCV file",files,
+                            format_func=lambda p:p.name)
+        try:
+            candles=pd.read_csv(chosen)
+            if not {"datetime","close","volume"}.issubset(candles.columns):
+                raise ValueError("missing required candle fields")
+            dates=pd.to_datetime(candles["datetime"],utc=True,errors="raise")
+            closes=pd.to_numeric(candles["close"],errors="raise")
+            volumes=pd.to_numeric(candles["volume"],errors="raise")
+            if dates.isna().any() or closes.isna().any() or (closes<=0).any():
+                raise ValueError("invalid prices or dates")
+            st.caption(f"{len(candles)} observed candles; raw unadjusted prices.")
+            data=pd.DataFrame({"Timestamp":dates,
+                               "Unadjusted Close":closes,
+                               "Volume":volumes})
+            st.plotly_chart(px.line(data,x="Timestamp",y="Unadjusted Close",
+                    title="Dhan raw closes — NOT total-return adjusted"),
+                    use_container_width=True)
+            st.plotly_chart(px.bar(data.tail(100),x="Timestamp",y="Volume",
+                    title="Most recent 100 observed volumes"),
+                    use_container_width=True)
+            st.metric("Missing trading-day inference","Not performed")
+            st.warning("Holidays, halts, delistings and corporate actions require separate source verification.")
+        except Exception as exc:
+            st.error(f"Local candle preview unavailable: {exc}")
+    else:
+        st.info("No daily candle files found in data/dhan/raw.")
+else:
+    st.info("Download market data locally using scripts/dhan_data.py to enable charts.")
