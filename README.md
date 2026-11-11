@@ -95,7 +95,7 @@ main.ipynb                      Original notebook (preserved)
 7. Export machine-readable artifacts and the offline report for independent review.
 8. Present verified findings, assumptions and limitations in the portfolio and resume.
 
-## Documentation
+## DhanHQ historical market-data connector\n\nThe repository now contains a **read-only local DhanHQ v2 adapter** with\nhistorical daily/intraday OHLCV, 90-day intraday chunking, retry/backoff,\nvalidation, instrument-master lookup, provenance manifests, and monthly-close\nconversion. It never places orders or commits tokens.\n\n**[Step-by-step Dhan API setup and downloads](docs/DHAN_API_SETUP.md)**\n\n\`python scripts/dhan_data.py instrument-master\` downloads the current\nDhan scrip master; \`instrument-search --query "RELIANCE"\` helps locate\nSecurity IDs. The local dashboard includes a **Dhan Data Setup** onboarding\npage and raw OHLCV preview charts. The connector supplies raw closes, not\ncertified total-return-adjusted prices or historical Nifty constituents.\n\n## Documentation
 
 - [Full code status and remaining QA](docs/CODE_STATUS.md)
 - [Local runbook](docs/LOCAL_RUN.md)
