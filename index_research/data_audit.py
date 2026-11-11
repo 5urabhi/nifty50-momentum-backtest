@@ -37,7 +37,7 @@ def audit_dataset(directory: str | Path) -> dict:
     if sector_path.exists():
         historical_sectors=asof_sectors(read_sector_history(str(sector_path)),
                                        prices.index,prices.columns)
-        if historical_sectors.where(membership).isna().sum().sum():
+        if (membership & historical_sectors.isna()).to_numpy().any():
             warnings.append("Some eligible securities have unknown sector vintages.")
     else:
         warnings.append("Historical sector classifications are absent; sector caps unavailable.")
