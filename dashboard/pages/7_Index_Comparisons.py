@@ -30,6 +30,16 @@ with right:
     st.subheader("Concentration profile")
     st.plotly_chart(px.line(saved["concentration"][["hhi","largest_weight","top_five_weight"]],
                            title="Concentration history"),use_container_width=True)
+st.subheader("Controlled methodology comparison")
+if saved.get("comparison_returns") is not None:
+    variants=saved["comparison_returns"]
+    st.plotly_chart(px.line((1+variants).cumprod(),
+                   title="Like-for-like factor methodology comparisons (illustrative)"),
+                   use_container_width=True)
+    st.dataframe(saved["comparison_summary"],use_container_width=True)
+    st.caption("All variants reuse input dates, returns and costs; model choice must be frozen before final holdout.")
+else:
+    st.info("Methodology comparison unavailable: "+str(saved.get("comparison_warning","Missing inputs")))
 st.subheader("Absolute and active risk")
 roll=rolling_relative_metrics(strategy,benchmark,window=12)
 st.plotly_chart(px.line(roll[["rolling_tracking_error","rolling_volatility"]],
@@ -51,4 +61,4 @@ if len(data)>=12:
     st.dataframe(sensitivity,use_container_width=True,hide_index=True)
 else:
     st.info("At least 12 monthly observations required to annualize cost sensitivity.")
-st.warning("This is a single-methodology result view; a controlled multi-method experiment must run separately under identical data, splits and costs.")
+st.warning("Historical performance is exploratory. Audited point-in-time constituents, corporate actions and holdout governance remain necessary.")
