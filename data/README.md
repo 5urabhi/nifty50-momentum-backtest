@@ -86,3 +86,30 @@ benchmark constituents, official factor definitions or delisting payouts. The
 research code fails on missing held-price observations rather than inserting
 fictional recoveries. Production-correct corporate-action and investability
 support still requires licensed event histories and a documented rulebook.
+
+
+## sectors.csv (optional; required for sector caps)
+
+Historical, date-effective sector classifications. Each row is one effective
+change, not the company's **current** sector label. Format:
+
+```csv
+date,ticker,sector
+2023-01-31,STOCK_A,Financials
+2023-01-31,STOCK_B,Information Technology
+2023-10-31,STOCK_B,Communication Services
+```
+
+Every *selected* constituent must have a known sector at the decision date
+when sector constraints are enabled. Unknown or missing classifications block
+portfolio construction; sectors are not silently substituted from today's
+classification. The research dashboard accepts `sectors.csv` in the ZIP.
+
+## Generated research artifacts
+
+The local experiment and dashboard produce period returns, target/held
+weights, concentration diagnostics, rolling benchmark-relative metrics,
+factor-specific rank IC, portfolio factor exposures, optional sector exposure,
+cost sensitivity, comparison variants, experiment manifest with source hashes,
+a self-contained HTML report, and an offline PDF research-paper draft.
+These files are descriptive until market source evidence is independently audited.
