@@ -95,3 +95,25 @@ API architecture. Streamlit cannot simply be copied into Vercel static hosting.
 Do not cite old optimized Sharpe/return as verified. Never present synthetic
 results as evidence. The resume should describe methods actually implemented
 and results independently reproduced, not hypothetical return improvements.
+
+## Use the **actual legacy source CSV** as a transparent demonstration
+
+The old `nifty50_prices_monthly.csv` can be used without replacing or
+pretending to reconstruct historical membership. The converter uses
+complete-case securities, a static eligible universe, and an internally
+equal-weighted benchmark. **This introduces serious survivorship bias and is
+NOT a real Nifty 50 benchmark study**:
+
+```bash
+python scripts/prepare_legacy_demo.py
+python -m index_research.cli run --input-dir data/legacy_static_demo --output-dir results/legacy_static_demo --config config/research_momentum.json
+```
+
+It produces `data/legacy_static_demo/DEMONSTRATION_LIMITATIONS.json`.
+Use the output to inspect workflow mechanics only, not for published returns.
+
+## One-command local helpers
+
+After `bash scripts/run_local.sh setup`, choose
+`bash scripts/run_local.sh tests`, `synthetic`, `legacy`, or `dashboard`.
+All execution occurs on your machine, not GitHub.
