@@ -141,3 +141,26 @@ index backtest. See [Model Mathematics Catalog](docs/MATH_CATALOG.md).
 - [Rolling validation module](index_research/model_validation.py)
 - [Rolling validation dashboard](dashboard/pages/4_Rolling_Validation.py)
 - [Local rolling diagnostics tests](tests/test_model_validation.py)
+
+
+## End-to-end research workstation (development branch)
+
+The Streamlit entrypoint now provides a session-aware executive overview,
+a dedicated Factor Laboratory, matched Index Comparisons, a Research Report
+with HTML/PDF exports, four additional mathematical modeling pages, and
+rolling model diagnostics. Index Research supports optional effective-dated
+`sectors.csv` evidence and sector caps.
+
+Calculated outputs include issuer concentration, sector allocation,
+rolling benchmark-relative risk, transaction-cost sensitivity, and common
+methodology comparison series; none of these use hardcoded return numbers.
+
+**Documentation:** [Local execution](docs/LOCAL_RUN.md) ·
+[Input CSV contract](data/README.md) ·
+[Complete module status](docs/CODE_STATUS.md) ·
+[Research methodology](docs/RESEARCH_METHODS.md).
+
+The empirical market study is **not finished** until vetted historical data,
+local execution, numerical verification, corporate-action handling, QA and
+independent holdout evaluation are complete. No GitHub Actions or hosted
+Python compute is configured.
