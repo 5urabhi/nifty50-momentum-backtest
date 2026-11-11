@@ -190,6 +190,14 @@ def save_experiment(result: IndexBacktest, scores: pd.DataFrame,
 def run_from_directory(input_dir: str | Path, output_dir: str | Path,
                        config: ExperimentConfig) -> tuple[IndexBacktest,dict]:
     prices, membership, benchmark, fundamentals = load_research_inputs(input_dir)
+    if config.dataset_status == "verified_point_in_time":
+        from .empirical_validation import evidence_gate
+        declaration=Path(input_dir)/"EVIDENCE_REVIEW.json"
+        assessment=evidence_gate(input_dir,declaration)
+        if assessment["status"]=="BLOCKED":
+            raise ValueError("verified_point_in_time requires complete explicit "
+                "source declarations and input evidence. See EVIDENCE_REVIEW.json; "
+                "file presence alone cannot establish an external audit.")
     sectors=None
     sectors_file=Path(input_dir)/"sectors.csv"
     if sectors_file.exists():
