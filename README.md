@@ -97,6 +97,7 @@ main.ipynb                      Original notebook (preserved)
 
 ## Documentation
 
+- [Full code status and remaining QA](docs/CODE_STATUS.md)
 - [Local runbook](docs/LOCAL_RUN.md)
 - [CSV and point-in-time data contract](data/README.md)
 - [Research methods and acceptance matrix](docs/RESEARCH_METHODS.md)
