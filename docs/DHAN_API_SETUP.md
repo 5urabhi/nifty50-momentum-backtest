@@ -65,6 +65,26 @@ If the token expires, create another token on Dhan Web and repeat the
 local environment-variable step. HTTP 401/403 errors generally warrant
 checking the token and your Data API subscription first.
 
+### Recommended: local `.env` file (no repeated exports)
+
+From the project root, create your private environment file:
+
+```bash
+cp .env.example .env
+chmod 600 .env
+nano .env
+```
+
+Set `DHAN_ACCESS_TOKEN=YOUR_ACTUAL_TOKEN`, save, and close the editor.
+The read-only downloader automatically loads this project-root `.env`
+using `python-dotenv`; you no longer need to `export` the token each
+time. Explicit shell environment variables take precedence over the file.
+
+The `.env` file is already excluded by `.gitignore` and must never be
+committed, shared, or deployed to a public frontend. Dhan access tokens may
+expire, so update the file when necessary. The React/Vite website never
+reads this server-side/local secret.
+
 ## 3. Download the instrument-master CSV and find Security IDs
 
 Dhan uses a **Security ID**, not a stock ticker, in historical chart requests.
