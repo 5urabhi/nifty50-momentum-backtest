@@ -1,6 +1,19 @@
+> **Current workflow (updated):** This is a PERSONAL research tool, not a client-facing product.
+> `bash run.sh` starts **Streamlit at localhost:8501**, where you can run
+> factor experiments and explore models. `bash run.sh evaluate` generates
+> local test and model artifacts. Vite is optional: `bash run.sh web`.
+>
+> Full list of research pages: Index Research, Factor Laboratory, Index
+> Comparisons, Advanced Mathematics, Rolling Validation, Quantitative Models,
+> Risk Attribution, Robustness, Visual Validation, and Research Report.
+>
+> **Run an experiment:** Sidebar → Index Research → Synthetic demonstration →
+> Run. Synthetic examples verify software behavior; they are not historical
+> market evidence. Use verified inputs before publishing performance claims.
+
 # Getting started — one-command Ubuntu setup
 
-**The easiest way to use the entire quantitative research portfolio.**
+**Personal quantitative research workstation — run your own Python models, tests and local reports. Not a company product.**
 
 You do **not** need Redis, Docker, a database, a globally installed Python
 package, Dhan credentials, Streamlit on Vercel, or a paid backend to view the
@@ -17,13 +30,10 @@ git pull --ff-only origin research/multi-factor-equity-index
 bash run.sh
 ```
 
-The final command **does everything needed for the public website**:
-checks Ubuntu system tools, installs any missing curl/git/xz prerequisites
-using `apt` (may prompt once for sudo), selects an appropriate Node.js
-runtime, installs JavaScript dependencies when needed, checks TypeScript and
-the production Vite build, and then starts the site locally.
+The final command **does everything needed for your local Python research dashboard**:
+checks Ubuntu system tools, installs Python dependencies into `.venv`, reads your local `.env` for optional Dhan downloads, and starts the Streamlit research dashboard. **No Node, npm, Vite, Redis, or Docker is required for the default research mode.**
 
-**Website:** http://127.0.0.1:5173
+**Research dashboard:** http://127.0.0.1:8501
 
 Leave the terminal open while using the website. Press **Ctrl+C** to stop it.
 Future launches only need:
@@ -55,23 +65,27 @@ Git credential helper. The installer does not request credentials.
 ## Choose what to start
 
 ```bash
-bash run.sh             # Default: lightweight React/Vite website only
-bash run.sh research    # Local Python/Streamlit research laboratory
-bash run.sh both        # Both website and Streamlit research laboratory
-bash run.sh check       # Full Python unit tests, math acceptance and web build
-bash run.sh setup       # Install everything and build; start no servers
+bash run.sh             # DEFAULT: your local Python research dashboard
+bash run.sh research    # Same as default
+bash run.sh evaluate    # Run tests, mathematical reports + synthetic experiment
+bash run.sh check       # Run Python tests + mathematical acceptance
+bash run.sh web         # OPTIONAL: public-facing animated presentation
+bash run.sh both        # Both research lab and optional web presentation
+bash run.sh setup       # Install both environments without starting servers
 bash run.sh --help      # Show usage and options
 ```
 
 | Command | Starts | Typical address | Installs Python packages? |
 | --- | --- | --- | --- |
-| `bash run.sh` | React/Vite | http://127.0.0.1:5173 | No |
-| `bash run.sh research` | Streamlit | http://127.0.0.1:8501 | Yes, isolated in `.venv` |
+| `bash run.sh` | Python/Streamlit research lab | http://127.0.0.1:8501 | Yes |
+| `bash run.sh research` | Same local research lab | http://127.0.0.1:8501 | Yes, isolated in `.venv` |
 | `bash run.sh both` | Both | :5173 and :8501 | Yes |
-| `bash run.sh check` | No server, verifies code | Test logs in terminal | Yes |
+| `bash run.sh check` | Run Python unit and mathematical tests | Test logs + math reports | Yes |
+| `bash run.sh evaluate` | Tests + synthetic factor experiment + 2D/3D reports | `results/` | Yes |
+| `bash run.sh web` | Optional React/Vite presentation | http://127.0.0.1:5173 | No |
 | `bash run.sh setup` | No server, prepares environment | N/A | Yes |
 
-The website uses npm/Node only; running it does not require the Python engine.
+The research lab uses Python. The optional showcase website uses npm/Node only.
 The research laboratory uses Python and its own dependencies. No Redis service
 or persistent background daemon is required. No GitHub Actions are created.
 
@@ -144,13 +158,21 @@ voiceover/subtitles, and feature the video at the top of the GitHub README.
 
 ## Testing, build and deployment
 
-**Python numerical and integration tests:**
+**Python numerical and integration tests (including mathematical acceptance):**
 
 ```bash
 bash run.sh check
 ```
 
-**Production web build only, without starting a server:**
+**Python tests plus reproducible, explicitly SYNTHETIC research results and 2D/3D charts:**
+
+```bash
+bash run.sh evaluate
+```
+
+Find generated artifacts in `results/`. These demonstrations cannot be used as actual Nifty backtest results on a résumé.
+
+**Preparation of both stacks, without starting servers:**
 
 ```bash
 bash run.sh setup
