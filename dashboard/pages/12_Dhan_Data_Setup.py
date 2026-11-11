@@ -128,14 +128,23 @@ with tabs[1]:
 def persist_instruments(instruments: list[Instrument]) -> None:
     if not instruments:
         raise ValueError("Watchlist must not be empty")
-    if MAPPING.exists():
-        raise FileExistsError("Mapping exists: use the explicit Replace mapping action")
+    import tempfile
     mapping_frame = pd.DataFrame([{
         "label": i.label, "security_id": i.security_id,
         "exchange_segment": i.exchange_segment, "instrument": i.instrument,
         "expiry_code": i.expiry_code,
     } for i in instruments])
-    mapping_frame.to_csv(MAPPING, index=False)
+    # Write then atomically replace: never delete the valid mapping before saving.
+    with tempfile.NamedTemporaryFile(dir=DATA, prefix="mapping_", suffix=".csv", delete=False) as handle:
+        temporary = Path(handle.name)
+    try:
+        mapping_frame.to_csv(temporary, index=False)
+        checked=read_instruments(temporary)
+        if len(checked)!=len(instruments):
+            raise ValueError("Mapping verification failed")
+        temporary.replace(MAPPING)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 with tabs[2]:
     st.subheader("Local research watchlist")
@@ -165,8 +174,6 @@ with tabs[2]:
             if any(x.label == candidate.label for x in mapped):
                 raise ValueError("Duplicate label; choose another or remove the old row")
             new_list = mapped + [candidate]
-            if MAPPING.exists():
-                MAPPING.unlink()
             persist_instruments(new_list)
             st.success(f"Added {safe_label}")
             st.rerun()
@@ -179,7 +186,6 @@ with tabs[2]:
             if st.button("Remove selected mapping"):
                 remaining = [x for x in mapped if x.label != remove_label]
                 if remaining:
-                    MAPPING.unlink()
                     persist_instruments(remaining)
                 else:
                     MAPPING.unlink()
