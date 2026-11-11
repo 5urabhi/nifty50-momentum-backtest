@@ -127,3 +127,27 @@ proof of empirically profitable or officially published index methodologies.
 its complete end-to-end runtime correctness and empirical finance claims remain
 unverified. The repository contains no GitHub Actions workflow. The user plans
 one future local QA round; do not treat "connected" as proof of "works."
+
+
+## Latest integrated research completion pass (2026-11-11)
+
+| Feature | Code | UI / reporting | Local QA |
+| --- | --- | --- | --- |
+| Executive overview, Factor Lab, Index Studio, Index Comparisons | Connected | Dedicated session-aware Streamlit pages | Pending |
+| Risk/concentration, historical sector exposure, transaction cost sensitivity | Connected | Charts and artifact CSVs | Pending |
+| Date-effective historical sector caps | Connected to index construction | Optional configuration in Index Research | Pending |
+| Minimum variance / risk parity index weighting | Connected to historical lagged covariance | Weighting selector and backtest | Pending |
+| Matched factor/index variant comparison | `comparison.py` | Comparison series and table | Pending |
+| Input completeness / historical evidence audit | `data_audit.py` | Robustness dashboard / JSON artifact | Pending |
+| Parameter robustness grid (development/validation only) | `robustness.py` | Robustness chart / CSV artifact | Pending |
+| Report generation | HTML + PDF sources | CLI and Research Report downloads | PDF render QA pending |
+| Historical corporate-action records | Optional evidence audit only | Input contract and warnings | **No payout/recovery engine** |
+| Vendor-backed point-in-time data / genuine Nifty benchmark | Not available | Import-only interface | **Blocked by source data** |
+| Reproducible final empirical conclusions | Not written | Draft report clearly unverified | **Blocked by market-data validation** |
+| Full local numerical/visual acceptance | Tests written | Run scripts provided | **Not executed per user instruction** |
+
+**Acceptance standard:** Code being committed is not equivalent to a passing
+local run. An end-to-end research product still requires trusted historical
+membership, fundamental vintages, corporate actions/dividends, valid benchmark
+series, careful securities lifecycle handling and final holdout research. Do
+not represent these external evidence requirements as already satisfied.
