@@ -62,7 +62,8 @@ def rolling_volatility_forecasts(returns: pd.Series, train_window: int=60,
 
 
 def variance_forecast_scores(forecasts: pd.DataFrame,
-                             epsilon: float=1e-12) -> pd.DataFrame:
+                             epsilon: float=1e-12,
+                             common_sample: bool=True) -> pd.DataFrame:
     """Model scores on fixed holdout, lower is better.
 
     QLIKE = mean(log(h)+rv/h), excluding constant log(rv).
@@ -74,18 +75,27 @@ def variance_forecast_scores(forecasts: pd.DataFrame,
     realized=forecasts["realized_variance"].astype(float)
     if (realized<0).any() or realized.isna().any() or not np.isfinite(realized).all():
         raise ValueError("realized variance must be complete nonnegative")
+    candidates=[name for name in forecasts.columns if name.endswith("_variance_forecast")]
+    if not candidates:
+        raise ValueError("no *_variance_forecast columns")
+    if common_sample:
+        overlap=forecasts[candidates].notna().all(axis=1)
+        if int(overlap.sum())<12:
+            raise ValueError("fewer than 12 common holdout dates across models; "
+                             "review GARCH nonconvergence or choose common_sample=False")
+    else:
+        overlap=pd.Series(True,index=forecasts.index)
     results=[]
-    for col in forecasts.columns:
-        if not col.endswith("_variance_forecast"):
-            continue
+    for col in candidates:
         pred=forecasts[col].astype(float)
         if (pred.dropna()<=0).any() or np.isinf(pred.to_numpy()).any():
             raise ValueError("forecast variances must be positive or explicitly missing")
-        valid=pred.notna()
+        valid=pred.notna() & overlap
         if int(valid.sum())<12:
             results.append({"model":col,"qlike":np.nan,"variance_mse":np.nan,
                             "observations":int(valid.sum()),
-                            "convergence_rate":float(valid.mean())})
+                            "convergence_rate":float(pred.notna().mean()),
+                            "comparison_sample":"common" if common_sample else "model_specific"})
             continue
         p=pred[valid].clip(lower=epsilon)
         actual=realized[valid]
@@ -93,7 +103,8 @@ def variance_forecast_scores(forecasts: pd.DataFrame,
         mse=float(np.square(p-actual).mean())
         results.append({"model":col,"qlike":qlike,"variance_mse":mse,
                         "observations":int(valid.sum()),
-                        "convergence_rate":float(valid.mean())})
+                        "convergence_rate":float(pred.notna().mean()),
+                        "comparison_sample":"common" if common_sample else "model_specific"})
     if not results:
         raise ValueError("no *_variance_forecast columns")
     return pd.DataFrame(results).sort_values("qlike").reset_index(drop=True)
