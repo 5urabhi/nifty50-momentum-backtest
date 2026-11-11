@@ -105,6 +105,31 @@ main.ipynb                      Original notebook (preserved)
 - [Mathematical models](docs/MATHEMATICAL_MODELS.md)
 - [Legacy README](docs/LEGACY_MOMENTUM_README.md)
 
+## Local research workstation — integrated pages
+
+The Streamlit navigation now contains the executive **Overview** plus:
+- **Index Research** — rank eligible stocks, apply caps/sector constraints and calculate a backtest.
+- **Model Comparison** — PCA, GARCH, OU and factor regression.
+- **Advanced Mathematics** — Markowitz, Black–Litterman, CVaR, HAC inference and options.
+- **Rolling Validation** — lag-only variance/covariance comparisons.
+- **Quantitative Models** — covariance optimization, stochastic models, BSM, Heston and jump processes.
+- **Factor Laboratory** — per-factor rank IC, scores and holding-period factor exposures.
+- **Index Comparisons** — matched strategies, rolling tracking error and cost sensitivity.
+- **Research Report** — HTML/PDF draft exports and experiment provenance.
+- **Risk Attribution** — covariance risk contributions, historical losses and hypothetical sector shocks.
+
+The research runner also generates a **data quality manifest**, historical
+sector exposure if sector input is supplied, and multiple strategy comparison
+tables. All charts come from uploaded data or clearly labeled simulations.
+
+**One local acceptance command:** `bash scripts/run_local.sh acceptance`.
+
+This software is **code-complete for the planned local-first prototype**,
+but not runtime-verified or supported by independently audited point-in-time
+market data. The accompanying local tests and UI checks have been authored;
+their results remain pending. The Vercel presentation is a separate static
+viewer, not a deployed Python research backend.
+
 ## Remaining research gates
 
 **Code-implemented does not mean empirical validation completed.** The code
