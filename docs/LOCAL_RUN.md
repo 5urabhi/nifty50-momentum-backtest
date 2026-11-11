@@ -165,3 +165,37 @@ independently reviewed.
 
 These features are connected in source code but have not been runtime-tested
 locally or visually inspected in Streamlit in this update.
+
+
+## One-command **local** end-to-end acceptance
+
+After installing dependencies, run from the repository root:
+
+```bash
+python scripts/local_acceptance.py
+```
+
+This runs unit tests, synthetic data construction, a full multi-factor experiment,
+the data/artifact/PDF checks, and startup checks for each Streamlit page.
+The optional UI interaction check starts a synthetic index experiment. To run
+only model/data/report checks:
+
+```bash
+python scripts/local_acceptance.py --skip-ui
+```
+
+The original CSV can be exercised separately with `--include-legacy`, which
+is **survivorship-biased** and does not represent an official Nifty benchmark.
+
+These commands run only on **your computer**; nothing in GitHub executes
+them. Mark the local QA checklist complete only after a successful run and
+reviewing the generated content. If a test fails, do not claim verification.
+
+## Cross-page research workflow
+
+Open `streamlit run dashboard/app.py`. Navigate to **Index Research**,
+upload the research inputs or select synthetic demonstration, and click
+**Run research experiment**. The app stores the active experiment for the
+executive overview, Factor Laboratory, Index Comparisons, Advanced
+Mathematics and Research Report pages. The PDF is a draft generated from
+the input manifest; it must not be presented as an audited empirical study.
