@@ -74,3 +74,22 @@ bash scripts/run_local.sh dashboard
 ```
 
 Test scripts should not be mistaken for a confirmed passing local test run.
+
+
+## Extended mathematics (November 11)
+
+The following additional code has been committed; **local execution and
+historical validation are pending**. See [full mathematics catalog](MATH_CATALOG.md).
+
+| Additional module | Code status | Local QA | Market/evidence QA |
+| --- | --- | --- | --- |
+| `portfolio_theory.py`: efficient frontier, active tracking-error utility, risk parity, diversification, Euler risk decomposition | Implemented | Pending | Pending |
+| `portfolio_extensions.py`: Black–Litterman, historical CVaR linear program, factor neutralization | Implemented | Pending | Pending |
+| `statistical_inference.py`: CAPM, FF3/FF5, Carhart, HAC Newey–West, bootstrap, BH correction, walk-forward, rank IC and spread | Implemented | Pending | Factor-return data missing |
+| `tail_risk.py`: normal/t VaR and ES, correlated Monte Carlo, scenario shocks, Kupiec, EVT | Implemented | Pending | Calibration/holdout missing |
+| `derivatives.py`: implied vol, BSM numerical checks, binomial American options, antithetic Monte Carlo, Heston and Merton processes | Implemented | Pending | Market calibration missing |
+| `dashboard/pages/3_Advanced_Mathematics.py` | Implemented | Visual QA pending | Inputs are user-supplied/assumptions |
+| `tests/test_additional_mathematics.py` | Written | **Not run locally** | N/A |
+
+These extensions are additional quantitative research demonstrations, not
+proof of empirically profitable or officially published index methodologies.
