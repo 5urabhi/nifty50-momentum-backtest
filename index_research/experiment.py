@@ -198,6 +198,8 @@ def run_from_directory(input_dir: str | Path, output_dir: str | Path,
     out=save_experiment(result,scores,meta,output_dir,input_dir,sectors=sectors)
     from .diagnostics import evaluate_factor_panel, exposure_panel, data_quality_report
     from .comparison import compare_index_methods
+    from .data_audit import audit_dataset
+    from .robustness import sensitivity_grid
     factor_ic, factor_scores=evaluate_factor_panel(
         prices,membership,fundamentals,
         momentum_formation=config.momentum_formation,
@@ -208,6 +210,14 @@ def run_from_directory(input_dir: str | Path, output_dir: str | Path,
     holding_exposures.to_csv(out/"portfolio_factor_exposures.csv",index_label="date")
     quality=data_quality_report(prices,membership,fundamentals,sectors)
     (out/"data_quality.json").write_text(json.dumps(quality,indent=2,allow_nan=False))
+    audit=audit_dataset(input_dir)
+    (out/"dataset_audit.json").write_text(json.dumps(audit,indent=2,allow_nan=False))
+    try:
+        grid=sensitivity_grid(prices,membership,benchmark,fundamentals,config,
+            sectors=sectors,segment="validation" if config.validation_start else "full_history")
+        grid.to_csv(out/"robustness_grid.csv",index=False)
+    except (ValueError,RuntimeError) as exc:
+        (out/"robustness_unavailable.txt").write_text(str(exc))
     try:
         variant_returns,variant_summary=compare_index_methods(
             prices,membership,benchmark,fundamentals,config,sectors=sectors)
