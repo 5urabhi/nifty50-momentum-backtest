@@ -223,3 +223,19 @@ membership, published fundamental vintages, corporate actions/delistings,
 benchmark licenses, final holdout and true empirical research conclusions.
 
 No GitHub Actions, branch merge, or Vercel deployment has been initiated.
+
+## Visual mathematical verification (2D and 3D)
+
+| Addition | Code | Visualization | Acceptance |
+| --- | --- | --- | --- |
+| `index_research/visual_validation.py` | Implemented | Chart-ready analytic checks and calculated grids | Local tests pending |
+| `dashboard/pages/10_Visual_Validation.py` | Implemented | 2D convergence/fan/risk/forecast charts; 3D option and portfolio surfaces | Browser QA pending |
+| `scripts/export_visual_validation.py` | Implemented | Standalone interactive HTML plus CSV/JSON evidence | Offline render QA pending |
+| `tests/test_visual_validation.py` | Written | Mathematical checks, simplex and grid invariants | Not executed locally |
+| `scripts/run_local.sh visuals` | Implemented | Single-command visual evidence generation | Local QA pending |
+
+Charts deliberately label theoretical data, simulated paths, and uploaded
+financial observations separately. Mathematical PASS badges refer only to
+explicit numeric tolerances, not to source-data integrity or investable
+performance. 3D plots are included where they reveal an additional meaningful
+dimension; time-series validation remains 2D for readability.
