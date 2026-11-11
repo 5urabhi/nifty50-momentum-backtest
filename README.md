@@ -31,28 +31,40 @@ construction, constrained optimization, quantitative risk, and model comparison.
 No official MSCI or NSE index methodology is claimed. This is an independent
 research and educational framework, not investment advice.
 
-## Start locally (Python 3.11+)
+## 🚀 Start here — ONE command on Ubuntu
+
+**[Complete beginner-friendly Getting Started guide](GETTING_STARTED.md)**
+
+Already cloned? Pull the development branch once and run:
 
 ```bash
-git clone --branch research/multi-factor-equity-index https://github.com/5urabhi/nifty50-momentum-backtest.git
-cd nifty50-momentum-backtest
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r dashboard/requirements.txt
+cd ~/Desktop/codes/nifty50-momentum-backtest
+git switch research/multi-factor-equity-index
+git pull --ff-only origin research/multi-factor-equity-index
+bash run.sh
 ```
 
-When you choose to test locally:
+The launcher installs missing prerequisites, checks the frontend build, and
+starts the lightweight React/Vite website locally at
+**http://127.0.0.1:5173**. It does not need Redis or Docker.
 
 ```bash
-python -m unittest discover -s tests -v
-python -m index_research.cli make-fixture --output-dir data/synthetic_example
-python -m index_research.cli run --input-dir data/synthetic_example --output-dir results/synthetic --config config/research_momentum.json
-streamlit run dashboard/app.py
+bash run.sh           # Interactive React/Vite website (default)
+bash run.sh research  # Python/Streamlit research laboratory
+bash run.sh both      # Website + research laboratory
+bash run.sh check     # Python tests + mathematics + frontend build
+bash run.sh setup     # Install both stacks without starting servers
 ```
 
-**Synthetic experiment data are NOT Nifty history.** You must supply historical
-membership events, compatible prices and benchmark returns, and publication-dated
-fundamental factors before claiming a market-valid index experiment.
+Python libraries are installed only when a Python mode is requested.
+The website doesn't require a Dhan token. A local ignored `.env` works
+for Dhan research downloads; see the [Dhan Setup Guide](docs/DHAN_API_SETUP.md).
+For first-time clone instructions, Windows/macOS notes, troubleshooting,
+video recording, Vercel and security, use **[GETTING_STARTED.md](GETTING_STARTED.md)**.
+
+**Research integrity:** Mathematical explainer visuals are illustrative;
+the website does not claim historical performance until actual point-in-time
+market inputs pass independent review.
 
 ## Architecture
 
