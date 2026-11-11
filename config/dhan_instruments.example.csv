@@ -1,0 +1,3 @@
+label,security_id,exchange_segment,instrument,expiry_code
+EQUITY_A,00000,NSE_EQ,EQUITY,0
+EQUITY_B,00001,NSE_EQ,EQUITY,0
