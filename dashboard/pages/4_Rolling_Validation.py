@@ -3,12 +3,14 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 from index_research.model_validation import (
     rolling_volatility_forecasts,variance_forecast_scores,
     rolling_covariance_portfolios
 )
 
 st.set_page_config(page_title="Out-of-Sample Model Diagnostics",layout="wide")
+show_workflow_nav()
 st.title("Out-of-Sample Model Diagnostics")
 st.caption("Rolling covariance and volatility comparisons; input data never uploaded to a hosted service by this code")
 st.warning("These are exploratory risk-estimator comparisons, NOT investable portfolio backtests. "
