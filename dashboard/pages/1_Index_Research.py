@@ -209,6 +209,16 @@ if go:
                 sensitivity=None
             build_html_report(output)
             generate_pdf_report(output)
+            # Keep only generated research artifacts, never re-publish API secrets
+            # or raw licensed datasets. Results are ignored by Git.
+            from datetime import datetime, timezone
+            from uuid import uuid4
+            from shutil import copytree
+            run_id=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")+"_"+uuid4().hex[:8]
+            persistent=Path("results/workstation_runs")/run_id
+            persistent.parent.mkdir(parents=True,exist_ok=True)
+            copytree(output,persistent)
+            st.session_state["index_research_last_run_dir"]=str(persistent)
             zipfile_path=root/"research_artifacts.zip"
             with zipfile.ZipFile(zipfile_path,"w",compression=zipfile.ZIP_DEFLATED) as archive:
                 for file in output.iterdir():
@@ -244,6 +254,7 @@ if go:
                 "pdf":(output/"research_paper_draft.pdf").read_bytes(),
                 "archive":zipfile_path.read_bytes(),
                 "demo":demo,
+                "saved_run_dir":str(persistent),
             }
     except Exception as exc:
         st.error(f"Research run blocked: {exc}")
@@ -262,6 +273,8 @@ See `docs/LOCAL_RUN.md` for data formats and validation policies.
 """)
     st.stop()
 
+st.success("Research experiment generated. Local outputs saved under results/workstation_runs/.")
+st.page_link("dashboard/pages/11_Run_History.py",label="Open saved run history →",icon="🗂️")
 saved=st.session_state["index_research_result"]
 meta=saved["metadata"]
 if saved["demo"]:
