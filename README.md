@@ -114,3 +114,17 @@ backtested return or professional impact claim is published.
 
 The legacy notebooks and exports are preserved as the historical baseline,
 not silently overwritten by the new model results.
+
+
+## Advanced mathematics extension
+
+New modules cover efficient-frontier portfolio theory, risk parity, maximum
+diversification, benchmark-constrained active optimization, Black–Litterman,
+historical CVaR linear programming, Fama–French/Carhart factor regressions,
+Newey–West HAC inference, block bootstrap, multiple testing, stochastic
+volatility, tail risk and numerical derivatives pricing.
+
+- [Quantitative mathematics catalog](docs/MATH_CATALOG.md)
+- [Advanced Mathematics dashboard page](dashboard/pages/3_Advanced_Mathematics.py)
+
+All new models await local runtime QA. GitHub Actions remains disabled.
