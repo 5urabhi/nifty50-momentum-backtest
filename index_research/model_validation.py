@@ -12,13 +12,14 @@ from .portfolio_theory import optimize_portfolio
 
 def rolling_volatility_forecasts(returns: pd.Series, train_window: int=60,
                                  ewma_decay: float=0.94,
-                                 periods_per_year: int=12) -> pd.DataFrame:
-    """One-step variance forecasts: historical sample, EWMA, and GARCH.
+                                 periods_per_year: int=12,
+                                 include_garch: bool=False) -> pd.DataFrame:
+    """One-step variance forecasts from strictly prior monthly returns.
 
-    GARCH is deliberately excluded here because numerical nonconvergence is
-    possible; fit_garch11 is available as an optional separate model and
-    requires independent convergence tracking before inclusion in comparisons.
-    Variances are in one-period decimal-return squared units.
+    GARCH is optional because fitting it at each forecast date is expensive
+    and some windows may fail to converge. Failed fits are recorded as NaN,
+    not interpolated or replaced by sample variance, and score counts report
+    exact usable observations. Variances use decimal return-squared units.
     """
     r=pd.Series(returns,dtype=float)
     if (not isinstance(r.index,pd.DatetimeIndex) or r.index.has_duplicates
@@ -28,6 +29,10 @@ def rolling_volatility_forecasts(returns: pd.Series, train_window: int=60,
         raise ValueError("ordered complete returns, 24+ train and 12+ holdout required")
     records=[]
     x=r.to_numpy()
+    if include_garch and train_window<60:
+        raise ValueError("GARCH requires at least 60 training observations")
+    if include_garch:
+        from .advanced_models import fit_garch11
     for i in range(train_window,len(r)):
         history=x[i-train_window:i]
         sample=float(np.var(history,ddof=1))
@@ -35,12 +40,24 @@ def rolling_volatility_forecasts(returns: pd.Series, train_window: int=60,
         weights/=weights.sum()
         center=float(weights@history)
         ewma=float(weights@np.square(history-center))
-        records.append({
+        row={
             "date":r.index[i],"realized_variance":float((x[i]-history.mean())**2),
             "sample_variance_forecast":sample,
             "ewma_variance_forecast":ewma,
             "sample_mean_forecast":float(history.mean()),
-        })
+        }
+        if include_garch:
+            try:
+                fit=fit_garch11(pd.Series(history))
+                forecast=float(fit.next_variance)
+                if not np.isfinite(forecast) or forecast<=0:
+                    raise RuntimeError("nonpositive forecast")
+                row["garch_variance_forecast"]=forecast
+                row["garch_converged"]=bool(fit.converged)
+            except (RuntimeError,ValueError,FloatingPointError,OverflowError):
+                row["garch_variance_forecast"]=np.nan
+                row["garch_converged"]=False
+        records.append(row)
     return pd.DataFrame(records).set_index("date")
 
 
@@ -62,13 +79,21 @@ def variance_forecast_scores(forecasts: pd.DataFrame,
         if not col.endswith("_variance_forecast"):
             continue
         pred=forecasts[col].astype(float)
-        if (pred<=0).any() or pred.isna().any() or not np.isfinite(pred).all():
-            raise ValueError("forecast variances must be finite positive")
-        qlike=float((np.log(pred.clip(lower=epsilon))+
-                     realized/pred.clip(lower=epsilon)).mean())
-        mse=float(np.square(pred-realized).mean())
+        if (pred.dropna()<=0).any() or np.isinf(pred.to_numpy()).any():
+            raise ValueError("forecast variances must be positive or explicitly missing")
+        valid=pred.notna()
+        if int(valid.sum())<12:
+            results.append({"model":col,"qlike":np.nan,"variance_mse":np.nan,
+                            "observations":int(valid.sum()),
+                            "convergence_rate":float(valid.mean())})
+            continue
+        p=pred[valid].clip(lower=epsilon)
+        actual=realized[valid]
+        qlike=float((np.log(p)+actual/p).mean())
+        mse=float(np.square(p-actual).mean())
         results.append({"model":col,"qlike":qlike,"variance_mse":mse,
-                        "observations":len(forecasts)})
+                        "observations":int(valid.sum()),
+                        "convergence_rate":float(valid.mean())})
     if not results:
         raise ValueError("no *_variance_forecast columns")
     return pd.DataFrame(results).sort_values("qlike").reset_index(drop=True)
