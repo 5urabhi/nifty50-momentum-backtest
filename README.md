@@ -280,3 +280,23 @@ exchange/vendor files and source documentation are available and independently
 reviewed. The existing numerical/visual tests have not yet been executed
 locally under the user's deferred-QA workflow. Do not describe model code as
 a verified historical result.
+
+
+## Quantitative mathematics acceptance
+
+The equity-index mathematical framework includes an additional hardening
+pass: drift-aware rolling covariance portfolios, solver-verified risk budgets,
+one-step-ahead optional GARCH with fit diagnostics, comparable forecast
+holdout periods, analytical option Greeks and stochastic-process tests.
+
+**[Mathematical acceptance matrix and runbook](docs/MATHEMATICAL_ACCEPTANCE.md)**
+
+```bash
+bash scripts/run_local.sh math
+```
+
+This generates JSON/HTML numerical-check evidence using deterministic
+local tests. The code has been committed, but a complete local acceptance
+result has **not been observed** in this remote GitHub-only environment.
+Mathematical correctness, source-data validity and empirical index
+performance are three separate claims; do not conflate them.
