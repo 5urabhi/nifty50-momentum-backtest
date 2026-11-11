@@ -30,17 +30,24 @@ def monte_carlo_european(spot: float, strike: float, years: float,
     """Risk-neutral terminal-price Monte Carlo with antithetic variates."""
     if spot<=0 or strike<=0 or years<=0 or vol<0 or paths<100 or option not in ("call","put"):
         raise ValueError("invalid option parameters")
+    pairs=(paths+1)//2
     rng=np.random.default_rng(seed)
-    z=rng.standard_normal((paths+1)//2)
-    shocks=np.concatenate([z,-z])[:paths]
-    st=spot*np.exp((rate-dividend_yield-vol**2/2)*years+vol*np.sqrt(years)*shocks)
-    payoff=np.maximum(st-strike,0) if option=="call" else np.maximum(strike-st,0)
-    discounted=np.exp(-rate*years)*payoff
-    sample_std=discounted.std(ddof=1)
-    return {"price":float(discounted.mean()),
-            "naive_iid_standard_error":float(sample_std/np.sqrt(paths)),
-            "paths":paths, "seed":seed,
-            "warning":"Antithetic pairs are correlated: naive IID SE is not a valid CI."}
+    z=rng.standard_normal(pairs)
+    drift=(rate-dividend_yield-vol**2/2)*years
+    sd=vol*np.sqrt(years)
+    a=spot*np.exp(drift+sd*z)
+    b=spot*np.exp(drift-sd*z)
+    if option=="call":
+        values=(np.maximum(a-strike,0)+np.maximum(b-strike,0))/2
+    else:
+        values=(np.maximum(strike-a,0)+np.maximum(strike-b,0))/2
+    discount=np.exp(-rate*years)
+    standard_error=float(discount*values.std(ddof=1)/np.sqrt(pairs))
+    estimate=float(discount*values.mean())
+    return {"price":estimate,"standard_error":standard_error,
+            "ci95_lower":estimate-1.96*standard_error,
+            "ci95_upper":estimate+1.96*standard_error,
+            "independent_pairs":pairs,"seed":seed}
 
 
 def heston_paths(spot: float, variance: float, years: float,
@@ -89,3 +96,30 @@ def merton_jump_diffusion(spot: float, years: float, steps: int, paths: int,
     jump_log=counts*jump_mean_log+np.sqrt(counts)*jump_std_log*jump_shocks
     increments=(drift-0.5*vol**2-jump_intensity*k)*dt+vol*np.sqrt(dt)*standard+jump_log
     return spot*np.exp(np.vstack([np.zeros((1,paths)),np.cumsum(increments,axis=0)]))
+
+
+def binomial_option(spot: float, strike: float, years: float, rate: float,
+                    vol: float, steps: int=200, option: str="call",
+                    exercise: str="american", dividend_yield: float=0.) -> float:
+    """Cox-Ross-Rubinstein tree for European or American puts/calls."""
+    if (spot<=0 or strike<=0 or years<=0 or vol<=0 or steps<1
+            or option not in ("call","put") or exercise not in ("american","european")):
+        raise ValueError("invalid binomial-tree parameters")
+    dt=years/steps
+    up=np.exp(vol*np.sqrt(dt))
+    down=1/up
+    probability=(np.exp((rate-dividend_yield)*dt)-down)/(up-down)
+    if not 0<=probability<=1:
+        raise ValueError("risk-neutral transition probability outside [0,1]")
+    sign=1 if option=="call" else -1
+    nodes=np.arange(steps+1)
+    terminals=spot*up**nodes*down**(steps-nodes)
+    option_values=np.maximum(sign*(terminals-strike),0)
+    disc=np.exp(-rate*dt)
+    for level in range(steps-1,-1,-1):
+        option_values=disc*(probability*option_values[1:]+(1-probability)*option_values[:-1])
+        if exercise=="american":
+            j=np.arange(level+1)
+            underlying=spot*up**j*down**(level-j)
+            option_values=np.maximum(option_values,np.maximum(sign*(underlying-strike),0))
+    return float(option_values[0])
