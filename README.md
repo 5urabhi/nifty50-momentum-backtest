@@ -257,3 +257,26 @@ python -m unittest discover -s tests -v
 The required underlying financial statement histories, event/vintage records,
 index membership and benchmark datasets are **not supplied by this repository**.
 The code cannot make a genuinely verified empirical result without them.
+
+
+## Empirical data and study readiness — latest pass
+
+Code added for: split/bonus-aware Dhan dividend reinvestment, evidenced
+delisting cash, publication-dated NSE filing factor inputs, official
+Nifty TRI benchmark level import, and a human-review/frozen-holdout gate.
+The Streamlit navigation includes **Empirical Research Readiness**, where
+real data coverage and review blockers are visible with no synthetic
+substitution.
+
+Use:
+```bash
+python scripts/prepare_research_data.py --help
+```
+
+**[Full data preparation and empirical protocol](docs/EMPIRICAL_DATA_GUIDE.md)**
+
+**Important:** Full historical results are **not completed** until actual
+exchange/vendor files and source documentation are available and independently
+reviewed. The existing numerical/visual tests have not yet been executed
+locally under the user's deferred-QA workflow. Do not describe model code as
+a verified historical result.
