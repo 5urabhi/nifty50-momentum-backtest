@@ -164,3 +164,23 @@ The empirical market study is **not finished** until vetted historical data,
 local execution, numerical verification, corporate-action handling, QA and
 independent holdout evaluation are complete. No GitHub Actions or hosted
 Python compute is configured.
+
+
+## Final integration additions (research prototype)
+
+- Standalone **Factor Laboratory**, **Index Comparisons**, **Research Report**
+  and **Robustness** pages connected to the Index Research experiment.
+- Date-effective sector classification history and sector-constrained index
+  selection; issuer/sector exposures and concentration histories.
+- Lagged covariance-based minimum-variance and risk-parity weighting available
+  directly in the index methodology selector.
+- Like-for-like momentum/low-volatility/selected factor methodology comparisons,
+  rolling benchmark-relative metrics and transaction-cost sensitivity.
+- Dataset completeness and corporate-action **evidence** audit (not a complete
+  corporate-action return-processing engine).
+- Parameter-grid robustness studies restricted to development/validation.
+- Offline PDF research-paper **draft** and HTML report from reproducible
+  experiment artifacts.
+
+The implementation is ready **for local QA**, not for a verified empirical
+performance claim. No Actions workflows, deployment or merge was performed.
