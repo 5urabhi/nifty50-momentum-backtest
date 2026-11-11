@@ -9,6 +9,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 
 from index_research.data import load_research_inputs
 from index_research.experiment import ExperimentConfig, run_experiment, save_experiment
@@ -25,6 +26,7 @@ from index_research.data_audit import audit_dataset
 from index_research.robustness import sensitivity_grid
 
 st.set_page_config(page_title="Index Construction Research",layout="wide")
+show_workflow_nav()
 st.title("Equity Factor Index Construction")
 st.caption("Custom index research · Point-in-time evidence gates · Offline/local-first")
 
