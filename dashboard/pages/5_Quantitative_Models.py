@@ -10,6 +10,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
+from index_research.derivatives import heston_paths, merton_jump_diffusion
 from index_research.math_models import (
     sample_covariance, shrinkage_covariance, ewma_covariance,
     minimum_variance, historical_var_es, simulate_gbm, black_scholes,
@@ -20,7 +21,7 @@ st.title("Equity Index Quantitative Research Laboratory")
 st.caption("Research demonstrations only · Not an investable strategy or MSCI methodology")
 st.warning("The legacy 3.34 Sharpe and 132.86% annualized return are not audited. No historical index performance is claimed here.")
 
-tabs=st.tabs(["Covariance & Optimization","Downside Risk","Stochastic Processes","Black–Scholes"])
+tabs=st.tabs(["Covariance & Optimization","Downside Risk","Stochastic Processes","Black–Scholes","Stochastic Volatility & Jumps"])
 
 with tabs[0]:
     st.subheader("Empirical covariance and long-only minimum-variance weights")
@@ -107,3 +108,31 @@ with tabs[3]:
     output=black_scholes(spot,strike,years,rate,sigma,opt,q)
     st.dataframe(pd.DataFrame([output]).T.rename(columns={0:"Value"}),use_container_width=True)
     st.caption("Theoretical European option formula under lognormal diffusion and constant volatility; unrelated to realized index performance.")
+
+with tabs[4]:
+    st.subheader("Heston stochastic volatility and Merton jump diffusion")
+    st.info("Theoretical simulations are not market-calibrated forecasts.")
+    sim=st.selectbox("Stochastic model",["Heston","Merton jump diffusion"])
+    initial_price=st.number_input("Initial price",min_value=0.01,value=100.0,key="stoch_spot")
+    annual_drift=st.number_input("Assumed annual drift",value=.05,key="stoch_mu")
+    annual_vol=st.number_input("Assumed diffusion volatility",min_value=0.001,value=.2,key="stoch_sigma")
+    if sim=="Heston":
+        kappa=st.number_input("Variance mean reversion",min_value=.01,value=2.0)
+        volvol=st.number_input("Volatility of variance",min_value=0.0,value=.4)
+        rho=st.slider("Stock-variance innovation correlation",-1.0,1.0,-.6,.05)
+        heston=heston_paths(initial_price,annual_vol**2,years=1,steps=252,paths=80,
+                            rate=annual_drift,kappa=kappa,long_variance=annual_vol**2,
+                            vol_of_vol=volvol,rho=rho,seed=2026)
+        st.plotly_chart(px.line(pd.DataFrame(heston["prices"][:,:12]),
+                      title="Hypothetical Heston price paths"),use_container_width=True)
+        st.plotly_chart(px.line(pd.DataFrame(heston["variance"][:,:12]),
+                      title="Simulated variance paths"),use_container_width=True)
+        st.caption(heston["warning"])
+    else:
+        jump_intensity=st.number_input("Expected jumps per year",min_value=0.0,value=1.0)
+        jump_mean=st.number_input("Mean log-jump size",value=-.1)
+        jump_sd=st.number_input("Log-jump standard deviation",min_value=0.0,value=.15)
+        sample=merton_jump_diffusion(initial_price,1,252,80,annual_drift,annual_vol,
+                                     jump_intensity,jump_mean,jump_sd,seed=2026)
+        st.plotly_chart(px.line(pd.DataFrame(sample[:,:12]),
+                      title="Hypothetical compensated Merton jump paths"),use_container_width=True)
