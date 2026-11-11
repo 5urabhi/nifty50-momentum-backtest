@@ -6,7 +6,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Equity Index Quant Research",page_icon="📈",layout="wide",
                    initial_sidebar_state="expanded")
-from dashboard.workstation_nav import PAGES, show_workflow_nav
+from dashboard.workstation_nav import show_workflow_nav
 show_workflow_nav()
 st.title("Equity Index Quantitative Research")
 st.caption("YOUR LOCAL WORKSTATION · Data → Experiments → Mathematical models → Evidence")
@@ -42,6 +42,7 @@ with stages[3]:
 with stages[4]:
     st.subheader("Review evidence and export your research")
     st.page_link("dashboard/pages/8_Research_Report.py",label="Research Report and downloads",icon="📑")
+    st.page_link("dashboard/pages/11_Run_History.py",label="View previous saved experiments",icon="🗂️")
     st.markdown("For full local test reports, run `bash run.sh evaluate` in another terminal. The generated reports are saved under `results/`.")
     st.warning("Synthetic and unverified market results are NOT résumé-ready performance claims.")
 
