@@ -264,3 +264,20 @@ but not runtime-verified**. The entire equity-index empirical research product
 cannot be called fully verified until the other point-in-time sources and
 correct corporate-action policies are available. There is no GitHub Actions
 workflow. See [Dhan onboarding](DHAN_API_SETUP.md).
+
+## Evidence-based data preparation and publication gates
+
+| Area | Code status | Market evidence / QA status |
+| --- | --- | --- |
+| Split/bonus aware return indices; dividend reinvestment | Implemented `total_returns.py` | Dividend/action coverage unavailable; Dhan daily split/bonus adjustment must be honored |
+| Delisting cash proceeds | Explicit terminal sourced event supported | Historical recovery and lifecycle data missing |
+| Rights issues, mergers, spinoffs and complex reorganizations | NOT generally modeled | Economic payoff policies and event records required |
+| Historical filings / Value, Quality and Size proxies | Implemented `fundamental_ingestion.py` | Historical filing extracts and published_at timestamps not supplied |
+| Official Nifty TRI benchmark conversion | Implemented `benchmark_ingestion.py` | Official index level CSV not supplied |
+| Human review and frozen-holdout declarations | Implemented `empirical_validation.py` | Independent reviewer and validated records absent |
+| Deterministic tests for event, filing, benchmark formula | Written `tests/test_empirical_data.py` | Not executed locally |
+| Verified 2012–2026 India multi-factor empirical results | **NOT COMPLETE** | Missing real market/vintage inputs and independent validation |
+
+See [Empirical Data Guide](EMPIRICAL_DATA_GUIDE.md). No credible
+historical outperformance claim or resume result can be produced from an
+unsourced event ledger or from the legacy survivorship-biased universe.
