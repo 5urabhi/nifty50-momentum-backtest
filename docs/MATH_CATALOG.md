@@ -109,3 +109,20 @@ factor regressions and BSM/binomial/Monte Carlo comparisons.
 Do not publish numeric performance claims from the static-universe
 original notebook or synthetic fixtures. Any resume statistic requires
 an independent market data audit and frozen holdout research protocol.
+
+
+## 6. Rolling out-of-sample mathematical validation
+
+| Tool | Implementation | Mathematical evaluation | Limitation |
+| --- | --- | --- | --- |
+| Lag-only rolling variance forecasts | `model_validation.py` | Sample and EWMA conditional-variance proxies | GARCH not included in automated comparison |
+| QLIKE forecast loss | `model_validation.py` | Mean log forecast variance plus squared return/forecast variance | Squared return is a noisy realized-vol proxy |
+| Variance mean squared error | `model_validation.py` | Mean squared error of next-period squared-return proxy | Sensitive to extreme outliers |
+| Rolling covariance model portfolios | `model_validation.py` | Equal vs sample/shrinkage/EWMA minimum variance | Frictionless, no delisting or turnover modeling |
+| Group-neutral factor spreads | `model_validation.py` | Equal-weight average of within-group high-minus-low spreads | Requires effective-dated group classification |
+| Visual rolling validation panel | `dashboard/pages/4_Rolling_Validation.py` | Interactive local upload and model comparisons | Needs historical data and local visual QA |
+
+The model-forecast comparison is **out-of-sample in estimation timing only**:
+the full experiment design can still be contaminated by analyst selection
+of train-window length or estimator parameters based on visible test returns.
+Freeze evaluation choices before publishing.
