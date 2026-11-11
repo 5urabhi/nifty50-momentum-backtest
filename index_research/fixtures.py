@@ -8,7 +8,7 @@ def make_fixture(directory: str | Path, seed: int = 2026) -> Path:
     root=Path(directory)
     root.mkdir(parents=True,exist_ok=True)
     rng=np.random.default_rng(seed)
-    dates=pd.date_range("2015-01-31",periods=96,freq="ME")
+    dates=pd.date_range("2015-01-31",periods=120,freq="ME")
     tickers=[f"SYNTH_{n:02d}" for n in range(20)]
     market=rng.normal(0.006,0.04,len(dates))
     iid=rng.normal(0,0.055,(len(dates),len(tickers)))
