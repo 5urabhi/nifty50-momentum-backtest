@@ -151,3 +151,47 @@ local run. An end-to-end research product still requires trusted historical
 membership, fundamental vintages, corporate actions/dividends, valid benchmark
 series, careful securities lifecycle handling and final holdout research. Do
 not represent these external evidence requirements as already satisfied.
+
+
+## Integrated application completion pass — 2026-11-11
+
+The software features previously classified as "UI incomplete" or "core mostly
+implemented" now have implementation paths in the development branch.
+
+| Feature | Current implementation | Verification |
+| --- | --- | --- |
+| Executive research overview | `dashboard/app.py` reads current experiment state | Local UI QA pending |
+| Index Construction Studio | `dashboard/pages/1_Index_Research.py` supports factor weights, constituent count, weighting, caps, frequency, sector cap, execution lag and costs | Local UI QA pending |
+| Factor Laboratory | `dashboard/pages/6_Factor_Laboratory.py` reads score ranks, per-factor IC history, past-signal exposure history, concentration and historical sectors | Local UI QA pending |
+| Index methodology comparisons | `comparison.py` plus `dashboard/pages/7_Index_Comparisons.py` calculate like-for-like index variants and risk statistics | Local / historical QA pending |
+| Risk Attribution and Stress | `dashboard/pages/9_Risk_Attribution.py` displays covariance risk contributions, losses, concentrations and hypothetical sector shock | Local UI QA pending |
+| Historical sector methodology | `sector_data.py`, `index.py` effective-dated sector caps, `experiment.py` exports sector exposure | Source and integration QA pending |
+| Cost and turnover sensitivity | `research_analytics.py` and comparison UI; fixed-trade-path cost sensitivity | Execution model simplifications |
+| Research paper and reports | `pdf_report.py` ReportLab PDF draft; `reports.py` HTML; shared manifest / CLI / UI exports | PDF rendering QA pending |
+| Shared dashboard data | Index experiment persists data and results for overview, optimization lab, factor, risk, comparison and report pages | Local cross-page QA pending |
+| CLI/dashboard artifact parity | `run_from_directory` exports factor IC, exposures, sector analytics, methodology variants and coverage | Local test pending |
+| End-to-end acceptance harness | `scripts/local_acceptance.py` and `tests/test_complete_integration.py` | **Written but not executed** |
+| UI visual system | `.streamlit/config.toml` consistent dark theme | Visual QA pending |
+| GitHub Actions | Removed | No automatic execution |
+| Historic constituent/fundamental dataset | **Not sourced** | **External research/data dependency** |
+| Live Vercel computational backend | Not built | Out of scope for local-first version |
+
+**Definition of complete:** The intended local-first software feature code
+has been authored. That is not yet equivalent to a functioning verified
+application: acceptance tests, smoke tests, error-path QA and visual checks
+still must be run locally. The real-data research study is blocked by
+historical point-in-time membership and fundamental availability evidence.
+
+**Explicit limitation:** Corporate-action adjustment accuracy, delisting
+payouts, security identifiers, benchmark licensing, variable fees, impact,
+partial fills and realistic live execution cannot be claimed verified from
+the present inputs. No actual MSCI or official Nifty methodology is replicated.
+
+### Local acceptance command
+
+```bash
+bash scripts/run_local.sh setup
+bash scripts/run_local.sh acceptance
+```
+
+If either command fails, **the software cannot be called verified**.
