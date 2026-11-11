@@ -195,5 +195,24 @@ def run_from_directory(input_dir: str | Path, output_dir: str | Path,
     if sectors_file.exists():
         sectors=asof_sectors(read_sector_history(str(sectors_file)),prices.index,prices.columns)
     result,scores,meta=run_experiment(prices,membership,benchmark,fundamentals,config,sectors=sectors)
-    save_experiment(result,scores,meta,output_dir,input_dir,sectors=sectors)
+    out=save_experiment(result,scores,meta,output_dir,input_dir,sectors=sectors)
+    from .diagnostics import evaluate_factor_panel, exposure_panel, data_quality_report
+    from .comparison import compare_index_methods
+    factor_ic, factor_scores=evaluate_factor_panel(
+        prices,membership,fundamentals,
+        momentum_formation=config.momentum_formation,
+        momentum_skip=config.momentum_skip,
+        volatility_lookback=config.volatility_lookback)
+    holding_exposures,_=exposure_panel(result.weights,factor_scores,sectors=sectors)
+    factor_ic.to_csv(out/"factor_rank_ic.csv",index_label="date")
+    holding_exposures.to_csv(out/"portfolio_factor_exposures.csv",index_label="date")
+    quality=data_quality_report(prices,membership,fundamentals,sectors)
+    (out/"data_quality.json").write_text(json.dumps(quality,indent=2,allow_nan=False))
+    try:
+        variant_returns,variant_summary=compare_index_methods(
+            prices,membership,benchmark,fundamentals,config,sectors=sectors)
+        variant_returns.to_csv(out/"methodology_returns.csv",index_label="date")
+        variant_summary.to_csv(out/"methodology_summary.csv",index_label="methodology")
+    except (ValueError,RuntimeError) as exc:
+        (out/"methodology_comparison_unavailable.txt").write_text(str(exc))
     return result,meta
