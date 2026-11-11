@@ -117,3 +117,15 @@ Use the output to inspect workflow mechanics only, not for published returns.
 After `bash scripts/run_local.sh setup`, choose
 `bash scripts/run_local.sh tests`, `synthetic`, `legacy`, or `dashboard`.
 All execution occurs on your machine, not GitHub.
+
+
+## New advanced mathematics dashboard
+
+The Streamlit sidebar also offers **Advanced Mathematics**:
+portfolio frontiers, risk parity, benchmark-tracking optimization,
+Black–Litterman, CVaR, tail-distribution comparisons, robust factor
+regression and numerical option-pricing comparisons.
+
+New math tests are in `tests/test_additional_mathematics.py`. They
+should be run locally with `bash scripts/run_local.sh tests` when ready;
+no GitHub Actions checks are configured.
