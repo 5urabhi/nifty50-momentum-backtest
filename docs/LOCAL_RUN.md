@@ -139,3 +139,29 @@ covariance-based minimum variance portfolios. The panel uses **prior
 observations only** for each fitted covariance/variance forecast. It does
 not include trading costs or corporate actions and does not validate an
 investable index. Synthetic fixture demonstration still requires labels.
+
+
+## Integrated research workstation and reports
+
+The local Streamlit application now includes:
+- Executive research **Home** (active experiment indicators and governance)
+- **Index Research** (selection, multi-factor weights, optional as-of sector caps)
+- **Factor Laboratory** (cross-sectional scores, sector and concentration charts)
+- **Index Comparisons** (matched momentum/low-volatility methodology variants,
+  rolling risk, turnover, fixed-path transaction-cost sensitivity)
+- **Research Report** (experiment provenance, split metrics and downloads)
+- Advanced mathematics, model comparison, rolling covariance validation, and
+  the preserved original numerical modeling laboratory.
+
+CSV ZIP uploads can include `sectors.csv` using effective-dated
+`date,ticker,sector` records. To use the historical sector-cap toggle, that
+file is required.
+
+Local CLI and UI outputs include a PDF **draft** research paper generated with
+ReportLab, alongside the original HTML report and CSV/JSON research manifest.
+The PDF is a methodologically structured report, **not** a validated empirical
+academic publication until real point-in-time evidence and final holdout are
+independently reviewed.
+
+These features are connected in source code but have not been runtime-tested
+locally or visually inspected in Streamlit in this update.
