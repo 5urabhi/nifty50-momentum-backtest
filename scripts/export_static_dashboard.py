@@ -20,8 +20,8 @@ def main():
     source=root/"monthly_results.csv"
     if not source.exists():
         raise FileNotFoundError(source)
-    dest=Path(__file__).resolve().parents[1]/"web"/"data"
-    dest.mkdir(exist_ok=True)
+    dest=Path(__file__).resolve().parents[1]/"public"/"data"
+    dest.mkdir(parents=True,exist_ok=True)
     # Keep only non-identifying summaries; do NOT include source hash/vintage,
     # notes or input tickers in publicly deployed static metadata.
     safe={
@@ -35,8 +35,8 @@ def main():
     import pandas as pd
     values=pd.read_csv(source,usecols=["date","strategy_net","benchmark","turnover"])
     values.to_csv(dest/"returns.csv",index=False)
-    print("Static snapshot prepared in",dest)
-    print("PUBLIC-DATA WARNING: inspect generated web/data files and source licenses before any deploy.")
+    print("Vite public snapshot prepared in",dest)
+    print("PUBLIC-DATA WARNING: inspect generated public/data files and source licenses before any deploy.")
 
 
 if __name__=="__main__":
