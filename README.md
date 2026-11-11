@@ -31,40 +31,44 @@ construction, constrained optimization, quantitative risk, and model comparison.
 No official MSCI or NSE index methodology is claimed. This is an independent
 research and educational framework, not investment advice.
 
-## 🚀 Start here — ONE command on Ubuntu
+## Start here — your personal quantitative research workstation
 
-**[Complete beginner-friendly Getting Started guide](GETTING_STARTED.md)**
+This project is **for running your own quantitative finance models,
+experiments, mathematical tests, and 2D/3D graphs** to build a reproducible
+research portfolio. It is not a company application or a trading service.
 
-Already cloned? Pull the development branch once and run:
+**[Full local setup and model-running guide](GETTING_STARTED.md)**
+
+After cloning the research branch:
 
 ```bash
 cd ~/Desktop/codes/nifty50-momentum-backtest
-git switch research/multi-factor-equity-index
 git pull --ff-only origin research/multi-factor-equity-index
 bash run.sh
 ```
 
-The launcher installs missing prerequisites, checks the frontend build, and
-starts the lightweight React/Vite website locally at
-**http://127.0.0.1:5173**. It does not need Redis or Docker.
+**The default command opens the actual Python research dashboard at
+http://127.0.0.1:8501.** This includes Index Research, Factor Laboratory,
+Index Comparisons, Advanced Mathematics, Rolling Validation, Quantitative
+Models, Risk Attribution, Robustness, Visual Validation and Research Report.
 
 ```bash
-bash run.sh           # Interactive React/Vite website (default)
-bash run.sh research  # Python/Streamlit research laboratory
-bash run.sh both      # Website + research laboratory
-bash run.sh check     # Python tests + mathematics + frontend build
-bash run.sh setup     # Install both stacks without starting servers
+bash run.sh             # DEFAULT: personal Python model/workstation UI
+bash run.sh evaluate    # Run full tests + mathematics + synthetic experiment + reports
+bash run.sh check       # Run Python unit tests and mathematical acceptance
+bash run.sh research    # Same as default
+bash run.sh web         # OPTIONAL animated public explainer website (React/Vite)
+bash run.sh both        # Both interfaces
+bash run.sh setup       # Prepare dependencies without starting servers
 ```
 
-Python libraries are installed only when a Python mode is requested.
-The website doesn't require a Dhan token. A local ignored `.env` works
-for Dhan research downloads; see the [Dhan Setup Guide](docs/DHAN_API_SETUP.md).
-For first-time clone instructions, Windows/macOS notes, troubleshooting,
-video recording, Vercel and security, use **[GETTING_STARTED.md](GETTING_STARTED.md)**.
+**Inside the dashboard:** Choose **Index Research** in the sidebar, select
+**Synthetic demonstration** to test the machinery, then click **Run**. Visit
+the other model pages and Research Report to explore and export results.
 
-**Research integrity:** Mathematical explainer visuals are illustrative;
-the website does not claim historical performance until actual point-in-time
-market inputs pass independent review.
+**Research validity:** Synthetic results show that code runs, not that a
+Nifty strategy earns money. Portfolio-worthy historical performance must be
+recomputed using verified point-in-time sources and an approved benchmark.
 
 ## Architecture
 
