@@ -1,0 +1,2 @@
+ticker,period_end,published_at,source_url,filing_id,book_equity,net_income_ttm,revenue_ttm,operating_income_ttm,total_assets,total_debt,shares_outstanding,market_cap
+EXAMPLE_A,2023-12-31,2024-02-10,https://example.com/placeholder,EXAMPLE_A_2023Q4,200,20,150,30,400,100,10,500
