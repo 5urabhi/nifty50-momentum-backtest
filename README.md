@@ -228,3 +228,32 @@ chart data and a deterministic mathematical-check manifest to
 `results/visual_validation/`. The local Streamlit sidebar also contains the
 **Visual Validation** page. All mathematical fixtures are distinctly labeled
 as hypothetical; they do not validate the Nifty backtest.
+
+## Evidence-based empirical research input preparation
+
+The research branch now contains three additional **local and read-only**
+data-preparation modules:
+
+- `index_research/total_returns.py`: source-aware daily return-index
+  construction from Dhan split/bonus-adjusted closes plus independently
+  verified cash dividends and terminal recovery events; never invents missing
+  payouts or applies splits twice.
+- `index_research/fundamental_ingestion.py`: validates normalized
+  publication-dated historical filings and constructs transparent
+  Value/Quality/Size research proxies.
+- `index_research/benchmark_ingestion.py`: converts legally obtained
+  NSE Indices total-return index levels into aligned monthly benchmark returns.
+- `index_research/empirical_validation.py`: a human-declaration and
+  frozen-holdout readiness gate, never an automatic external audit.
+
+**[Complete corporate-action, fundamentals, TRI and historical membership
+setup guide](docs/EMPIRICAL_DATA_GUIDE.md)**
+
+```bash
+python scripts/prepare_research_data.py --help
+python -m unittest discover -s tests -v
+```
+
+The required underlying financial statement histories, event/vintage records,
+index membership and benchmark datasets are **not supplied by this repository**.
+The code cannot make a genuinely verified empirical result without them.
