@@ -36,7 +36,7 @@ def rolling_volatility_forecasts(returns: pd.Series, train_window: int=60,
         center=float(weights@history)
         ewma=float(weights@np.square(history-center))
         records.append({
-            "date":r.index[i],"realized_variance":float(x[i]**2),
+            "date":r.index[i],"realized_variance":float((x[i]-history.mean())**2),
             "sample_variance_forecast":sample,
             "ewma_variance_forecast":ewma,
             "sample_mean_forecast":float(history.mean()),
@@ -50,7 +50,7 @@ def variance_forecast_scores(forecasts: pd.DataFrame,
 
     QLIKE = mean(log(h)+rv/h), excluding constant log(rv).
     Squared error in variance is reported for a second loss function.
-    True conditional variance is unobserved; squared returns are noisy proxy.
+    True conditional variance is unobserved; squared next return minus the prior-history estimated mean is a noisy proxy.
     """
     if "realized_variance" not in forecasts:
         raise ValueError("need realized_variance")
