@@ -12,8 +12,23 @@ st.title("Empirical Research Readiness")
 st.caption("Corporate-action evidence, publication-date factors, Nifty TRI, frozen holdout")
 st.warning("A complete source-code module does not certify actual market data. No automatic approval.")
 
-root=Path("data/research_v1")
+default_root=Path("data/research_v1")
+candidate=st.session_state.get("research_input_dir")
+known=[default_root]
+monthly_root=Path("data/dhan/monthly_research")
+if monthly_root.exists():
+    known.extend(sorted(p.parent for p in monthly_root.glob("*/prices.csv")))
+if candidate:
+    selected_candidate=Path(candidate)
+    allowed=any(selected_candidate.resolve()==p.resolve() for p in known)
+    if allowed and selected_candidate not in known:
+        known.append(selected_candidate)
+idx=next((i for i,p in enumerate(known) if candidate and str(p.resolve())==str(Path(candidate).resolve())),0)
+root=st.selectbox("Inspect local research input directory",known,index=idx,format_func=str)
+st.session_state["research_input_dir"]=str(root.resolve())
 runs=Path("results/research_v1")
+st.page_link("dashboard/pages/12_Dhan_Data_Setup.py",label="Back to Dhan Historical Data →",icon="📥")
+st.page_link("dashboard/pages/1_Index_Research.py",label="Continue to Index Research →",icon="📈")
 items=[
     ("prices.csv","Normalized shareholder-return wealth indices"),
     ("corporate_actions.csv","Dated cash dividends, splits and delistings"),
@@ -32,7 +47,7 @@ a,b,c=st.columns(3)
 a.metric("Files available",int((table.Local=="Available").sum()))
 b.metric("Expected files",len(table))
 c.metric("Readiness","BLOCKED" if (table.Local=="MISSING").any() else "Review required")
-st.write("Local inputs belong in data/research_v1/ (ignored by git).")
+st.write("Local inputs are selected above and kept under ignored data/ folders. Data presence does not certify provenance.")
 st.write("See docs/EMPIRICAL_DATA_GUIDE.md for authorized data export and preparation.")
 st.code("python scripts/prepare_research_data.py --help",language="bash")
 
