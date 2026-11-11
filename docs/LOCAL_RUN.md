@@ -129,3 +129,13 @@ regression and numerical option-pricing comparisons.
 New math tests are in `tests/test_additional_mathematics.py`. They
 should be run locally with `bash scripts/run_local.sh tests` when ready;
 no GitHub Actions checks are configured.
+
+
+## Rolling out-of-sample diagnostics
+
+In Streamlit open **Rolling Validation** to upload a complete monthly return
+matrix and compare sample/EWMA volatility forecast losses or rolling
+covariance-based minimum variance portfolios. The panel uses **prior
+observations only** for each fitted covariance/variance forecast. It does
+not include trading costs or corporate actions and does not validate an
+investable index. Synthetic fixture demonstration still requires labels.
