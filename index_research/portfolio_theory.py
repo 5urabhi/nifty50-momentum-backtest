@@ -158,7 +158,7 @@ def risk_parity(covariance: pd.DataFrame, budgets: pd.Series | None = None,
     else:
         if not budgets.index.equals(covariance.index):
             raise ValueError("risk-budget labels must match")
-        beta=budgets.to_numpy(dtype=float)
+        beta=budgets.to_numpy(dtype=float,copy=True)
         if (beta<=0).any() or not np.isfinite(beta).all():
             raise ValueError("risk budgets must be positive")
         beta/=beta.sum()
