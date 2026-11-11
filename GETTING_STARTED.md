@@ -112,6 +112,51 @@ If the build or tests fail, the command exits **with an error** instead of
 pretending everything worked. Copy the terminal error output (redact any
 secrets) for debugging. An already configured `.env` is never overwritten.
 
+
+## Your fully linked research workstation
+
+After `bash run.sh`, visit **http://127.0.0.1:8501**. The Research
+Home page has five clickable workflow tabs; every module has a
+**WORKSTATION WORKFLOW** navigation group in the sidebar.
+
+| Stage | Where to click | What actually happens |
+| --- | --- | --- |
+| Collect data | **Dhan Data Manager → Connection & master** | Check local ignored .env, download/refresh official scrip master |
+| Discover instruments | **Find instruments** | Search the cached master by symbol, name or Security ID |
+| Save universe | **Watchlist mapping** | Save verified Dhan Security IDs locally; explicit add/remove |
+| Download OHLCV | **Download history** | Choose symbols, dates and timeframe; read-only API downloads with per-run folders |
+| Inspect and chart | **Explore candles** | Raw OHLCV tables, price chart, volume, first/last observations and CSV export |
+| Prepare inputs | **Prepare for models** | Month-end observed close matrix; select the folder for later pages |
+| Evidence review | **Empirical Readiness** | Inspect required fields, publication dates, source review and benchmark coverage |
+| Run factor model | **Index Research** | Pick the prepared local folder, a ZIP, or clearly labeled synthetic fixture; configure strategy |
+| Explore outputs | **Factor Lab / Index Comparisons / Risk Attribution / Robustness** | Reuse the active experiment from Streamlit session state |
+| Run math labs | **Advanced Mathematics / Quantitative Models / Model Comparison / 2D-3D Validation** | Adjust numerical model parameters, inspect graphs and export evidence |
+| Save and revisit | **Research Reports → Saved Run History** | View persistent local experiment folders, charts, provenance and download generated artifacts |
+
+### How Dhan data flow through the workstation
+
+**No terminal commands are required for day-to-day data download.** Start the
+workstation, then use the Dhan Data Manager tabs to fetch and inspect history.
+The credentials stay in `.env`, are never rendered in the UI, and are never
+committed. Dhan access remains read-only.
+
+The Dhan workflow saves under `data/dhan/` (Git-ignored). Experiments
+are saved under `results/workstation_runs/` (also ignored) instead of being
+lost when Streamlit restarts. **Never put these local source files in Git or on
+Vercel** without licensing, confidentiality and provenance review.
+
+**Critical:** Dhan candles can be converted to month-end observed closes,
+but cannot prove a dividend-reinvested total-return history. Dhan does not
+supply a historical Nifty membership timeline, corporate-action completeness,
+an official TRI benchmark, or publication-dated factors. Index Research
+correctly **blocks** the dataset until the required input files are supplied;
+the missing evidence must not be fabricated.
+
+Use `bash run.sh check` for full Python and mathematics unit checks, and
+`bash run.sh evaluate` for labeled synthetic research/visual reports.
+Numerical test passes and synthetic demonstrations alone do **not** warrant
+claiming profitable Nifty out-of-sample performance on a résumé.
+
 ## Dhan API — optional research data
 
 For raw historical data collection, start the local research environment (no npm setup required), then edit the token:
