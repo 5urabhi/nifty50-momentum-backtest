@@ -2,7 +2,9 @@
 import json
 import pandas as pd
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 st.set_page_config(page_title="Research Report & Evidence",layout="wide")
+show_workflow_nav()
 st.title("Research Report & Reproducibility")
 st.caption("Methods, holdout periods, provenance, reproducibility exports")
 saved=st.session_state.get("index_research_result")
