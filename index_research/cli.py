@@ -5,6 +5,11 @@ from pathlib import Path
 from .experiment import ExperimentConfig, run_from_directory
 from .reports import build_html_report
 from .pdf_report import generate_pdf_report
+from .data_audit import save_dataset_audit
+from .data import load_research_inputs
+from .sector_data import read_sector_history, asof_sectors
+from .comparison import compare_index_methods
+from .robustness import sensitivity_grid
 
 
 def main(argv=None):
@@ -29,6 +34,21 @@ def main(argv=None):
         return
     config=ExperimentConfig(**json.loads(Path(args.config).read_text())) if args.config else ExperimentConfig()
     _,meta=run_from_directory(args.input_dir,args.output_dir,config)
+    root=Path(args.output_dir)
+    save_dataset_audit(args.input_dir,root/"data_audit.json")
+    try:
+        prices,membership,benchmark,fundamentals=load_research_inputs(args.input_dir)
+        sector_path=Path(args.input_dir)/"sectors.csv"
+        sectors=asof_sectors(read_sector_history(str(sector_path)),prices.index,prices.columns) if sector_path.exists() else None
+        comparison,summary=compare_index_methods(prices,membership,benchmark,fundamentals,config,sectors=sectors)
+        comparison.to_csv(root/"methodology_returns.csv",index_label="date")
+        summary.to_csv(root/"methodology_summary.csv",index_label="methodology")
+        sensitivity=sensitivity_grid(prices,membership,benchmark,fundamentals,config,sectors=sectors,
+            costs_bps=(0.,20.),rebalance_months=(1,3),execution_lags=(0,1),
+            segment="validation" if config.validation_start else "full_history")
+        sensitivity.to_csv(root/"sensitivity_grid.csv",index=False)
+    except (ValueError,RuntimeError) as exc:
+        print("Optional comparison or sensitivity unavailable:",exc)
     path=build_html_report(args.output_dir)
     pdf_path=generate_pdf_report(args.output_dir)
     print(json.dumps(meta["metrics_by_split"],indent=2))
