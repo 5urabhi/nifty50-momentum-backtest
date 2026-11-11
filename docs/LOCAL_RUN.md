@@ -272,3 +272,20 @@ actual local file completeness, factor vintages and holdout readiness.
 No source credential, market data retrieval, tests, or deployment is
 automatically run by GitHub. The historical analysis remains unvalidated
 until independently audited inputs are provided and the local QA passes.
+
+
+## Mathematical acceptance (code completion check)
+
+```bash
+bash scripts/run_local.sh math
+```
+
+This runs analytical option and portfolio identities, stochastic moments,
+risk constraints, rolling model validation and visualization-data tests. It
+generates `results/math_acceptance/mathematics_acceptance.html` and JSON/log
+evidence. An unsuccessful test returns a nonzero exit status.
+
+Detailed scope and reproducibility contract:
+[Mathematical Acceptance](MATHEMATICAL_ACCEPTANCE.md).
+
+This is local-only and does not configure GitHub Actions.
