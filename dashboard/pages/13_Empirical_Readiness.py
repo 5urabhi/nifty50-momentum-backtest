@@ -3,9 +3,11 @@ from pathlib import Path
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 from index_research.empirical_validation import evidence_gate, assess_holdout
 
 st.set_page_config(page_title="Empirical Research Readiness",layout="wide")
+show_workflow_nav()
 st.title("Empirical Research Readiness")
 st.caption("Corporate-action evidence, publication-date factors, Nifty TRI, frozen holdout")
 st.warning("A complete source-code module does not certify actual market data. No automatic approval.")
