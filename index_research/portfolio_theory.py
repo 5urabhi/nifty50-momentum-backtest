@@ -171,7 +171,13 @@ def risk_parity(covariance: pd.DataFrame, budgets: pd.Series | None = None,
         return float(np.square(contribution/v-beta).sum())
     constraints=[{"type":"eq","fun":lambda w:np.sum(w)-1}]
     label=pd.Series(0.,index=covariance.index,name="risk_parity")
-    return _solve(c,mu,None,error,[(1e-9,max_weight)]*n,constraints,np.full(n,1/n),label)
+    solution=_solve(c,mu,None,error,[(1e-9,max_weight)]*n,constraints,np.full(n,1/n),label)
+    deviation=np.sqrt(error(solution.weights.to_numpy()))
+    if deviation>1e-3:
+        raise RuntimeError(
+            "Risk parity budget could not be achieved with given covariance "
+            f"and caps (L2 budget error={deviation:.6g}); not a valid risk-parity solution")
+    return solution
 
 
 def maximum_diversification(covariance: pd.DataFrame,
