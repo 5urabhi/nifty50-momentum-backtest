@@ -1,3 +1,9 @@
+> **START HERE:** The current supported Ubuntu one-command installer is
+> [GETTING_STARTED.md](../GETTING_STARTED.md). Run `bash run.sh` from the
+> repository root. The older manual instructions below are supplementary.
+> The root `requirements.txt` is now canonical; `web/` is a preserved
+> legacy static viewer and Vercel now builds the React/Vite `dist/` output.
+
 # Local-first Quickstart (Ubuntu, macOS, Windows)
 
 The project is **not automatically executed, scheduled or deployed** by GitHub.
