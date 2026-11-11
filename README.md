@@ -300,3 +300,37 @@ local tests. The code has been committed, but a complete local acceptance
 result has **not been observed** in this remote GitHub-only environment.
 Mathematical correctness, source-data validity and empirical index
 performance are three separate claims; do not conflate them.
+
+
+## 🎬 Interactive website — mathematical explainer
+
+The development branch now includes a **React 18 + TypeScript + Vite** public
+showcase. It is distinct from the local Python/Streamlit research laboratory.
+
+- Five autoplay/manual explainer chapters for factor research, index constraints,
+  mathematical risk geometry, and out-of-sample validation.
+- Animated vector graphs; selectable factor signals; interactive holding cap;
+  draggable 3D portfolio volatility geometry; theoretical options-pricing curve.
+- Responsive cinematic research design, reduced-motion support, keyboard
+  navigation and code-rendered visuals.
+- An **evidence-first** publication panel that never invents historical returns.
+- A Vercel-ready static build, with no Python server or broker credentials.
+
+**[Website and video recording guide](docs/SHOWCASE_AND_VIDEO.md)**
+
+```bash
+# After pulling this branch
+npm install
+npm run dev
+# When ready for release verification:
+npm run build
+npm run preview
+```
+
+The existing Streamlit app remains intact for local research. The legacy
+`web/` viewer is preserved for comparison; Vercel now builds `dist/` from
+the new root Vite frontend. If you later export and approve a real public
+snapshot, its aggregate data belong under `public/data/` and must pass
+research source/licensing review before deployment.
+
+**Build/visual QA and Vercel deployment have not been completed yet.**
