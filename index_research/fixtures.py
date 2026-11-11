@@ -18,6 +18,12 @@ def make_fixture(directory: str | Path, seed: int = 2026) -> Path:
     membership=pd.DataFrame({"date":[str(dates[0].date())]*len(tickers),
                              "ticker":tickers,"eligible":[True]*len(tickers)})
     membership.to_csv(root/"membership.csv",index=False)
+    sectors=pd.DataFrame({
+        "date":[str(dates[0].date())]*len(tickers),
+        "ticker":tickers,
+        "sector":[f"SYNTH_SECTOR_{i%5}" for i in range(len(tickers))]
+    })
+    sectors.to_csv(root/"sectors.csv",index=False)
     benchmark=pd.DataFrame({"date":dates,"return":market})
     benchmark.to_csv(root/"benchmark.csv",index=False)
     fundamentals=[]
