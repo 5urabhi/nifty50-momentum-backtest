@@ -32,8 +32,13 @@ try:
         raise ValueError("at least 48 fully observed rows required")
     if len(x.columns)>30:
         raise ValueError("this interactive model comparison is limited to 30 securities")
-    window=st.slider("Train window (months)",min_value=24,max_value=len(x)-12,
-                      value=min(36,len(x)-12))
+    use_garch=st.checkbox("Add rolling GARCH(1,1) (slower; >=60 training months)",value=False)
+    min_window=60 if use_garch else 24
+    if len(x)<min_window+12:
+        st.error(f"Need at least {min_window+12} observations for this configuration.")
+        st.stop()
+    window=st.slider("Train window (months)",min_value=min_window,max_value=len(x)-12,
+                      value=min(max(60,36) if use_garch else 36,len(x)-12))
     decay=st.slider("EWMA decay",min_value=.50,max_value=.99,value=.94,step=.01)
     shrinkage=st.slider("Covariance diagonal shrinkage",min_value=0.0,
                          max_value=1.0,value=.25,step=.05)
@@ -41,13 +46,20 @@ try:
     with tab1:
         security=st.selectbox("Security",list(x.columns))
         forecasts=rolling_volatility_forecasts(x[security],train_window=window,
-                                               ewma_decay=decay)
+                                               ewma_decay=decay,include_garch=use_garch)
         scores=variance_forecast_scores(forecasts)
+        if use_garch:
+            st.metric("GARCH fit convergence",f"{forecasts['garch_converged'].mean():.1%}")
+            st.warning("QLIKE/MSE are calculated on the available observations per model. "
+                       "When GARCH fits fail, compare only an identical holdout subset.")
         st.dataframe(scores,hide_index=True,use_container_width=True)
-        display=forecasts[["sample_variance_forecast","ewma_variance_forecast",
-                            "realized_variance"]].rename(columns={
+        selected=["sample_variance_forecast","ewma_variance_forecast","realized_variance"]
+        if use_garch:
+            selected.append("garch_variance_forecast")
+        display=forecasts[selected].rename(columns={
             "sample_variance_forecast":"Historical sample",
             "ewma_variance_forecast":"EWMA",
+            "garch_variance_forecast":"GARCH(1,1)",
             "realized_variance":"Squared realized return (noisy)"})
         st.plotly_chart(px.line(display,title="Strictly prior-history variance forecast vs observed squared return"),use_container_width=True)
         st.caption("Lower holdout QLIKE and squared error are better under their respective losses. "
