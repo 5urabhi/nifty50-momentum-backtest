@@ -155,7 +155,7 @@ function AnimatedCurve({step}:{step:number}){
   const xs=Array.from({length:84},(_,i)=>i/83)
   const base=(t:number)=>(.52+.18*t+.07*Math.sin(6.4*t)+.025*Math.sin(20*t))
   const risk=(t:number)=>base(t)-(.06+.04*Math.sin(4*t))
-  const points=(fn:(t:number)=>number)=>xs.map((x,i)=>`${64+x*625},${270-fn(x)*225}`).join(' ')
+  const points=(fn:(t:number)=>number)=>xs.map(x=>`${64+x*625},${270-fn(x)*225}`).join(' ')
   return <div className="visual chart-visual">
     <div className="visual-head"><span className="mono">RESEARCH VALIDATION / CONCEPTUAL CHART</span><Chip>Illustrative — not backtest</Chip></div>
     <svg role="img" aria-label="Animated illustrative comparison of an index and benchmark with stress and holdout segments" viewBox="0 0 760 360">
