@@ -195,3 +195,31 @@ bash scripts/run_local.sh acceptance
 ```
 
 If either command fails, **the software cannot be called verified**.
+
+
+## Final integration inventory (local-first feature pass)
+
+- **Core index:** factor scores, point-in-time membership/sector-vintage
+  inputs, per-stock weights/sector caps, drift-aware turnover, costs and
+  benchmark-relative comparisons are implemented in source.
+- **Mathematics:** statistical inference, factor-model regression,
+  constrained portfolio allocation, numerical option pricing, stochastic
+  processes, tail-risk and rolling estimator validation are implemented.
+- **UI:** executive overview plus Index Research, Factor Laboratory,
+  Model Comparison, Advanced Mathematics, Quantitative Models, Rolling
+  Validation, Index Comparisons, Risk Attribution, Robustness/Data Audit,
+  Visual Validation and Research Report views are in source.
+- **Shared result pipeline:** the CLI and interactive experiment runner
+  export factor IC and exposures, sector exposures, portfolio concentration,
+  rolling relative metrics, methodology variants, sensitivity grid, dataset
+  audit, SHA-256 manifest and HTML/PDF draft reports.
+- **Local QA:** `scripts/local_acceptance.py` runs tests, synthetic
+  end-to-end research, validates PDF and export files, and smoke-tests
+  Streamlit pages. It is NOT automatically executed by GitHub.
+
+**Still not verified:** The first actual local acceptance run, visual layout,
+numerical convergence on the end-user's environment, historical market
+membership, published fundamental vintages, corporate actions/delistings,
+benchmark licenses, final holdout and true empirical research conclusions.
+
+No GitHub Actions, branch merge, or Vercel deployment has been initiated.
