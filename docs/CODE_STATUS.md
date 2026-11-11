@@ -93,3 +93,8 @@ historical validation are pending**. See [full mathematics catalog](MATH_CATALOG
 
 These extensions are additional quantitative research demonstrations, not
 proof of empirically profitable or officially published index methodologies.
+
+
+| `model_validation.py`: rolling variance scoring, covariance model comparison, group-neutral factor spreads | Implemented | Pending | Market input provenance required |
+| `dashboard/pages/4_Rolling_Validation.py`: diagnostics UI | Implemented | Visual QA pending | Historical data required |
+| `tests/test_model_validation.py`: rolling leakage regression tests | Written | Not run locally | N/A |
