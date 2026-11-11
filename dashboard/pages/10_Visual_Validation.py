@@ -11,6 +11,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 
 from index_research.visual_validation import (
     option_price_surface, portfolio_risk_surface, option_convergence,
@@ -21,6 +22,7 @@ from index_research.portfolio_theory import optimize_portfolio
 from index_research.model_validation import rolling_volatility_forecasts, variance_forecast_scores
 
 st.set_page_config(page_title="Visual Validation Laboratory", layout="wide")
+show_workflow_nav()
 st.title("Visual Validation Laboratory")
 st.caption("Mathematical assertions → calculated 2D diagnostics → interactive 3D model surfaces")
 st.warning("DETERMINISTIC MATHEMATICAL FIXTURES / THEORETICAL MODELS. "
