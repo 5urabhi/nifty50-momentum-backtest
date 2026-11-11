@@ -113,7 +113,8 @@ def historical_var_es(returns: pd.Series, confidence: float = 0.95) -> dict[str,
 def simulate_gbm(s0: float, mu: float, sigma: float, years: float,
                  steps: int, paths: int, seed: int = 0) -> np.ndarray:
     """GBM: dS/S = mu dt + sigma dW. Shape (steps+1, paths)."""
-    if s0 <= 0 or sigma < 0 or years <= 0 or steps < 1 or paths < 1:
+    if (not np.isfinite([s0,mu,sigma,years]).all() or s0 <= 0 or sigma < 0
+            or years <= 0 or steps < 1 or paths < 1):
         raise ValueError("invalid simulation inputs")
     rng = np.random.default_rng(seed)
     dt = years / steps
