@@ -80,6 +80,13 @@ identify the correct exchange, segment, series, company/security identifier,
 and instrument type. Dhan's master is a *current* reference snapshot; it does
 not replace historical Nifty 50 constituent or identifier-event files.
 
+Find candidate instruments interactively in your terminal:
+
+```bash
+python scripts/dhan_data.py instrument-search --query "RELIANCE"
+# Or search a company name, then inspect the matching exchange/security IDs
+```
+
 Create your own reviewed mapping file, e.g.
 `config/dhan_instruments.example.csv`, then copy it into ignored `data/`:
 
@@ -240,5 +247,5 @@ Never embed secrets in web bundles, CSV exports, manifests or public plots.
 - Instrument list: https://dhanhq.co/docs/v2/instruments/
 - DhanHQ Python SDK: https://dhanhq.co/docs/DhanHQ-py/api/_historical_data/
 
-**No orders, trading automation, broker secrets or investment advice are part
+The Streamlit **Dhan Data Setup** page shows local instrument-mapping status,\nrequired data readiness, and 2D charts of downloaded raw closes/volumes. It\nnever asks for your token or invokes order endpoints.\n\n**No orders, trading automation, broker secrets or investment advice are part
 of this read-only historical-data integration.**
