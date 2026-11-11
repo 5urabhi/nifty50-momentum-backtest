@@ -43,9 +43,9 @@ def return_data(upload, minimum):
 
 with tab1:
     st.subheader("Principal component analysis of standardized return exposures")
-    up=st.file_uploader("Upload historical returns CSV",type="csv",key="pca")
+    up=st.file_uploader("Upload historical returns CSV",type="csv",key="pca",disabled=use_active)
     try:
-        values=return_data(up,12) if up is not None else (active_asset_returns(12) if use_active else None)
+        values=active_asset_returns(12) if use_active else return_data(up,12)
         if values is not None:
             if values.shape[1]<2: raise ValueError("PCA requires >=2 securities")
             count=st.slider("Number of components",1,min(values.shape),min(3,values.shape[1]))
@@ -60,9 +60,9 @@ with tab1:
 
 with tab2:
     st.subheader("Sample, EWMA, shrinkage, and GARCH volatility")
-    up=st.file_uploader("Upload monthly returns CSV (>=60 observations for GARCH)",type="csv",key="vol")
+    up=st.file_uploader("Upload monthly returns CSV (>=60 observations for GARCH)",type="csv",key="vol",disabled=use_active)
     try:
-        values=return_data(up,60) if up is not None else (active_asset_returns(60) if use_active else None)
+        values=active_asset_returns(60) if use_active else return_data(up,60)
         if values is not None:
             asset=st.selectbox("Select security",values.columns,key="vol_asset")
             x=values[asset]
