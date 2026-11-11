@@ -141,6 +141,9 @@ if go:
                     if file.is_file():
                         archive.write(file,file.name)
             st.session_state["index_research_result"]={
+                "research_inputs":{"prices":prices.copy(),"membership":membership.copy(),
+                                   "benchmark":benchmark.copy(),
+                                   "sectors":sectors.copy() if sectors is not None else None},
                 "data":pd.DataFrame({
                     "strategy":result.returns,"benchmark":result.benchmark_returns,
                     "turnover":result.turnover,"cost":result.costs}),
