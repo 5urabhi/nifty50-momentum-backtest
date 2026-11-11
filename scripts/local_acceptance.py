@@ -46,6 +46,9 @@ def run_complete_acceptance(include_streamlit: bool=True,include_legacy: bool=Fa
             "pre_trade_weights.csv","factor_scores.csv","concentration.csv",
             "rolling_metrics.csv","cost_sensitivity.csv",
             "sector_exposure.csv","research_manifest.json",
+            "dataset_audit.json","robustness_grid.csv",
+            "factor_rank_ic.csv","portfolio_factor_exposures.csv",
+            "data_quality.json","methodology_returns.csv","methodology_summary.csv",
             "research_report.html","research_paper_draft.pdf",
         }
         check_files(outputs,expected)
@@ -80,6 +83,8 @@ def run_complete_acceptance(include_streamlit: bool=True,include_legacy: bool=Fa
                 "dashboard/pages/6_Factor_Laboratory.py",
                 "dashboard/pages/7_Index_Comparisons.py",
                 "dashboard/pages/8_Research_Report.py",
+                "dashboard/pages/9_Risk_Attribution.py",
+                "dashboard/pages/9_Robustness.py",
             ]
             for name in pages:
                 app=AppTest.from_file(str(ROOT/name),default_timeout=60).run()
