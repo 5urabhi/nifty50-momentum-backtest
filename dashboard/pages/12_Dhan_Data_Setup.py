@@ -11,6 +11,7 @@ import os
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 
 from index_research.dhan_data import (
     MASTER_URL, Instrument, read_instruments, download_candles,
@@ -26,6 +27,7 @@ MONTHLY = DATA / "monthly_research"
 DATA.mkdir(parents=True, exist_ok=True)
 
 st.set_page_config(page_title="Dhan Historical Data | Research Workstation", page_icon="📊", layout="wide")
+show_workflow_nav()
 st.title("Dhan Historical Data")
 st.caption("Local read-only data manager · instrument discovery → mapping → candles → charts → research inputs")
 st.warning("The download tool is READ-ONLY and does not submit orders. Keep your Dhan token in the ignored local .env file, never in this browser.")
