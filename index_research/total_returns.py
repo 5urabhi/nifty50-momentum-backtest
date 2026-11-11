@@ -96,11 +96,21 @@ def total_return_index(daily_close: pd.Series, actions: pd.DataFrame,
     cash=pd.Series(0.,index=p.index)
     multiplier=pd.Series(1.,index=p.index)
     delisted=False
+    terminal_recovery=pd.Series(np.nan,index=p.index)
+    # For a vendor split-adjusted price series, historical closes are in
+    # current-share units. Historical pre-split dividends are converted to
+    # the same units using verified later split/bonus multipliers.
+    later_splits=events[events["event_type"].isin(["split","bonus"])]
     for _,event in events.iterrows():
         day=event["ex_date"]
         kind=event["event_type"]
         if kind=="dividend":
-            cash.at[day]+=float(event["cash_per_share"])
+            dividend=float(event["cash_per_share"])
+            if price_basis=="split_bonus_adjusted":
+                later=later_splits[later_splits["ex_date"]>day]
+                if len(later):
+                    dividend/=float(later["share_multiplier"].prod())
+            cash.at[day]+=dividend
         elif kind in ("split","bonus"):
             if price_basis=="raw_unadjusted":
                 multiplier.at[day]*=float(event["share_multiplier"])
@@ -112,9 +122,13 @@ def total_return_index(daily_close: pd.Series, actions: pd.DataFrame,
                 raise ValueError("delisting cash must be terminal; truncate after payout")
             if event["cash_per_share"]<=0:
                 raise ValueError("delisting recovery must have actual sourced cash")
-            cash.at[day]+=float(event["cash_per_share"])
+            terminal_recovery.at[day]=float(event["cash_per_share"])
             delisted=True
-    gross=(p + cash)*multiplier / p.shift(1)
+    end_value=p+cash
+    # A terminal cash recovery replaces the last stock price; it is NOT an
+    # extra dividend paid while the final traded share remains valuable.
+    end_value.loc[terminal_recovery.notna()]=terminal_recovery.dropna()
+    gross=end_value*multiplier / p.shift(1)
     gross.iloc[0]=1.
     if (gross<=0).any() or not np.isfinite(gross).all():
         raise ValueError("invalid total-return wealth factor")
