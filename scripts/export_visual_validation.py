@@ -12,6 +12,10 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.io import to_html
 
+# Make project imports work when invoked directly as python scripts/<name>.py.
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from index_research.visual_validation import (
     option_price_surface,portfolio_risk_surface,option_convergence,
     identity_checks,gbm_moments,risk_contribution_test,
