@@ -28,6 +28,8 @@ st.set_page_config(page_title="Index Construction Research",layout="wide")
 st.title("Equity Factor Index Construction")
 st.caption("Custom index research · Point-in-time evidence gates · Offline/local-first")
 
+st.page_link("dashboard/pages/12_Dhan_Data_Setup.py",label="Get historical Dhan data →",icon="📊")
+st.page_link("dashboard/pages/13_Empirical_Readiness.py",label="Verify source evidence →",icon="🧾")
 st.info("The repository's historic optimized results are not independently audited. "
         "This page does not claim to reproduce official Nifty or MSCI indexes.")
 
@@ -35,9 +37,40 @@ with st.sidebar:
     st.header("Research configuration")
     demo=st.toggle("Use deterministic SYNTHETIC example",value=False)
     upload=None
+    local_dir=None
+    source_mode="Synthetic" if demo else "Upload ZIP"
     if not demo:
-        upload=st.file_uploader("Upload research data ZIP",type="zip",
-            help="ZIP containing prices.csv, membership.csv, benchmark.csv, optionally fundamentals.csv")
+        source_mode=st.radio("Dataset source",["Local prepared folder","Upload ZIP"],
+            horizontal=False,key="research_data_mode")
+        if source_mode=="Upload ZIP":
+            upload=st.file_uploader("Upload research data ZIP",type="zip",
+                help="ZIP containing prices.csv, membership.csv, benchmark.csv, optionally fundamentals.csv")
+        else:
+            # Search only known local data roots; never arbitrary user-supplied filesystem paths.
+            roots=[Path("data/research_v1"),Path("data/dhan/monthly_research")]
+            folders=[]
+            for root in roots:
+                if root.is_dir() and (root/"prices.csv").exists():
+                    folders.append(root)
+                if root.is_dir():
+                    folders.extend(sorted(p.parent for p in root.glob("*/prices.csv")))
+            seen={str(p.resolve()):p for p in folders}
+            folders=list(seen.values())
+            preferred=st.session_state.get("research_input_dir")
+            idx=next((i for i,p in enumerate(folders) if str(p.resolve())==str(Path(preferred).resolve())),0) if preferred else 0
+            if folders:
+                local_dir=st.selectbox("Prepared research folder",folders,index=idx,
+                    format_func=lambda p:str(p))
+                st.session_state["research_input_dir"]=str(local_dir.resolve())
+                missing=[name for name in ("prices.csv","membership.csv","benchmark.csv")
+                         if not (local_dir/name).is_file()]
+                if missing:
+                    st.warning("Dataset is NOT ready for index research. Missing: "+", ".join(missing)+
+                               ". Dhan only creates prices.csv; add independently verified benchmark and membership.")
+                else:
+                    st.success("Required file names present. Provenance still requires independent review.")
+            else:
+                st.info("No local dataset with prices.csv found. Start in Dhan Historical Data or upload a ZIP.")
     top_n=st.number_input("Target constituents",min_value=2,max_value=500,value=10)
     method=st.selectbox("Weighting method",["equal","score","inverse_volatility","minimum_variance","risk_parity"])
     cap=st.slider("Maximum stock weight",0.05,1.0,0.20,step=0.01)
@@ -85,8 +118,10 @@ if go:
     try:
         if not factor_weights:
             raise ValueError("Choose at least one factor.")
-        if upload is None and not demo:
-            raise ValueError("Upload historical inputs or enable synthetic demonstration.")
+        if not demo and source_mode=="Upload ZIP" and upload is None:
+            raise ValueError("Upload historical inputs or select a prepared local dataset.")
+        if not demo and source_mode=="Local prepared folder" and local_dir is None:
+            raise ValueError("No local research dataset selected.")
         if top_n*cap<1:
             raise ValueError("Constituent count × max stock weight must be >= 1.")
         config=ExperimentConfig(
@@ -107,8 +142,20 @@ if go:
             input_dir.mkdir()
             if demo:
                 make_fixture(input_dir)
-            else:
+            elif source_mode=="Upload ZIP":
                 safe_zip_extract(upload.getvalue(),input_dir)
+            else:
+                required=["prices.csv","membership.csv","benchmark.csv"]
+                optional=["fundamentals.csv","sectors.csv","corporate_actions.csv"]
+                missing=[name for name in required if not (local_dir/name).is_file()]
+                if missing:
+                    raise ValueError("Research dataset missing "+", ".join(missing)+
+                        ". Dhan close prices alone are insufficient; do not infer benchmark/membership.")
+                import shutil
+                for name in required+optional:
+                    source=local_dir/name
+                    if source.is_file():
+                        shutil.copyfile(source,input_dir/name)
             audit=audit_dataset(input_dir)
             prices, membership, benchmark, fundamentals=load_research_inputs(input_dir)
             sector_file=input_dir/"sectors.csv"
@@ -202,8 +249,9 @@ if go:
 if "index_research_result" not in st.session_state:
     st.markdown("""### Start here
 
-Choose a **SYNTHETIC demonstration** to explore the workflow, or upload a ZIP
-with proper historical data. Synthetic results are for testing code and interface
+Choose a **SYNTHETIC demonstration** to explore the workflow, select a
+**local prepared folder** from the Dhan workspace, or upload a ZIP with complete
+historical data. Synthetic results are for testing code and interface
 only and must not appear in professional performance claims.
 
 For real research, obtain publication-dated fundamentals, historic constituent
