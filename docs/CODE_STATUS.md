@@ -329,3 +329,26 @@ Do **not** mark numerical correctness or real-market performance as complete
 until local tests actually pass. Complex vendor-specific financial events and
 external historical data are separate research-data gates, not mathematical
 formula gaps.
+
+
+## Public React/Vite research storytelling application (2026-11-11)
+
+| Surface | Code status | Visual/functional acceptance |
+| --- | --- | --- |
+| React/Vite/TypeScript application entrypoint | Implemented in `src/`, root `index.html` and `package.json` | Local build pending |
+| Five-chapter animated mathematical narrative | Implemented | Browser visual QA pending |
+| Interactive factor composition explanatory bars | Implemented, explicitly illustrative | Browser QA pending |
+| Interactive portfolio concentration slider | Implemented, explicitly illustrative | Browser QA pending |
+| Draggable 3D covariance volatility surface | Implemented as light-weight perspective SVG | Interaction QA pending |
+| BSM theoretical option price visual | Implemented, browser demonstration only | Numerical/browser QA pending |
+| Empirical aggregate results renderer | Implemented; defaults to NO data and NO historical claims | Publication review required |
+| Explicit public static-data exporter | Updated to `public/data/` | Data license/manual review required |
+| Vercel Vite static build config | Updated to root `dist/` output | Production build and preview deployment pending |
+| Reduced-motion and mobile-responsive styling | Implemented | Manual accessibility/responsive QA pending |
+| Explainer video | Storyboard and screen-recording procedure supplied | MP4 not recorded/published |
+| Streamlit local research lab | Preserved | Previous local acceptance status applies |
+
+This is a **code-authored web presentation**, not a confirmed production
+deployment. The current environment cannot independently download and build
+the GitHub repository, and the frontend has not yet passed `npm run build`
+or visual browser inspection. See [Public website and video guide](SHOWCASE_AND_VIDEO.md).
