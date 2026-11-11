@@ -14,3 +14,9 @@ data/
 !data/README.md
 *.log
 .DS_Store
+
+# React/Vite local build, dependency and bootstrap state
+node_modules/
+dist/
+.local-tools/
+.local-state/
