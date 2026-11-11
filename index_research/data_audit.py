@@ -43,20 +43,19 @@ def audit_dataset(directory: str | Path) -> dict:
         warnings.append("Historical sector classifications are absent; sector caps unavailable.")
     action_path=folder/"corporate_actions.csv"
     if action_path.exists():
-        actions=pd.read_csv(action_path)
-        required={"date","ticker","event_type","event_source"}
-        if not required.issubset(actions.columns):
-            raise ValueError("corporate_actions.csv requires date,ticker,event_type,event_source")
-        dates=pd.to_datetime(actions["date"],errors="raise")
-        if dates.isna().any() or actions[list(required-{"date"})].isna().any().any():
-            raise ValueError("incomplete corporate-action evidence")
+        from .total_returns import read_actions
+        actions=read_actions(action_path)
         unknown=set(actions["ticker"])-set(prices.columns)
         if unknown:
             raise ValueError(f"corporate actions reference unknown tickers: {sorted(unknown)}")
         actions_count=len(actions)
+        if actions_count==0:
+            warnings.append("Corporate-action ledger contains no events; completeness is not demonstrated.")
+        else:
+            warnings.append("A sourced action ledger is present; external event coverage and vendor return basis still require verification.")
     else:
         actions_count=0
-        warnings.append("No corporate-action evidence supplied; adjusted price/vendor policy must be documented.")
+        warnings.append("No corporate-action evidence supplied; adjustment and delisting policy must be documented.")
     return {
         "data_directory":str(folder),
         "first_date":str(prices.index.min().date()),
