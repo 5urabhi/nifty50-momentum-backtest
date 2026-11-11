@@ -3,11 +3,13 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from dashboard.workstation_nav import show_workflow_nav
 from index_research.math_models import historical_var_es
 from index_research.portfolio_theory import risk_contributions
 from index_research.sector_data import concentration_metrics
 
 st.set_page_config(page_title="Risk Attribution and Stress Lab",layout="wide")
+show_workflow_nav()
 st.title("Portfolio Risk Attribution")
 st.caption("Issuer concentration · covariance decomposition · historical losses · hypothetical stress")
 saved=st.session_state.get("index_research_result")
