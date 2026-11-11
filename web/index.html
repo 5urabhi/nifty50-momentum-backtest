@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Equity Index Quant Research | Research Portfolio</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,Arial,sans-serif;color:#e9eefb;background:#091427}
+*{box-sizing:border-box}body{margin:0}main{max-width:1200px;margin:auto;padding:30px 22px 70px}
+nav{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid #29405f;padding-bottom:18px}
+.logo{font-weight:800;letter-spacing:.05em;color:#78dbe7}.tag{font-size:12px;color:#91adc8}
+h1{font-size:clamp(32px,5vw,58px);margin:34px 0 9px;letter-spacing:-.04em}h2{margin:0 0 18px}
+.subtitle{color:#a4b8d3;max-width:760px;line-height:1.7}
+.note{border-left:4px solid #ffbf6b;background:#30271c;color:#ffe0a8;padding:15px 18px;margin:24px 0}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.card{background:#14233b;border:1px solid #2d4563;border-radius:15px;padding:22px;margin:10px 0}
+.metric{font-size:30px;font-weight:700;margin-top:13px;color:#c5e8ff}.muted{color:#a4b8d3;font-size:14px}
+canvas{width:100%;height:280px}.pill{display:inline-block;background:#20445b;padding:7px 12px;border-radius:99px;color:#7de4da;font-size:12px}
+table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:10px;border-bottom:1px solid #2d4563}
+footer{color:#7e98b5;margin-top:35px;font-size:13px}a{color:#8ad4ff}
+@media(max-width:760px){.grid{grid-template-columns:1fr}main{padding:20px 15px}}
+</style></head>
+<body><main><nav><div class="logo">EQUITY INDEX | QUANT RESEARCH</div><div class="tag">Independent research portfolio · Static preview</div></nav>
+<h1>From factor hypothesis<br>to index methodology.</h1>
+<p class="subtitle">Transparent factor selection, constrained index construction, benchmark-relative analysis, and documented research limitations. Results are calculated locally and exported explicitly for public presentation.</p>
+<div class="note" id="warning">No published research snapshot found. This site intentionally shows no fabricated returns or simulated historical results.</div>
+<div id="results" hidden>
+<section class="grid">
+<div class="card"><div class="muted">Dataset status</div><div class="metric" id="dataset">—</div></div>
+<div class="card"><div class="muted">Latest sample annualized return</div><div class="metric" id="ret">—</div></div>
+<div class="card"><div class="muted">Tracking error</div><div class="metric" id="te">—</div></div>
+</section>
+<section class="card"><h2>Indexed cumulative wealth</h2><canvas id="chart"></canvas><div class="muted">Research index (teal) vs supplied benchmark (gold). Indexed to 1 at start of displayed period.</div></section>
+<section class="card"><h2>Experiment performance</h2><table id="metrics"></table></section>
+</div>
+<section class="card"><h2>Methodology</h2><p class="subtitle">Momentum, Value, Quality, Size, and Low Volatility composites; historical eligibility and publication-aware factor records; bounded index weighting; drift-aware turnover, benchmark comparisons and chronological holdout reporting. Model implementation and reproducibility documentation are in the GitHub repository.</p><span class="pill">Not affiliated with MSCI or NSE</span></section>
+<footer>Exploratory research. No investment recommendations. The absence of audited point-in-time data prevents historical performance claims.</footer>
+</main>
+<script>
+const fmt=x=>typeof x==='number'&&Number.isFinite(x)?(x*100).toFixed(2)+'%':'n/a';
+function parseCsv(text){const a=text.trim().split(/\r?\n/).map(x=>x.split(','));const columns=a.shift();return a.map(row=>Object.fromEntries(columns.map((c,i)=>[c,row[i]])));}
+function chart(canvas,rows){const dpr=devicePixelRatio||1,w=canvas.clientWidth,h=280;canvas.width=w*dpr;canvas.height=h*dpr;const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+const series=[[],[]];let s=1,b=1;for(const row of rows){s*=1+Number(row.strategy_net);b*=1+Number(row.benchmark);series[0].push(s);series[1].push(b)}
+const all=series.flat().filter(Number.isFinite),lo=Math.min(...all,1),hi=Math.max(...all,1);
+ctx.strokeStyle='#34506b';for(let k=0;k<5;k++){let y=20+k*(h-40)/4;ctx.beginPath();ctx.moveTo(38,y);ctx.lineTo(w-10,y);ctx.stroke();}
+series.forEach((values,i)=>{ctx.strokeStyle=i?'#e8ba70':'#72d9d1';ctx.lineWidth=2.5;ctx.beginPath();values.forEach((v,j)=>{let x=40+j*(w-55)/Math.max(1,values.length-1),y=h-20-(v-lo)/(hi-lo||1)*(h-40);j?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke()});
+}
+async function load(){try{
+const [mr,cr]=await Promise.all([fetch('./data/summary.json'),fetch('./data/returns.csv')]);if(!mr.ok||!cr.ok)throw Error('No exported snapshot');
+const m=await mr.json(),rows=parseCsv(await cr.text()),parts=m.metrics_by_split||{},last=Object.values(parts).at(-1)||{};
+document.querySelector('#results').hidden=false;document.querySelector('#dataset').textContent=m.dataset_status||'unknown';
+document.querySelector('#ret').textContent=fmt(last.strategy_cagr);
+document.querySelector('#te').textContent=fmt(last.tracking_error);
+document.querySelector('#warning').textContent='Research only · Dataset status: '+(m.dataset_status||'unknown')+' · Source provenance and performance not independently audited.';
+const table=document.querySelector('#metrics');for(const [name,v] of Object.entries(parts)){const tr=document.createElement('tr');for(const field of [name,'CAGR: '+fmt(v.strategy_cagr),'Tracking error: '+fmt(v.tracking_error),'Observations: '+String(v.observations)]){const td=document.createElement('td');td.textContent=field;tr.append(td)}table.append(tr)}
+if(rows.length)chart(document.querySelector('#chart'),rows);
+}catch(e){console.info('Local export not yet published:',e.message)}}
+load();
+</script></body></html>
