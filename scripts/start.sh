@@ -106,8 +106,8 @@ if [ "$MODE" = research ]; then
 fi
 
 if [ "$MODE" = check ] || [ "$MODE" = evaluate ]; then
-  info "Running full Python test suite"
-  .venv/bin/python -m unittest discover -s tests -v
+  info "Running end-to-end Python and Streamlit workstation acceptance"
+  .venv/bin/python scripts/local_acceptance.py
   info "Running mathematical acceptance (persistent HTML and JSON reports)"
   .venv/bin/python scripts/verify_mathematics.py --output-dir results/math_acceptance
   if [ "$MODE" = evaluate ]; then
