@@ -5,7 +5,8 @@ export type ResearchPlotData={
   kind:string;title:string;x?:(string|number)[];y?:number[];
   traces?:ResearchTrace[];x_label?:string;y_label?:string;
   z_label?:string;z?:number[][];band?:{lower:number[];upper:number[]};
-  labels?:string[];values?:number[][];threshold?:number
+  labels?:string[];row_labels?:string[];scale?:string;values?:number[][];threshold?:number;
+  annotations?:{x:string|number;label:string}[]
 }
 const COLORS=['#66e3c3','#ffca83','#78a8ff','#ce9dff','#ff8c9b','#a2f6e2']
 const finite=(n:unknown):n is number=>typeof n==='number'&&Number.isFinite(n)
@@ -85,6 +86,19 @@ function Canvas2D({plot}:{plot:ResearchPlotData}){
         <text x={GRID_LEFT+(plot.threshold-minX)/(maxX-minX)*width+5} y={GRID_TOP+12}
               fill="#ffc890" fontSize="10">Loss quantile</text>
       </>}
+      {(plot.annotations||[]).slice(0,8).map((note,index)=>{
+        const idx=x.findIndex(v=>String(v)===String(note.x))
+        if(idx<0)return null
+        const at=xcoord(idx)
+        return <g key={index}>
+          <line x1={at} x2={at} y1={GRID_TOP} y2={GRID_BOTTOM}
+            stroke="#f6c16a" strokeDasharray="4 5" strokeWidth="1.4"/>
+          <rect x={Math.min(at+5,GRID_RIGHT-160)} y={GRID_TOP+index*17}
+            width="155" height="15" rx="3" fill="#153849" opacity=".9"/>
+          <text x={Math.min(at+9,GRID_RIGHT-156)} y={GRID_TOP+11+index*17}
+            fill="#ffe0a3" fontSize="9">{note.label.slice(0,24)}</text>
+        </g>
+      })}
       {[0,.25,.5,.75,1].map((t,i)=>{const idx=Math.min(x.length-1,Math.round(t*(x.length-1)))
         return idx>=0?<text key={i} x={xcoord(idx)} y="300" textAnchor={i===0?'start':i===4?'end':'middle'}
           fill="#8ca0b5" fontSize="10">{String(x[idx]).slice(0,14)}</text>:null
@@ -101,25 +115,35 @@ function Canvas2D({plot}:{plot:ResearchPlotData}){
 function Heatmap({plot}:{plot:ResearchPlotData}){
   const labels=plot.labels||[]
   const values=plot.values||[]
-  const n=labels.length
-  if(!n||n>25)return <p className="ql-muted">No bounded matrix to render.</p>
-  const cell=Math.min(48,Math.floor(600/n))
-  const scale=(v:number)=>{const z=clamp((v+1)/2,0,1);return `rgb(${Math.round(37+(1-z)*60)},${Math.round(110+z*94)},${Math.round(151+z*29)})`}
-  return <div className="ql-heat-scroll"><svg width={85+cell*n} height={75+cell*n}
-    role="img" aria-label={plot.title+' correlation matrix of '+n+' assets'}>
-    {labels.map((label,i)=><g key={label}>
-      <text x={75+cell*i+cell/2} y="57" fill="#9bb7c8" fontSize="10" textAnchor="start"
-        transform={`rotate(-40 ${75+cell*i+cell/2} 57)`}>{label.slice(0,12)}</text>
-      <text x="68" y={70+cell*i+cell/2} fill="#9bb7c8" fontSize="10"
-        textAnchor="end">{label.slice(0,13)}</text>
-    </g>)}
+  const rowLabels=plot.row_labels||labels
+  const cols=labels.length,rows=rowLabels.length
+  if(!cols||!rows||cols>25||rows>25||values.length!==rows||
+    values.some(row=>row.length!==cols||row.some(v=>!finite(v))))
+    return <p className="ql-muted">No valid bounded heatmap matrix to render.</p>
+  const cell=Math.max(18,Math.min(48,Math.floor(590/Math.max(cols,rows))))
+  const all=values.flat(),low=Math.min(...all),high=Math.max(...all),span=Math.max(1e-12,high-low)
+  const correlation=plot.scale!=='sequential'
+  const scale=(value:number)=>{
+    const z=clamp(correlation?(value+1)/2:(value-low)/span,0,1)
+    return 'rgb('+Math.round(37+(1-z)*60)+','+Math.round(110+z*94)+','+
+      Math.round(151+z*29)+')'
+  }
+  return <div className="ql-heat-scroll"><svg width={90+cell*cols} height={82+cell*rows}
+    role="img" aria-label={plot.title+' heatmap with '+rows+' rows and '+cols+' columns'}>
+    {labels.map((label,i)=><text key={i} x={77+cell*i+cell/2} y="58"
+      fill="#9bb7c8" fontSize="10" textAnchor="start"
+      transform={'rotate(-40 '+(77+cell*i+cell/2)+' 58)'}>{label.slice(0,13)}</text>)}
+    {rowLabels.map((label,i)=><text key={i} x="70" y={70+cell*i+cell/2}
+      fill="#9bb7c8" fontSize="10" textAnchor="end">{label.slice(0,13)}</text>)}
     {values.flatMap((row,i)=>row.map((v,j)=><g key={i+'-'+j}>
-      <rect x={75+j*cell} y={65+i*cell} width={cell-2} height={cell-2}
-        fill={scale(v)} rx="2"><title>{labels[i]+' × '+labels[j]+': '+fmt(v)}</title></rect>
-      {n<=10&&<text x={75+j*cell+cell/2} y={65+i*cell+cell/2+4}
+      <rect x={77+j*cell} y={65+i*cell} width={cell-2} height={cell-2}
+        fill={scale(v)} rx="2"><title>{rowLabels[i]+' × '+labels[j]+': '+fmt(v)}</title></rect>
+      {cols<=10&&rows<=10&&<text x={77+j*cell+cell/2} y={65+i*cell+cell/2+4}
         textAnchor="middle" fontSize="10" fill="#071b25">{fmt(v)}</text>}
     </g>))}
-  </svg><p className="ql-muted">Color encodes correlation from −1 to +1. Hover for exact pairwise values.</p></div>
+  </svg><p className="ql-muted">{correlation?'Color represents correlation from -1 to +1.':
+    'Color is scaled between the finite minimum ('+fmt(low)+') and maximum ('+fmt(high)+').'}
+    {' '}Hover for exact source-computed values.</p></div>
 }
 type Point3={x:number;y:number;depth:number}
 function Surface3D({plot}:{plot:ResearchPlotData}){
