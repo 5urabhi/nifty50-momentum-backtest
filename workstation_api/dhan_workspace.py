@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from index_research.dhan_data import Instrument, download_candles
-from . import service
+from . import pit_index, service
 
 KEY = re.compile(r"^(NSE_EQ|BSE_EQ):([0-9]{1,12})$")
 BATCH_ID = re.compile(r"^batch_[a-f0-9]{16}$")
@@ -223,14 +223,23 @@ def _summarize(data: dict) -> dict:
         "total": len(data["items"]), "processed": completed,
         "counts": counts, "current_symbol": data.get("current_symbol"),
         "prepared_dataset_id": data.get("prepared_dataset_id"),
-        "errors": counts["failed"], "source": "DhanHQ current instrument master",
-        "warning": "OHLCV, not audited total returns or historical Nifty membership",
+        "errors": counts["failed"],
+        "source": ("DhanHQ OHLCV + reconstructed dated NSE membership"
+                   if data.get("historical_index") else "DhanHQ current instrument master"),
+        "historical_index_name": data.get("historical_index", {}).get("index_name"),
+        "historical_union_count": len(data.get("historical_index", {}).get("union_members", [])),
+        "historical_unresolved": data.get("historical_index", {}).get("unresolved", []),
+        "membership_covered_through": data.get("historical_index", {}).get("covered_through"),
+        "warning": ("Reconstructed historical membership with explicit Dhan mapping gaps. "
+                    "OHLCV is not total-return adjusted."
+                    if data.get("historical_index") else
+                    "OHLCV, not audited total returns or historical Nifty membership"),
     }
 
 
 def create_batch(selection: str, ids: list[str], tickers: list[str],
                  from_date: str, to_date: str, interval: int | None,
-                 acknowledged_bulk: bool) -> dict:
+                 acknowledged_bulk: bool, acknowledged_gaps: bool = False) -> dict:
     start, stop = date.fromisoformat(from_date), date.fromisoformat(to_date)
     if not start < stop <= date.today() + timedelta(days=1):
         raise ValueError("Select a valid historical date range (end exclusive)")
@@ -238,7 +247,20 @@ def create_batch(selection: str, ids: list[str], tickers: list[str],
         raise ValueError("Download range cannot exceed 30 years")
     if interval is not None and interval not in {1, 5, 15, 25, 60}:
         raise ValueError("Unsupported intraday resolution")
-    instruments = _choose(selection, ids, tickers)
+    plan = None
+    if selection in pit_index.MODES:
+        plan = pit_index.query(selection, from_date, to_date, catalog())
+        if plan["unresolved"] and not acknowledged_gaps:
+            sample = ", ".join(item["symbol"] for item in plan["unresolved"][:8])
+            raise ValueError(
+                f"{len(plan['unresolved'])} historical index symbols have no unambiguous "
+                f"Dhan cash-equity Security ID ({sample}). Check the membership "
+                "preview and explicitly acknowledge incomplete price coverage.")
+        instruments = plan["resolved"]
+        if not instruments:
+            raise ValueError("None of the historical index members resolve in Dhan's current instrument catalog")
+    else:
+        instruments = _choose(selection, ids, tickers)
     if len(instruments) > 100 and not acknowledged_bulk:
         raise ValueError("Acknowledge the scope of downloads for more than 100 instruments")
     if interval is not None:
@@ -256,6 +278,7 @@ def create_batch(selection: str, ids: list[str], tickers: list[str],
         "current_symbol": None, "source_master_sha256": hashlib.sha256(_master().read_bytes()).hexdigest(),
         "items": [{**row, "status": "pending", "rows": 0, "rows_added": 0, "error": None}
                   for row in instruments],
+        **({"historical_index": pit_index.pin_selection(plan)} if plan else {}),
     }
     _atomic_json(folder / "manifest.json", data)
     return _summarize(data)
@@ -450,8 +473,11 @@ def prepare_batch(batch_id: str) -> dict:
         value = pd.Series(values.loc[within].to_numpy(), index=selected_times).sort_index()
         monthly = value.groupby(value.index.to_period("M")).last()
         monthly.index = monthly.index.to_timestamp("M")
-        symbol = row["symbol"]
-        if symbol in used or not SAFE_SYMBOL.fullmatch(symbol):
+        symbol = row.get("pit_symbol", row["symbol"])
+        if data.get("historical_index"):
+            if symbol in used or not SAFE_SYMBOL.fullmatch(symbol):
+                raise ValueError("Historical index symbol is duplicated or unsafe: " + symbol)
+        elif symbol in used or not SAFE_SYMBOL.fullmatch(symbol):
             symbol = row["exchange_segment"] + "_" + row["security_id"]
         used.add(symbol)
         monthly.name = symbol
@@ -464,6 +490,40 @@ def prepare_batch(batch_id: str) -> dict:
     prices = pd.concat(streams, axis=1).sort_index()
     if prices.empty:
         raise ValueError("No observed trading closes in completed downloads")
+    historical = data.get("historical_index")
+    missing_symbols: list[str] = []
+    missing_membership_prices = 0
+    if historical:
+        # The Dhan cache may contain only part of the requested first/last
+        # calendar month. Reject partial-month marks for an index backtest.
+        start = date.fromisoformat(data["from_date"])
+        stop = date.fromisoformat(data["to_date"])
+        full_months = [
+            stamp for stamp in prices.index
+            if start <= stamp.to_period("M").start_time.date()
+            and stop > stamp.to_period("M").end_time.date()
+        ]
+        if not full_months:
+            raise ValueError("Historical index preparation needs at least one fully "
+                             "covered calendar month. Extend the date range.")
+        prices = prices.loc[full_months]
+        membership = pit_index.monthly_membership(data, prices.index, list(prices.columns))
+        mask = membership.pivot(index="date", columns="ticker", values="eligible")
+        mask.index = pd.to_datetime(mask.index)
+        mask = mask.reindex(index=prices.index, columns=prices.columns).fillna(False)
+        missing_membership_prices = int((mask & prices.isna()).to_numpy().sum())
+        missing_symbols = sorted(set(historical["union_members"]) - set(prices.columns))
+        membership.to_csv(output / "membership.csv", index=False)
+        _atomic_json(output / "PIT_MEMBERSHIP_PROVENANCE.json", {
+            **historical,
+            "generated_utc": _now(),
+            "membership_dates": [stamp.date().isoformat() for stamp in prices.index],
+            "missing_historical_symbols": missing_symbols,
+            "missing_eligible_price_observations": missing_membership_prices,
+            "fully_covered_months_only": True,
+            "warning": "Independently reconstructed interval history (not NSE-certified). "
+                       "Dhan price candles lack a verified dividend-total-return adjustment."
+        })
     prices.to_csv(output / "prices.csv", index_label="date")
     _atomic_json(output / "DHAN_BATCH_PROVENANCE.json", {
         "source_batch": batch_id, "generated_utc": _now(),
@@ -474,11 +534,19 @@ def prepare_batch(batch_id: str) -> dict:
     })
     data["prepared_dataset_id"] = "dhan_" + batch_id
     _save_batch(data)
-    return {"dataset_id": data["prepared_dataset_id"], "file": str(Path("data") / "dhan" / "monthly_research" / batch_id / "prices.csv"),
+    return {"dataset_id": data["prepared_dataset_id"],
+            "file": str(Path("data") / "dhan" / "monthly_research" / batch_id / "prices.csv"),
             "securities": len(mappings), "months": len(prices),
+            "membership_generated": bool(historical),
+            "membership_missing_symbols": missing_symbols,
+            "missing_eligible_price_observations": missing_membership_prices,
             "ready_for_backtesting": False,
-            "missing": ["membership.csv", "benchmark.csv"],
-            "warning": "This price matrix is incomplete for survivorship-free index research."}
+            "missing": ["benchmark.csv"] if historical else ["membership.csv", "benchmark.csv"],
+            "warning": ("Point-in-time index membership generated from source-dated events. "
+                        "Historical pricing may be incomplete; a compatible total-return "
+                        "benchmark and independent source audit remain required."
+                        if historical else
+                        "This price matrix is incomplete for survivorship-free index research.")}
 
 
 def preview_history(instrument_id: str, interval: int | None = None,
