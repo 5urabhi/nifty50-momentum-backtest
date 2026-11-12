@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_workspace, pit_index, service
+from . import dhan_auth, dhan_benchmark, dhan_workspace, pit_index, service
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -631,6 +631,17 @@ def prepare_dhan_batch(batch_id: str):
     if not state["counts"]["complete"] + state["counts"]["cached"]:
         raise HTTPException(400, "No successfully downloaded candles")
     return _spawn("dhan_prepare_batch", dhan_workspace.prepare_batch, batch_id)
+
+
+@app.post("/api/dhan/batches/{batch_id}/prepare-price-benchmark")
+def prepare_dhan_index_price_benchmark(batch_id: str):
+    try:
+        state = dhan_workspace.batch_details(batch_id)
+    except Exception as exc:
+        bad(exc)
+    if not state.get("prepared_dataset_id"):
+        raise HTTPException(400, "Prepare the stock research dataset before its price benchmark")
+    return _spawn("dhan_index_price_benchmark", dhan_benchmark.prepare_price_benchmark, batch_id)
 
 
 @app.get("/api/dhan/history")
