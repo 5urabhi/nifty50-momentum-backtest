@@ -93,12 +93,22 @@ def datasets():
                 benchmark_evidence = json.loads(benchmark_meta_path.read_text())
             except (OSError, ValueError, TypeError):
                 missing.append("invalid_benchmark_provenance")
+        # Monthly index simulation needs an explicit pre-formation sample-size
+        # gate. A file existing on disk is NOT sufficient information.
+        monthly_observations = 0
+        price_file = folder / "prices.csv"
+        if price_file.is_file() and not price_file.is_symlink():
+            try:
+                monthly_observations = len(pd.read_csv(price_file, usecols=["date"]))
+            except (OSError,ValueError):
+                monthly_observations = 0
         output.append({
             "id": dataset_id,
             "label": (str(historical.get("index_name")) + " · " + label) if historical else label,
             "kind": kind,
             "ready": not missing, "missing": missing,
             "has_prices": "prices.csv" in items,
+            "monthly_price_observations": monthly_observations,
             "benchmark_kind": benchmark_evidence.get("basis") or
                               ("unclassified" if "benchmark.csv" in items else "missing"),
             "benchmark_is_total_return": benchmark_evidence.get("is_total_return_index", False),
