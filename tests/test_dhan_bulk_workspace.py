@@ -153,6 +153,62 @@ class BulkDhanWorkstationTests(unittest.TestCase):
             self.assertEqual(second["counts"]["complete"], 2)
             self.assertEqual(source.call_count, 3)
 
+    def test_more_than_one_hundred_intraday_instruments_allowed_with_scope_acknowledged(self):
+        master = service.DATA / "dhan" / "instrument_master.csv"
+        frame = pd.read_csv(master, dtype=str)
+        generated = pd.DataFrame([
+            {"SEM_EXM_EXCH_ID": "NSE", "SEM_SEGMENT": "E",
+             "SEM_SMST_SECURITY_ID": str(20000 + i),
+             "SEM_INSTRUMENT_NAME": "EQUITY",
+             "SEM_TRADING_SYMBOL": "STK" + str(i),
+             "SEM_CUSTOM_SYMBOL": "Stock " + str(i), "SEM_SERIES": "EQ"}
+            for i in range(105)
+        ])
+        pd.concat([frame, generated], ignore_index=True).to_csv(master, index=False)
+        dw._catalog_cached.cache_clear()
+        with self.assertRaisesRegex(ValueError, "Acknowledge"):
+            dw.create_batch("all_nse", [], [], "2025-01-01", "2026-01-01", 1, False)
+        created = dw.create_batch("all_nse", [], [], "2025-01-01", "2026-01-01", 1, True)
+        self.assertEqual(created["total"], 107)
+        self.assertEqual(created["interval"], 1)
+
+    def test_minute_windows_checkpoint_and_resume_inside_same_instrument(self):
+        created = dw.create_batch(
+            "selected", ["NSE_EQ:1333"], [],
+            "2025-01-01", "2026-01-01", 1, False,
+        )
+        calls = []
+        failed_once = {"yes": False}
+
+        def fail_third_window(instrument, from_date, to_date, **_kwargs):
+            calls.append((from_date, to_date))
+            if len(calls) == 3 and not failed_once["yes"]:
+                failed_once["yes"] = True
+                raise RuntimeError("Dhan HTTP 503 (response hidden)")
+            return self._candles(instrument, from_date, to_date)
+
+        with patch.object(dw, "download_candles", side_effect=fail_third_window):
+            failed = dw.run_batch(created["id"])
+            self.assertEqual(failed["counts"]["failed"], 1)
+            row = dw.batch_details(created["id"])["items"][0]
+            self.assertEqual(row["windows_completed"], 2)
+            self.assertEqual(row["windows_total"], 5)
+            cache = service.DATA / "dhan" / "history" / "NSE_EQ" / "1333" / "1m.csv"
+            manifest = cache.with_suffix(".json")
+            self.assertTrue(cache.is_file())
+            self.assertTrue(manifest.is_file())
+            import json
+            self.assertEqual(len(json.loads(manifest.read_text())["coverage"]), 2)
+            self.assertGreater(len(pd.read_csv(cache)), 100)
+            done = dw.run_batch(created["id"])
+            self.assertEqual(done["counts"]["complete"], 1)
+        # Windows one/two are not re-requested; retries resume on window 3.
+        self.assertEqual(len(calls), 6)
+        self.assertEqual(calls[0], ("2025-01-01", "2025-04-01"))
+        self.assertEqual(calls[1], ("2025-04-01", "2025-06-30"))
+        self.assertEqual(calls[2], calls[3])
+        self.assertEqual(len(json.loads(manifest.read_text())["coverage"]), 5)
+
     def test_rejects_unsafe_batch_and_instrument_paths(self):
         with self.assertRaises(ValueError):
             dw.preview_history("../../.env")
