@@ -289,9 +289,10 @@ function LibraryPanel({items,resources,busy,perform,onChanged,onOpenModels,onOpe
   const [detail,setDetail]=useState<Item|Resource|null>(null)
   const [newTitle,setNewTitle]=useState('')
   const [newTags,setNewTags]=useState('')
+  const [newDescription,setNewDescription]=useState('')
   const visibleResources=resources.filter(x=>(filter==='all'||x.kind===filter)&&
     (mode==='trash'?x.trashed:!x.trashed)&&(showArchived||mode==='trash'||!x.archived)&&
-    (x.title+' '+x.summary).toLowerCase().includes(search.toLowerCase()))
+    (x.title+' '+x.summary+' '+(x.tags||[]).join(' ')).toLowerCase().includes(search.toLowerCase()))
   const visibleRecords=items.filter(x=>(filter==='all'||x.kind===filter)&&
     (mode==='trash'?x.trashed:!x.trashed)&&
     (showArchived||mode==='trash'||!x.archived)&&
@@ -339,7 +340,12 @@ function LibraryPanel({items,resources,busy,perform,onChanged,onOpenModels,onOpe
           <div><strong>{r.title}</strong><small>{r.kind} · {r.id} {r.protected?' · Protected source':''}</small>
             <p>{r.summary.slice(0,180)}</p></div>
           <div className="rw-row-actions">
-            <button onClick={()=>setDetail(r)} aria-label={'Details '+r.title}><BookOpen size={15}/></button>
+            <button onClick={()=>{setDetail(r);setNewTitle(r.title);setNewTags((r.tags||[]).join(', '));
+              setNewDescription(r.summary)}} aria-label={'Details '+r.title}><BookOpen size={15}/></button>
+            {!r.trashed&&<button title="Favorite" disabled={busy} onClick={()=>
+              perform(()=>api<Raw>('/workspace/resources/metadata?kind='+r.kind+'&item_id='+encodeURIComponent(r.id),
+                {favorite:!r.favorite},'PATCH'),()=>onMessage('Favorite status updated'))}>
+              <Heart size={15} fill={r.favorite?'currentColor':'none'}/></button>}
             {r.trashed?<><button title="Restore resource" disabled={busy}
               onClick={()=>resourceOperation(r,'restore')}><RotateCcw size={15}/></button>
               <button title="Permanently delete" disabled={busy}
@@ -393,11 +399,29 @@ function LibraryPanel({items,resources,busy,perform,onChanged,onOpenModels,onOpe
           </a>}
         <pre className="rw-json">{JSON.stringify(detail.payload,null,2)}</pre></>:
       <><p>Resource identity: {detail.kind}:{detail.id}</p>
-        <p>Archive hides this entry from the active workspace. Trash can only move independently derived datasets or saved results, never canonical Dhan source data. References prevent unsafe deletion.</p>
-        <button onClick={()=>perform(()=>api<{dependencies:Raw[]}>(
-          '/workspace/resources/dependencies?kind='+detail.kind+'&item_id='+encodeURIComponent(detail.id)),
-          x=>onMessage(x.dependencies.length?x.dependencies.length+' saved references found':'No saved library dependencies found'))}>
-          <ShieldCheck size={15}/> Check dependencies</button></>}
+        <p>Archive hides the resource without deleting source data. Trash is recoverable and refuses to remove referenced datasets or canonical shared Dhan history.</p>
+        <div className="rw-form-grid">
+          <Field label="User-visible title" value={newTitle} onChange={setNewTitle}/>
+          <Field label="Tags (comma-separated)" value={newTags} onChange={setNewTags}/>
+        </div>
+        <label className="rw-field"><span>Resource description</span><textarea rows={3}
+          value={newDescription} onChange={e=>setNewDescription(e.target.value)}/></label>
+        <div className="rw-button-group">
+          <button disabled={busy||detail.trashed} onClick={()=>perform(()=>
+            api<Raw>('/workspace/resources/metadata?kind='+detail.kind+'&item_id='+encodeURIComponent(detail.id),
+             {title:newTitle,description:newDescription,
+               tags:newTags.split(',').map(x=>x.trim()).filter(Boolean)},'PATCH'),()=>{
+                setDetail(null);onMessage('Resource title, description and tags saved')})}>
+            <Save size={15}/> Save metadata</button>
+          {detail.kind==='model_run'&&!detail.trashed&&<button disabled={busy} onClick={()=>perform(
+            ()=>api<Raw>('/workspace/resources/duplicate-model/'+encodeURIComponent(detail.id),{},'POST'),
+            ()=>{setDetail(null);onMessage('Independent saved result copy created')})}>
+            <Copy size={15}/> Duplicate saved result</button>}
+          <button onClick={()=>perform(()=>api<{dependencies:Raw[]}>(
+            '/workspace/resources/dependencies?kind='+detail.kind+'&item_id='+encodeURIComponent(detail.id)),
+            x=>onMessage(x.dependencies.length?x.dependencies.length+' saved references found':'No saved library dependencies found'))}>
+            <ShieldCheck size={15}/> Check references</button>
+        </div></>}
     </Box>}
   </div>
 }
