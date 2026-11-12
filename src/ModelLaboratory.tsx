@@ -220,6 +220,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     setModelId(id);setResult(null);setError(null);setView('configure')
   }
   const observedNeeded=selected?.mode==='historical'
+  const syntheticHistory=observedNeeded&&selectedDataset==='synthetic'
   const min=selected?.min_observations||0
   const requestedAssets=Number(params.assets??8)
   const requestedWindow=Number(params.train_window??60)
@@ -377,6 +378,10 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
               {datasets.map(d=><option key={d.id} value={d.id}>{d.label}{d.ready?'':' · incomplete'}</option>)}
             </select></label>
           <p className="ql-note">{dataHint}</p>
+          {syntheticHistory&&<p className="ql-alert warning" role="status">
+            <CircleAlert size={15}/> SYNTHETIC FIXTURE · These demo prices are generated, not
+            historical market observations. Model fits are for interface/testing use only.
+          </p>
           {readinessError&&<p className="ql-alert bad">{readinessError}</p>}
           {observedNeeded&&readiness&&<div className="ql-readiness">
             <div><strong>{readiness.observed_dates??0}</strong><small>Observed price dates</small></div>
