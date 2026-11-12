@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import './workstation.css'
 import DhanDataManager from './DhanDataManager'
+import ModelLaboratory from './ModelLaboratory'
+import ResearchGuide from './ResearchGuide'
 
 type Dict = Record<string, unknown>
 type Dataset = {id:string; label:string; kind:string; ready:boolean; missing:string[]; files:string[]; has_prices:boolean; has_daily_prices?:boolean; has_daily_ohlcv?:boolean; source_interval_minutes?:number|null; daily_session_count?:number; benchmark_kind?:string; benchmark_is_total_return?:boolean; independently_verified?:boolean; has_fundamentals:boolean; has_sectors:boolean; basis:string}
@@ -16,7 +18,6 @@ type Run = {id:string; name:string; dataset_id?:string; dataset_kind:string; cre
 type Job = {id:string; kind:string; status:'queued'|'running'|'complete'|'error'; error?:string; result?:unknown}
 type Detail = {id:string;meta:{config:Dict; metrics_by_split:Record<string,Dict>; coverage:Dict; limitations:string[]; first_price_date:string;last_price_date:string; generated_utc:string};source:Dict;returns:Dict[];latest_weights:{name:string;weight:number}[];rank_ic:Dict[];factor_exposures:Dict[];concentration:Dict[];rolling:Dict[];cost_sensitivity:Dict[];robustness:Dict[];methodologies:Dict[];audit:Dict;data_quality:Dict;artifacts:string[]}
 type Health = {ok:boolean; mode:string; framework:string; read_only_market_data:boolean; broker_orders_enabled:boolean; dhan_token_configured:boolean; datasets:number;completed_runs:number}
-type Model = {dataset_kind:string;method:string;observations:number;annualized_expected_return:number;annualized_volatility:number;historical_monthly_var95:number;historical_monthly_tail_loss95:number;weights:{name:string;weight:number}[];correlation:Dict[];warning:string}
 type DhanStatus = {token_configured:boolean;instrument_master_available:boolean;instrument_master_bytes:number;read_only:boolean}
 type RunConfig = {
   name:string;factor_weights:Record<string,number>;top_n:number;weighting:string;
@@ -25,16 +26,16 @@ type RunConfig = {
   validation_start:string;final_test_start:string;sector_cap:number|null
 }
 const defaultConfig:RunConfig = {name:'quant_research_v1', factor_weights:{momentum:1,low_volatility:0,value:0,quality:0,size:0},top_n:10,weighting:'equal',max_weight:.2,rebalance_every:3,cost_bps:10,execution_lag:1,momentum_formation:12,momentum_skip:1,volatility_lookback:12,validation_start:'',final_test_start:'',sector_cap:null}
-type Tab = 'overview'|'data'|'dhan'|'research'|'factors'|'construction'|'comparisons'|'mathematics'|'rolling'|'models'|'risk'|'robustness'|'visual'|'reports'|'history'|'settings'
+type Tab = 'overview'|'data'|'dhan'|'research'|'factors'|'construction'|'comparisons'|'mathematics'|'rolling'|'models'|'risk'|'robustness'|'visual'|'reports'|'history'|'settings'|'guide'
 type NavItem = {id:Tab;label:string;icon:typeof Activity}
 const sections:{label:string;items:NavItem[]}[]=[
  {label:'COMMAND CENTER',items:[{id:'overview',label:'Overview',icon:Gauge},{id:'history',label:'Saved Runs',icon:Clock3}]},
  {label:'DATA OPERATIONS',items:[{id:'data',label:'Data Manager',icon:Database},{id:'dhan',label:'Dhan Market Data',icon:Wallet}]},
  {label:'RESEARCH DESK',items:[{id:'research',label:'Index Research',icon:FlaskConical},{id:'factors',label:'Factor Laboratory',icon:Layers3},{id:'construction',label:'Index Construction',icon:SlidersHorizontal},{id:'comparisons',label:'Index Comparisons',icon:BarChart3}]},
  {label:'MODEL & RISK LAB',items:[{id:'mathematics',label:'Advanced Mathematics',icon:Sigma},{id:'rolling',label:'Rolling Validation',icon:LineChart},{id:'models',label:'Quantitative Models',icon:Beaker},{id:'risk',label:'Risk Attribution',icon:ShieldAlert},{id:'robustness',label:'Robustness',icon:Activity},{id:'visual',label:'Visual Validation',icon:TrendingUp}]},
- {label:'OUTPUT',items:[{id:'reports',label:'Research Reports',icon:FileText},{id:'settings',label:'Workstation Settings',icon:Settings2}]},
+ {label:'OUTPUT',items:[{id:'reports',label:'Research Reports',icon:FileText},{id:'guide',label:'User Guide & Documentation',icon:BookOpen},{id:'settings',label:'Workstation Settings',icon:Settings2}]},
 ]
-const titles:Record<Tab,string>={overview:'Research command center',data:'Data manager',dhan:'DhanHQ market-data terminal',research:'Index research engine',factors:'Factor laboratory',construction:'Index construction',comparisons:'Index comparisons',mathematics:'Advanced mathematics',rolling:'Rolling validation',models:'Quantitative models',risk:'Risk attribution',robustness:'Robustness & sensitivity',visual:'Visual validation',reports:'Research reports',history:'Saved research runs',settings:'Workstation settings'}
+const titles:Record<Tab,string>={overview:'Research command center',data:'Data manager',dhan:'DhanHQ market-data terminal',research:'Index research engine',factors:'Factor laboratory',construction:'Index construction',comparisons:'Index comparisons',mathematics:'Advanced mathematics',rolling:'Rolling validation',models:'Quantitative models',risk:'Risk attribution',robustness:'Robustness & sensitivity',visual:'Visual validation',reports:'Research reports',history:'Saved research runs',settings:'Workstation settings',guide:'How to use QuantLab'}
 const factors=[['momentum','Momentum'],['low_volatility','Low volatility'],['value','Value'],['quality','Quality'],['size','Size']] as const
 const number=(v:unknown,d=2)=>typeof v==='number' && Number.isFinite(v) ? v.toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d}) : '—'
 const percent=(v:unknown,d=2)=>typeof v==='number' && Number.isFinite(v) ? (v*100).toFixed(d)+'%' : '—'
@@ -96,25 +97,6 @@ function EquityChart({rows,caption='Strategy vs benchmark',height=270}:{rows:Dic
     <p className="ws-caption">Normalized to 1.00 at the start of the saved return series. Descriptive research only; not proof of investability.</p>
   </div>
 }
-function FanChart({rows}:{rows:Dict[]}){
-  if(rows.length<2)return null
-  const all=rows.flatMap(row=>[Number(row.p05),Number(row.median),Number(row.p95)])
-  const lo=Math.min(...all), hi=Math.max(...all),range=Math.max(.01,hi-lo)
-  const point=(row:Dict,i:number,key:'p05'|'median'|'p95')=>{
-    const x=38+(i/(rows.length-1))*900
-    const y=248-(Number(row[key])-lo)/range*213
-    return x.toFixed(2)+','+y.toFixed(2)
-  }
-  const median=rows.map((r,i)=>point(r,i,'median')).join(' ')
-  const upper=rows.map((r,i)=>point(r,i,'p95'))
-  const lower=rows.map((r,i)=>point(r,i,'p05')).reverse()
-  return <div className="ws-chart"><div className="ws-chartheader">Synthetic GBM simulation · 5th–95th percentile band</div><svg viewBox="0 0 975 280" role="img" aria-label="Synthetic GBM distribution with fifth, median and ninety-fifth percentile tracks">
-    {[0,.25,.5,.75,1].map(v=><g key={v}><line x1="38" x2="938" y1={248-v*213} y2={248-v*213} stroke="#253143" strokeDasharray="3 7"/><text x="3" y={252-v*213} fontSize="11" fill="#8198a9">{number(lo+v*range,0)}</text></g>)}
-    <polygon points={upper.concat(lower).join(' ')} fill="#4bd2b5" opacity=".14"/>
-    <polyline points={median} fill="none" stroke="#6ae1bd" strokeWidth="3" vectorEffect="non-scaling-stroke"/>
-    <text x="38" y="273" fontSize="11" fill="#8198a9">0 years</text><text x="865" y="273" fontSize="11" fill="#8198a9">{number(rows[rows.length-1].time,1)} years</text>
-  </svg><p className="ws-caption">Calculated from a seeded stochastic Python simulation; it does not use market data or forecast returns.</p></div>
-}
 function BarRows({rows,valueKey='weight',nameKey='name'}:{rows:Dict[];valueKey?:string;nameKey?:string}){
   if(!rows.length)return <Empty title="No exposure data">Select a completed research run to inspect portfolio exposures.</Empty>
   const top=rows.slice(0,14); const max=Math.max(...top.map(r=>Math.abs(Number(r[valueKey]||0))),.00001)
@@ -143,14 +125,7 @@ function App(){
   const [job,setJob]=useState<Job|null>(null)
   const [busy,setBusy]=useState(false)
   const [notice,setNotice]=useState<{text:string;error:boolean}|null>(null)
-  const [model,setModel]=useState<Model|null>(null)
-  const [option,setOption]=useState({spot:100,strike:100,years_to_expiry:1,risk_free_rate:.05,volatility:.25,dividend_yield:0,option_type:'call'})
-  const [optionResult,setOptionResult]=useState<Dict|null>(null)
-  const [gbm,setGbm]=useState({initial_price:100,annual_drift:.08,annual_volatility:.2,years:1,steps:100,paths:150,seed:2026})
-  const [gbmResult,setGbmResult]=useState<{rows:Dict[];warning:string;paths:number;seed:number}|null>(null)
   const [auditResult,setAuditResult]=useState<Dict|null>(null)
-  const [modelMethod,setModelMethod]=useState('shrinkage')
-  const [modelCap,setModelCap]=useState(.3)
   const [dhan,setDhan]=useState<DhanStatus|null>(null)
   const dataset=datasets.find(d=>d.id===selectedDataset)
   const selected=runs.find(r=>r.id===selectedRun)
@@ -202,9 +177,6 @@ function App(){
   }
   const begin=(id:Tab)=>{setTab(id);setMenu(false);window.scrollTo(0,0)}
   const startRun=()=>execute(()=>post<{job_id:string;status:Job['status']}>('/experiments',{...config,dataset_id:selectedDataset}),r=>{setJob({id:r.job_id,kind:'experiment',status:'queued'});notify('Python research job queued.')})
-  const startModel=()=>execute(()=>post<Model>('/models/minimum-variance',{dataset_id:selectedDataset,method:modelMethod,max_weight:modelCap}),r=>{setModel(r);notify('Python optimization completed.')})
-  const priceOption=()=>execute(()=>post<Dict>('/models/black-scholes',option),r=>{setOptionResult(r);notify('Black–Scholes calculations completed in Python.')})
-  const simulateGbm=()=>execute(()=>post<{rows:Dict[];warning:string;paths:number;seed:number}>('/models/gbm',gbm),r=>{setGbmResult(r);notify('Python stochastic simulation completed.')})
   const synthetic=()=>execute(()=>post<Dataset>('/datasets/synthetic',{}),r=>{void refresh();setSelectedDataset(r.id);notify('Synthetic fixture created. This is not historical market evidence.')})
   const upload=async(file:File)=>{
     await execute(async()=>{
@@ -214,7 +186,7 @@ function App(){
   }
   const downloadReport=()=>execute(()=>post<{job_id:string}>('/runs/'+selectedRun+'/reports',{}),r=>{setJob({id:r.job_id,kind:'reports',status:'queued'});notify('Report export queued.')})
   const runPicker=<select aria-label="Select completed experiment" className="ws-select" value={selectedRun} onChange={e=>setSelectedRun(e.target.value)}>{runs.length===0?<option value="">No runs yet</option>:runs.map(r=><option key={r.id} value={r.id}>{r.name} · {r.id}</option>)}</select>
-  const dataPicker=<select className="ws-select" aria-label="Select research dataset" value={selectedDataset} onChange={e=>{setSelectedDataset(e.target.value);setModel(null)}}><option value="">Choose dataset</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.label}{d.ready?'':' (incomplete)'}</option>)}</select>
+  const dataPicker=<select className="ws-select" aria-label="Select research dataset" value={selectedDataset} onChange={e=>{setSelectedDataset(e.target.value)}}><option value="">Choose dataset</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.label}{d.ready?'':' (incomplete)'}</option>)}</select>
   const withRun=(content:React.ReactNode)=><>{runs.length===0?<Empty title="No research run selected" onAction={()=>begin('research')} action="Run an experiment">All charts are generated from Python research outputs, not hardcoded sample performance.</Empty>:<>{runPicker}{content}</>}</>
   const classification=<Tag tone={detail?.source.dataset_kind==='synthetic'?'warn':'blue'}>{detail?.source.dataset_kind==='synthetic'?'SYNTHETIC DATA — DEMONSTRATION':detail?'USER DATA · NOT INDEPENDENTLY AUDITED':'NO RESEARCH RUN'}</Tag>
   const chart=detail?<EquityChart rows={detail.returns}/>:null
@@ -230,10 +202,10 @@ function App(){
     <div className="ws-main">
       <header className="ws-topbar"><div className="ws-top-left"><button type="button" className="ws-menu" onClick={()=>setMenu(true)} aria-label="Open navigation"><Menu size={19}/></button><span className="ws-breadcrumb">WORKSTATION</span><ChevronRight size={14}/><strong>{titles[tab]}</strong></div><div className="ws-top-right">{job&&['queued','running'].includes(job.status)&&<Tag tone="blue"><LoaderCircle size={13} className="ws-spin"/> {label(job.kind)} running</Tag>}<Tag tone={health?.ok?'good':'bad'}>{health?.ok?'ENGINE ONLINE':'OFFLINE'}</Tag><button title="Refresh from backend" aria-label="Refresh data" className="ws-icon" onClick={()=>void refresh()}><RefreshCw size={16}/></button></div></header>
       <main className="ws-content">
-        <div className="ws-titlebar"><div><div className="ws-overline">QUANTITATIVE EQUITY INDEX & FACTOR RESEARCH</div><h1>{titles[tab]}</h1><p>Local Python research engine · React/Vite desktop-style interface · Explicit source provenance</p></div><div className="ws-title-actions"><button type="button" className="ws-button secondary" onClick={()=>begin('data')}><Database size={15}/> Data</button><button type="button" className="ws-button primary" onClick={()=>begin('research')}><Play size={14}/> New experiment</button></div></div>
+        <div className="ws-titlebar"><div><div className="ws-overline">QUANTITATIVE EQUITY INDEX & FACTOR RESEARCH</div><h1>{titles[tab]}</h1><p>Local Python research engine · React/Vite desktop-style interface · Explicit source provenance</p></div><div className="ws-title-actions"><button type="button" className="ws-button secondary" onClick={()=>begin('guide')}><BookOpen size={15}/> Guide</button><button type="button" className="ws-button secondary" onClick={()=>begin('data')}><Database size={15}/> Data</button><button type="button" className="ws-button primary" onClick={()=>begin('research')}><Play size={14}/> New experiment</button></div></div>
         {notice&&<div role="status" className={'ws-notice '+(notice.error?'error':'')}><span>{notice.error?<CircleAlert size={17}/>:<CheckCircle2 size={17}/>}</span>{notice.text}<button onClick={()=>setNotice(null)} aria-label="Dismiss"><X size={16}/></button></div>}
         {tab==='overview'&&<>
-          <div className="ws-overview-banner"><div><Tag tone="blue">RESEARCH CONTROL DESK / VERSION 0.1</Tag><h2>One workspace.<br/><em>Every model, traceable.</em></h2><p>Keep datasets, factor experiments, risk calculations and generated evidence in one reproducible local research environment.</p><div className="ws-banner-actions"><button className="ws-button primary" onClick={()=>begin('research')}><Play size={16}/> Run research</button><button className="ws-button secondary" onClick={()=>begin('dhan')}><Database size={16}/> Connect market data</button></div></div><div className="ws-banner-graphic"><div className="ws-orbit one"/><div className="ws-orbit two"/><div className="ws-orbit three"/><span className="ws-center-glow"><Activity size={45}/></span><span className="ws-orbit-label a">MOMENTUM</span><span className="ws-orbit-label b">RISK</span><span className="ws-orbit-label c">FACTOR</span></div></div>
+          <div className="ws-overview-banner"><div><Tag tone="blue">RESEARCH CONTROL DESK / MODEL LAB V1</Tag><h2>One workstation.<br/><em>Every model, traceable.</em></h2><p>Keep datasets, factor experiments, risk calculations and generated evidence in one reproducible local research environment.</p><div className="ws-banner-actions"><button className="ws-button primary" onClick={()=>begin('research')}><Play size={16}/> Run research</button><button className="ws-button secondary" onClick={()=>begin('dhan')}><Database size={16}/> Connect market data</button></div></div><div className="ws-banner-graphic"><div className="ws-orbit one"/><div className="ws-orbit two"/><div className="ws-orbit three"/><span className="ws-center-glow"><Activity size={45}/></span><span className="ws-orbit-label a">MOMENTUM</span><span className="ws-orbit-label b">RISK</span><span className="ws-orbit-label c">FACTOR</span></div></div>
           <div className="ws-metrics-grid"><Metric label="Available datasets" value={String(datasets.length)} caption={datasets.filter(d=>d.ready).length+' ready for research'}/><Metric label="Completed runs" value={String(runs.length)} caption="Stored locally on disk"/><Metric label="DhanHQ data access" value={dhan?.token_configured?'SET':'NOT SET'} caption="Read-only market data"/><Metric label="Python computation" value={health?.ok?'ONLINE':'OFFLINE'} caption="127.0.0.1:8765" highlight/></div>
           <div className="ws-grid two-thirds"><Card title="Portfolio research performance" extra={classification}>{chart??<Empty title="No historical run selected" onAction={()=>begin('research')} action="Configure experiment">Run the research engine to generate actual saved series and metrics.</Empty>}</Card><Card title="Latest research snapshot">{detail?<><div className="ws-overview-stat"><span>Strategy CAGR</span><strong>{percent(weighted(metric,'strategy_cagr'))}</strong></div><div className="ws-overview-stat"><span>Max drawdown</span><strong>{percent(weighted(metric,'max_drawdown'))}</strong></div><div className="ws-overview-stat"><span>Tracking error</span><strong>{percent(weighted(metric,'tracking_error'))}</strong></div><div className="ws-overview-stat"><span>Sample window</span><strong>{detail.meta.first_price_date?.slice(0,7)}–{detail.meta.last_price_date?.slice(0,7)}</strong></div><button className="ws-textlink" onClick={()=>begin('history')}>Inspect full run <ArrowRight size={15}/></button></>:<Empty title="Nothing to report">No metrics will appear until a Python experiment completes.</Empty>}</Card></div>
           <div className="ws-grid halves"><Card title="Research datasets" extra={<button className="ws-textlink" onClick={()=>begin('data')}>Manage <ArrowRight size={13}/></button>}><div className="ws-item-list">{datasets.slice(0,5).map(d=><button className="ws-dataset-row" key={d.id} onClick={()=>{setSelectedDataset(d.id);begin('data')}}><Database size={17}/><span><strong>{d.label}</strong><small>{d.basis}</small></span><Tag tone={d.ready?'good':'warn'}>{d.ready?'READY':'INCOMPLETE'}</Tag></button>)}{datasets.length===0&&<p className="ws-caption">No datasets found.</p>}</div></Card><Card title="Recent experiments" extra={<button className="ws-textlink" onClick={()=>begin('history')}>View history <ArrowRight size={13}/></button>}><div className="ws-item-list">{runs.slice(0,5).map(r=><button className="ws-dataset-row" key={r.id} onClick={()=>{setSelectedRun(r.id);begin('history')}}><Clock3 size={17}/><span><strong>{r.name}</strong><small>{r.id} · {date(r.created_utc)}</small></span><Tag tone={r.dataset_kind==='synthetic'?'warn':'blue'}>{r.dataset_kind}</Tag></button>)}{runs.length===0&&<p className="ws-caption">No completed runs yet.</p>}</div></Card></div>
@@ -260,37 +232,10 @@ function App(){
         {tab==='risk'&&<>{panel('concentration','Risk concentration over time')}{panel('rolling','Rolling relative risk metrics')}</>}
         {tab==='robustness'&&<>{panel('robustness','Parameter sensitivity and robustness grid')}</>}
         {tab==='visual'&&<>{withRun(<Card title="Cumulative strategy / benchmark path" extra={classification}>{chart}</Card>)}{panel('rank_ic','Cross-sectional factor validation')}</>}
-        {(tab==='mathematics'||tab==='models')&&<>
-          <div className="ws-grid halves"><Card title="Minimum variance / covariance modeling"><p className="ws-caption">Run the existing Python covariance and optimization engine on observations from the selected dataset. No client-side fake optimization.</p><div className="ws-setup-row">{dataPicker}</div><div className="ws-form-grid"><Select label="Covariance estimator" value={modelMethod} onChange={setModelMethod} options={[{value:'sample',label:'Sample covariance'},{value:'shrinkage',label:'Diagonal shrinkage'},{value:'ewma',label:'Exponentially weighted (EWMA)'}]}/><NumberInput label="Maximum allocation per asset" value={modelCap} onChange={setModelCap} step={.05} min={.05} max={1}/></div><div className="ws-actions"><button className="ws-button primary" disabled={!dataset?.has_prices||busy} onClick={startModel}><Sigma size={16}/> Solve in Python</button></div></Card><Card title="Risk model summary">{model?<><div className="ws-model-metrics"><Metric label="Annualized volatility" value={percent(model.annualized_volatility)}/><Metric label="Expected return, in sample" value={percent(model.annualized_expected_return)}/><Metric label="Monthly historical VaR 95%" value={percent(model.historical_monthly_var95)}/><Metric label="Monthly tail loss 95%" value={percent(model.historical_monthly_tail_loss95)}/></div><p className="ws-caption">{model.warning}</p></>:<Empty title="No model computed">Choose a dataset and run an optimization to inspect its real calculated portfolio solution.</Empty>}</Card></div>{model&&<div className="ws-grid halves"><Card title="Optimized asset weights"><BarRows rows={model.weights}/></Card><Card title="Observed correlation matrix"><Table rows={model.correlation} max={15}/></Card></div>}
-          {tab==='mathematics'&&<>
-            <div className="ws-grid halves">
-              <Card title="Black–Scholes / European options"><p className="ws-caption">Theoretical European option pricing and Greeks, calculated by the existing Python engine.</p>
-                <div className="ws-form-grid">
-                  <NumberInput label="Underlying spot" value={option.spot} min={.01} onChange={v=>setOption({...option,spot:v})}/>
-                  <NumberInput label="Strike price" value={option.strike} min={.01} onChange={v=>setOption({...option,strike:v})}/>
-                  <NumberInput label="Years to expiry" value={option.years_to_expiry} min={.001} step={.1} onChange={v=>setOption({...option,years_to_expiry:v})}/>
-                  <NumberInput label="Risk-free rate (decimal)" value={option.risk_free_rate} step={.01} onChange={v=>setOption({...option,risk_free_rate:v})}/>
-                  <NumberInput label="Volatility (decimal)" value={option.volatility} min={.01} step={.01} onChange={v=>setOption({...option,volatility:v})}/>
-                  <NumberInput label="Dividend yield (decimal)" value={option.dividend_yield} step={.01} onChange={v=>setOption({...option,dividend_yield:v})}/>
-                  <Select label="Option type" value={option.option_type} options={[{value:'call',label:'Call'},{value:'put',label:'Put'}]} onChange={v=>setOption({...option,option_type:v})}/>
-                </div><button className="ws-button primary" disabled={busy} onClick={priceOption}><Sigma size={14}/> Calculate option Greeks</button>
-                {optionResult&&<div className="ws-data-audit">{['price','delta','gamma','vega','theta','rho'].map(k=><div key={k}><span>{label(k)}</span><strong>{number(optionResult[k],5)}</strong></div>)}</div>}
-              </Card>
-              <Card title="Stochastic process / GBM simulation"><p className="ws-caption">Seeded Python Monte Carlo with visible percentile bands. Explicitly synthetic, not a forecast.</p>
-                <div className="ws-form-grid">
-                  <NumberInput label="Initial price" value={gbm.initial_price} min={.01} onChange={v=>setGbm({...gbm,initial_price:v})}/>
-                  <NumberInput label="Annual drift" value={gbm.annual_drift} step={.01} onChange={v=>setGbm({...gbm,annual_drift:v})}/>
-                  <NumberInput label="Annual volatility" value={gbm.annual_volatility} min={0} step={.01} onChange={v=>setGbm({...gbm,annual_volatility:v})}/>
-                  <NumberInput label="Horizon in years" value={gbm.years} step={.25} min={.01} onChange={v=>setGbm({...gbm,years:v})}/>
-                  <NumberInput label="Time steps" value={gbm.steps} min={10} max={260} onChange={v=>setGbm({...gbm,steps:v})}/>
-                  <NumberInput label="Monte Carlo paths" value={gbm.paths} min={10} max={500} onChange={v=>setGbm({...gbm,paths:v})}/>
-                </div><button className="ws-button primary" disabled={busy} onClick={simulateGbm}><Activity size={14}/> Simulate in Python</button>
-                {gbmResult&&<FanChart rows={gbmResult.rows}/>}
-              </Card>
-            </div>
-          </>}
-          <Card title="Existing Python model library"><div className="ws-model-directory">{['Covariance estimation','Minimum variance','Historical VaR / tail loss','Risk parity','Factor regression','Black–Scholes and Greeks','GBM / OU / GARCH','PCA and factor exposures','Portfolio theory and constrained optimization'].map(n=><div key={n}><BookOpen size={17}/><span>{n}</span><Tag tone={['Covariance estimation','Minimum variance','Historical VaR / tail loss'].includes(n)?'good':'neutral'}>{['Covariance estimation','Minimum variance','Historical VaR / tail loss'].includes(n)?'CONNECTED':'PYTHON LIBRARY'}</Tag></div>)}</div><p className="ws-caption">Other mathematical engines remain in Python but do not yet have individual React controls in this migration.</p></Card>
-        </>}
+        {(tab==='mathematics'||tab==='models')&&<ModelLaboratory
+          section={tab} datasets={datasets} selectedDataset={selectedDataset}
+          onSelectDataset={setSelectedDataset} onOpenGuide={()=>begin('guide')}/>}
+        {tab==='guide'&&<ResearchGuide onNavigate={route=>begin(route as Tab)}/>}
         {tab==='reports'&&<>{withRun(<Card title="Generate reproducible research report"><p className="ws-caption">Generate an offline HTML report and PDF draft from selected saved Python run artifacts. Synthetic demonstrations are explicitly labeled.</p><div className="ws-actions"><button className="ws-button primary" disabled={!selectedRun||busy} onClick={downloadReport}><FileText size={15}/> Build HTML + PDF</button></div><div className="ws-artifact-list">{(detail?.artifacts||[]).map(name=><a key={name} href={'/api/runs/'+encodeURIComponent(selectedRun)+'/files/'+encodeURIComponent(name)} download><FileArchive size={16}/><span>{name}</span><ArrowDownToLine size={14}/></a>)}</div></Card>)}</>}
         {tab==='settings'&&<div className="ws-grid halves"><Card title="Backend and privacy"><div className="ws-data-audit"><div><span>API address</span><strong>127.0.0.1:8765</strong></div><div><span>Frontend address</span><strong>127.0.0.1:5173</strong></div><div><span>Data directory</span><strong>data/ (Git-ignored)</strong></div><div><span>Run artifacts</span><strong>results/workstation_runs/</strong></div><div><span>Authentication</span><strong>Loopback-only; not for public exposure</strong></div><div><span>Broker trading</span><strong>DISABLED</strong></div><div><span>Dhan token</span><strong>{health?.dhan_token_configured?'CONFIGURED (HIDDEN)':'MISSING'}</strong></div></div></Card><Card title="Integrity controls"><div className="ws-rule"><ShieldCheck size={18}/> Local data import, explicit dataset status, safe path allowlists, no broker order operations, no credential output, and no historical-performance fabrication.</div><p className="ws-caption">This is a local research environment, not an authenticated public server. Do not expose port 8765 on a network or deploy it as-is.</p><button className="ws-button secondary" onClick={()=>void refresh()}><RefreshCw size={16}/> Refresh engine status</button></Card></div>}
         <footer className="ws-footer"><span>QUANTLAB / RESEARCH WORKSTATION</span><span>LOCAL ENGINE · HISTORICAL CLAIMS REQUIRE EXTERNAL VALIDATION</span><span>© PERSONAL RESEARCH</span></footer>
