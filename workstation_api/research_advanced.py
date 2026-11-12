@@ -461,12 +461,16 @@ def grid_estimate(model_id: str, axes: dict[str,list], params: dict | None = Non
 
 
 def grid_sweep(model_id: str, dataset_id: str | None, axes: dict[str,list],
-               params: dict | None = None, *, metric_name: str | None = None) -> dict:
+               params: dict | None = None, *, metric_name: str | None = None,
+               progress=None) -> dict:
     estimated=grid_estimate(model_id,axes,params)
     if model_registry.CATALOG[model_id]["mode"]=="historical" and not dataset_id:
         raise ValueError("Historical grid requires an observed dataset")
     result_rows=[]
-    for controls,settings in estimated["configurations"]:
+    if progress: progress(2,"Parameter grid validated; beginning real model calculations")
+    for index,(controls,settings) in enumerate(estimated["configurations"]):
+        if progress: progress(5+int(83*index/estimated["run_count"]),
+                              "Computing model "+str(index+1)+" / "+str(estimated["run_count"]))
         run=model_lab.run_model(model_id,dataset_id,settings)
         saved=model_lab.save_result(run)
         metrics={m["label"]:float(m["value"]) for m in run.get("metrics",[])
@@ -499,8 +503,10 @@ def grid_sweep(model_id: str, dataset_id: str | None, axes: dict[str,list],
             "runs":result_rows,"plot":plot,"relative_work_units":estimated["estimated_relative_work_units"],
             "warning":"Parameter selection on these results is exploratory. Preserve an independent "
                       "untouched test period before claims of out-of-sample predictive skill."}
+    if progress: progress(93,"Saving parameter-response study and data provenance")
     saved=research_library.create("study","Grid sweep: "+model_registry.CATALOG[model_id]["title"],
                                   report,tags=["parameter-grid"])
+    if progress: progress(100,"Parameter-grid study saved")
     return {**report,"study_id":saved["id"]}
 
 
