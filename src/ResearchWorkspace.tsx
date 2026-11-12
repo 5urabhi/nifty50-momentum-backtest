@@ -632,6 +632,7 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompa
   const [reportBody,setReportBody]=useState('')
 
   const initialized=useRef(false)
+  const revision=useRef(0)
   const selectedNotebook=notebooks.find(n=>n.id===notebookId)
   const project=projects.find(p=>p.id===projectId)
   useEffect(()=>{
@@ -653,10 +654,21 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompa
       {content:reportBody},'PUT'),()=>{setEditingReport('');onMessage('Report updated in HTML, Markdown and PDF')})}
   const projectNotebooks=notebooks.filter(n=>String(n.payload.project_id||'')===projectId)
   const pickNotebook=(item:Item)=>{
-    setNotebookId(item.id);setProjectId(String(item.payload.project_id||projectId))
-    setNotebookTitle(item.title)
-    setCells(Array.isArray(item.payload.cells)?item.payload.cells as NotebookCell[]:[])
-    setDirty(false);initialized.current=true
+    revision.current+=1
+    let draft:{title:string;project_id:string;cells:NotebookCell[]}|null=null
+    try{
+      const stored=window.localStorage.getItem('ql-notebook-draft-'+item.id)
+      if(stored){
+        const parsed=JSON.parse(stored) as typeof draft
+        if(parsed&&typeof parsed.title==='string'&&Array.isArray(parsed.cells)&&parsed.cells.length<=100)
+          draft=parsed
+      }
+    }catch{/* invalid or unavailable local draft */}
+    setNotebookId(item.id)
+    setProjectId(String(draft?.project_id||item.payload.project_id||projectId))
+    setNotebookTitle(draft?.title||item.title)
+    setCells(draft?.cells||(Array.isArray(item.payload.cells)?item.payload.cells as NotebookCell[]:[]))
+    setDirty(!!draft);initialized.current=true
   }
   useEffect(()=>{
     if(selectedNotebook||initialized.current)return
@@ -664,11 +676,24 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompa
   },[notebooks,selectedNotebook])
   useEffect(()=>{
     if(!dirty||!notebookId)return
+    const key='ql-notebook-draft-'+notebookId
+    const version=revision.current
+    // Keep the current draft locally even when the user switches tabs before
+    // the debounce finishes. Only the newest write may mark it as saved.
+    try{window.localStorage.setItem(key,JSON.stringify({
+      title:notebookTitle,project_id:projectId,cells}))}
+    catch{/* storage disabled or quota exceeded; manual save remains available */}
     const timer=window.setTimeout(()=>{
       setSaving(true)
       void api<Item>('/workspace/records/'+notebookId,
         {title:notebookTitle,payload:{project_id:projectId,cells}},'PATCH')
-        .then(()=>{setDirty(false);onMessage('Notebook autosaved')})
+        .then(()=>{
+          if(version===revision.current){
+            setDirty(false)
+            try{window.localStorage.removeItem(key)}catch{}
+            onMessage('Notebook autosaved')
+          }
+        })
         .catch(()=>onMessage('Autosave failed: use Save now to retry'))
         .finally(()=>setSaving(false))
     },1200)
@@ -682,7 +707,9 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompa
     {kind:'notebook',title:name||'Research notebook',
       payload:{project_id:projectId,cells:[]},tags:['notebook']},'POST'),
     item=>{pickNotebook(item);setName('');onMessage('Notebook created')})
-  const alter=(newCells:NotebookCell[])=>{setCells(newCells);setDirty(true)}
+  const alter=(newCells:NotebookCell[])=>{
+    revision.current+=1;setCells(newCells);setDirty(true)
+  }
   const addCell=(type:NotebookCell['type'])=>{
     const initial:NotebookCell={id:'cell_'+Date.now().toString(36),type,
       content:type==='markdown'?'Research observation…':'',
@@ -692,9 +719,19 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompa
   }
   const updateCell=(index:number,patch:Partial<NotebookCell>)=>alter(cells.map((c,i)=>
     i===index?{...c,...patch}:c))
-  const save=()=>{if(!notebookId)return;perform(()=>api<Item>('/workspace/records/'+notebookId,
+  const save=()=>{
+    if(!notebookId)return
+    const version=revision.current
+    const key='ql-notebook-draft-'+notebookId
+    void perform(()=>api<Item>('/workspace/records/'+notebookId,
       {title:notebookTitle,payload:{project_id:projectId,cells}},'PATCH'),()=>{
-        setDirty(false);onMessage('Notebook saved')})}
+        if(version===revision.current){
+          setDirty(false)
+          try{window.localStorage.removeItem(key)}catch{}
+        }
+        onMessage('Notebook saved')
+      })
+  }
   const exportNotebook=()=>safeDownload((notebookTitle||'research_notebook')+'.json',
     JSON.stringify({title:notebookTitle,project_id:projectId,cells},null,2),'application/json')
   return <div className="rw-stack">
@@ -703,8 +740,8 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompa
         <p className="rw-help">Group related studies, model references, figures and reports. Organizing a project never creates duplicate market-price data.</p>
         <div className="rw-inline-actions"><input value={name} onChange={e=>setName(e.target.value)}
           placeholder="Project or notebook title"/>
-          <button disabled={busy} onClick={createProject}><Plus size={14}/> Project</button>
-          <button disabled={busy} onClick={createNotebook}><Plus size={14}/> Notebook</button></div>
+          <button disabled={busy||saving} onClick={createProject}><Plus size={14}/> Project</button>
+          <button disabled={busy||saving} onClick={createNotebook}><Plus size={14}/> Notebook</button></div>
         {projects.map(p=><button key={p.id} className={'rw-row '+(p.id===projectId?'active':'')}
           onClick={()=>{setProjectId(p.id);setNotebookId('');initialized.current=true}}>
           <Folder size={17}/><span><strong>{p.title}</strong><small>{p.id}</small></span></button>)}
@@ -729,7 +766,9 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompa
     </div>
     {notebookId&&selectedNotebook&&<Box title="Research notebook editor" side={
       <span className="rw-pill">{saving?'Saving…':dirty?'Unsaved edits':'Saved'}</span>}>
-      <Field label="Notebook name" value={notebookTitle} onChange={v=>{setNotebookTitle(v);setDirty(true)}}/>
+      <Field label="Notebook name" value={notebookTitle} onChange={v=>{
+        revision.current+=1;setNotebookTitle(v);setDirty(true)
+      }}/>
       <div className="rw-button-group">
         <button onClick={()=>addCell('markdown')}><Plus size={14}/> Text / equations</button>
         <button onClick={()=>addCell('run')} disabled={!runs.some(r=>r.kind==='model_run')}>
