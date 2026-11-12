@@ -118,7 +118,9 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     spec.parameters.map(p=>[p.key,p.default])
   ),[])
   useEffect(()=>{
-    if(selected){setParams(defaultParams(selected))}
+    if(selected){
+      setParams(result?.model_id===selected.id?{...result.params}:defaultParams(selected))
+    }
   },[selected?.id,defaultParams])
   useEffect(()=>{
     setReadiness(null);setReadinessError(null)
@@ -165,7 +167,12 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     setError(null);setWorking(true)
     try{
       const data=await getJSON<LabResult>('/lab/runs/'+encodeURIComponent(run.id))
-      setGroup(run.group);setModelId(run.model_id);setResult(data);setView('figures')
+      setGroup(run.group);setModelId(run.model_id)
+      setParams({...data.params})
+      if(data.source?.dataset_id&&datasets.some(d=>d.id===data.source?.dataset_id)){
+        onSelectDataset(data.source.dataset_id)
+      }
+      setResult(data);setView('figures')
     }catch(e){setError(e instanceof Error?e.message:String(e))}
     finally{setWorking(false)}
   }
