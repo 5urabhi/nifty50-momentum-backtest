@@ -514,11 +514,17 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
   }
   const displayPlot=useMemo(()=>{
     if(!plot)return null
+    if(plot.kind==='surface3d'||plot.kind==='heatmap2d')
+      return {...plot,title}
     const size=plot.x?.length||0
-    const lo=Math.max(0,Math.floor(size*Number(from||0)/100))
-    const hi=Math.min(size,Math.ceil(size*Number(to||100)/100))
-    return {...plot,title,kind:kind==='bar2d'?'bar2d':'line2d',
-      x:plot.x?.slice(lo,hi),
+    const start=Math.min(100,Math.max(0,Number(from)||0))
+    const finish=Math.min(100,Math.max(start+1,Number(to)||100))
+    const lo=Math.max(0,Math.floor(size*start/100))
+    const hi=Math.min(size,Math.max(lo+1,Math.ceil(size*finish/100)))
+    const displayKind=plot.kind==='scatter2d'?'scatter2d':
+      kind==='bar2d'?'bar2d':'line2d'
+    return {...plot,title,kind:displayKind,
+      x:plot.x?.slice(lo,hi),y:plot.y?.slice(lo,hi),
       traces:plot.traces?.map(trace=>({...trace,y:trace.y.slice(lo,hi)}))}
   },[plot,title,kind,from,to])
   const exportSVG=()=>{
