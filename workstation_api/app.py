@@ -634,8 +634,30 @@ def workspace_reports(body: ReportRequest):
                   body.notebook_id, format=body.format)
 
 
+
+class ReportEdit(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    content: str = Field(min_length=1, max_length=90000)
+
+
+@app.get("/api/workspace/reports/{report_id}/source")
+def workspace_report_source(report_id: str):
+    try:
+        return research_library.report_source(report_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.put("/api/workspace/reports/{report_id}/source")
+def workspace_report_edit(report_id: str, body: ReportEdit):
+    try:
+        return research_library.edit_report(report_id, body.content)
+    except Exception as exc:
+        bad(exc)
+
+
 @app.get("/api/workspace/reports/{report_id}/{format}")
-def workspace_report_file(report_id: str, format: Literal["html","markdown"]):
+def workspace_report_file(report_id: str, format: Literal["html","markdown","pdf"]):
     try:
         path = research_library.report_path(report_id, format)
         return FileResponse(path, filename=path.name)
