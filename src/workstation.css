@@ -6,3 +6,15 @@
 @media(max-width:960px){.ws-sidebar{transform:translateX(-100%);transition:transform .2s;width:258px}.ws-sidebar.open{transform:translateX(0)}.ws-main{margin-left:0;width:100%}.ws-menu,.ws-mobile-close{display:grid}.ws-mobile-close{margin-left:auto}.ws-backdrop{display:block;position:fixed;inset:0;background:#0009;border:0;z-index:35}.ws-overview-banner{padding:28px}.ws-metrics-grid{grid-template-columns:repeat(2,1fr)}.ws-grid.four{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:640px){.ws-content{padding:20px 13px}.ws-topbar{padding:0 13px}.ws-top-left .ws-breadcrumb,.ws-top-left>svg{display:none}.ws-titlebar{display:block}.ws-titlebar p{line-height:1.5}.ws-title-actions{margin-top:18px}.ws-overview-banner{padding:22px}.ws-banner-graphic{opacity:.15;right:-140px}.ws-overview-banner h2{font-size:30px}.ws-metrics-grid,.ws-grid.halves,.ws-grid.two-thirds,.ws-grid.four{grid-template-columns:1fr}.ws-form-grid,.ws-model-directory,.ws-artifact-list{grid-template-columns:1fr}.ws-model-metrics{grid-template-columns:repeat(2,1fr)}.ws-card{padding:17px}.ws-top-right>.ws-tag:first-child:not(:last-of-type){display:none}.ws-footer{flex-wrap:wrap}.ws-cardhead{align-items:flex-start;flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+
+/* Eight destinations with nested research modules; old modules remain reachable. */
+.ws-context-tabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  padding:12px;margin-bottom:16px;border:1px solid #2e4658;
+  border-radius:12px;background:#0e2030}
+.ws-context-tabs button{background:#183246;border:1px solid #365669;color:#bed4dd;
+  border-radius:8px;padding:9px 13px;font:inherit;font-size:12px;cursor:pointer}
+.ws-context-tabs button.active{background:#17493f;color:#d0fff2;border-color:#56c5ab}
+.ws-context-tabs button:focus-visible{outline:2px solid #7de7c8;outline-offset:2px}
+@media(max-width:700px){.ws-context-tabs{overflow-x:auto;flex-wrap:nowrap}
+.ws-context-tabs button{white-space:nowrap}}
