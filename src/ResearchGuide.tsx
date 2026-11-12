@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {Activity, ArrowRight, BookOpen, CheckCircle2, CircleAlert,
-  Database, Download, FlaskConical, GitBranch, HelpCircle, Layers, Search, ShieldCheck} from 'lucide-react'
+  Database, FlaskConical, GitBranch, HelpCircle, Layers, Search, ShieldCheck} from 'lucide-react'
 import './model-lab.css'
 import './guide.css'
 
