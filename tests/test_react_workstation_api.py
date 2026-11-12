@@ -70,6 +70,27 @@ class ResearchWorkstationApiTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             RunRequest(dataset_id="synthetic", factor_weights={"momentum": 0})
 
+    def test_black_scholes_and_seeded_gbm(self):
+        option = self.client.post("/api/models/black-scholes", json={
+            "spot": 100, "strike": 100, "years_to_expiry": 1,
+            "risk_free_rate": 0.05, "volatility": 0.2,
+            "dividend_yield": 0, "option_type": "call",
+        })
+        self.assertEqual(option.status_code, 200, option.text)
+        self.assertAlmostEqual(option.json()["price"], 10.45058, places=3)
+        self.assertEqual(option.json()["kind"], "theoretical")
+        simulation = {
+            "initial_price": 100, "annual_drift": .08,
+            "annual_volatility": .2, "years": 1,
+            "steps": 35, "paths": 30, "seed": 2026,
+        }
+        one = self.client.post("/api/models/gbm", json=simulation)
+        two = self.client.post("/api/models/gbm", json=simulation)
+        self.assertEqual(one.status_code, 200, one.text)
+        self.assertEqual(one.json()["rows"], two.json()["rows"])
+        self.assertEqual(len(one.json()["rows"]), 36)
+        self.assertEqual(one.json()["kind"], "synthetic_simulation")
+
     def test_invalid_archive_rejected(self):
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w") as z:
