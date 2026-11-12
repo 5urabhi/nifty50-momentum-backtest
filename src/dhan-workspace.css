@@ -202,3 +202,8 @@
 .dh-pit-in-batch strong{color:#9aecce;font-size:11px}
 .dh-pit-in-batch span{color:#9ab8c5;font-size:10px;line-height:1.6}
 @media(max-width:650px){.dh-pit-counts{grid-template-columns:repeat(2,1fr)}.dh-pit-asof{display:block}.dh-pit-asof label{margin-top:12px}.dh-pit-events>div{grid-template-columns:78px 1fr 50px;gap:5px}.dh-pit-events>div>a,.dh-pit-events>div>small{grid-column:2/4}}
+
+.dh-pit-head-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.dh-pit-head-actions>button{display:inline-flex;align-items:center;gap:6px;border:1px solid #31555c;background:#142e3a;color:#8be5c7;padding:7px 9px;border-radius:6px}
+.dh-pit-unresolved button{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+@media(max-width:680px){.dh-pit-chip-head{flex-wrap:wrap}.dh-pit-head-actions{width:100%;justify-content:flex-start}}
