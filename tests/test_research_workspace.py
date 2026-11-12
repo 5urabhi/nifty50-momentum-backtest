@@ -157,6 +157,7 @@ class ResearchWorkspaceTests(unittest.TestCase):
 
     def test_synthetic_fixture_cannot_masquerade_as_historical_holdout(self):
         service.create_synthetic()
+        self.assertIn("Synthetic fixture", model_lab.readiness("synthetic")["warning"])
         with self.assertRaisesRegex(ValueError,"Synthetic demonstration"):
             research_insights.validate_out_of_sample("synthetic", model="equal",
                      assets=3, train_window=50, test_step=20, max_weight=.5)
