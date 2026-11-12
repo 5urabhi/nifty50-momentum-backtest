@@ -76,11 +76,14 @@ function Canvas2D({plot}:{plot:ResearchPlotData}){
           <title>{trace.name+' · '+String(x[i])+' · '+fmt(v)}</title>
         </circle>:null)}
       </g>)}
-      {plot.threshold!==undefined&&finite(plot.threshold)&&lo<=plot.threshold&&plot.threshold<=hi&&<>
-        <line x1={GRID_LEFT} x2={GRID_RIGHT} y1={yp(plot.threshold)} y2={yp(plot.threshold)}
-          stroke="#ffa466" strokeDasharray="7 5" strokeWidth="1.5"/>
-        <text x={GRID_RIGHT-4} y={yp(plot.threshold)-6} fill="#ffc890" fontSize="10"
-          textAnchor="end">Tail threshold</text>
+      {plot.threshold!==undefined&&finite(plot.threshold)&&numerical&&maxX>minX&&
+         plot.threshold>=minX&&plot.threshold<=maxX&&<>
+        <line x1={GRID_LEFT+(plot.threshold-minX)/(maxX-minX)*width}
+              x2={GRID_LEFT+(plot.threshold-minX)/(maxX-minX)*width}
+              y1={GRID_TOP} y2={GRID_BOTTOM}
+              stroke="#ffa466" strokeDasharray="7 5" strokeWidth="1.5"/>
+        <text x={GRID_LEFT+(plot.threshold-minX)/(maxX-minX)*width+5} y={GRID_TOP+12}
+              fill="#ffc890" fontSize="10">Loss quantile</text>
       </>}
       {[0,.25,.5,.75,1].map((t,i)=>{const idx=Math.min(x.length-1,Math.round(t*(x.length-1)))
         return idx>=0?<text key={i} x={xcoord(idx)} y="300" textAnchor={i===0?'start':i===4?'end':'middle'}
