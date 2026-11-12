@@ -220,6 +220,9 @@ def _summarize(data: dict) -> dict:
         "exchange": data.get("exchange", "NSE"), "interval": data["interval"],
         "from_date": data["from_date"], "to_date": data["to_date"],
         "total": len(data["items"]), "processed": completed,
+        "current_window": data.get("current_window"),
+        "current_window_chunks": ({"completed": data.get("current_window"),
+                                   "symbol": data.get("current_symbol")} if data.get("current_window") else None),
         "counts": counts, "current_symbol": data.get("current_symbol"),
         "prepared_dataset_id": data.get("prepared_dataset_id"),
         "errors": counts["failed"],
@@ -329,76 +332,112 @@ def _uncovered(start: date, end: date, spans: list[list[str]]) -> list[tuple[dat
     return gaps
 
 
-def _fetch_history(row: dict, start: str, stop: str, interval: int | None) -> dict:
+def _fetch_history(row: dict, start: str, stop: str, interval: int | None,
+                   on_progress=None, should_stop=None) -> dict:
+    """Fetch/cache each Dhan date window independently and resumably.
+
+    Dhan allows at most 90 calendar days per intraday request. The original
+    implementation downloaded a full year into memory and only wrote the
+    cache after the *last* window, losing progress if request five failed.
+    This implementation commits a SHA-256-verified CSV+manifest after EACH
+    successful window. A resumed batch skips covered windows. Download
+    retries and rate-limit backoff live in the shared Dhan V2 adapter.
+    """
     target = _history_file(row, interval)
     manifest = target.with_suffix(".json")
-    existing: pd.DataFrame | None = None
     previous: dict = {"coverage": []}
+    existing: pd.DataFrame | None = None
     if target.is_file() or manifest.is_file():
         if not target.is_file() or not manifest.is_file() or target.is_symlink() or manifest.is_symlink():
             raise ValueError("Cached candle data/manifest mismatch; manual evidence review required")
         previous = json.loads(manifest.read_text())
-        actual = hashlib.sha256(target.read_bytes()).hexdigest()
-        if previous.get("sha256") != actual or previous.get("instrument_id") != row["id"]:
-            raise ValueError("Cached OHLCV SHA-256 or instrument identity mismatch")
+        if previous.get("sha256") != hashlib.sha256(target.read_bytes()).hexdigest():
+            raise ValueError("Cached OHLCV SHA-256 mismatch")
+        if previous.get("instrument_id") != row["id"] or previous.get("interval_minutes") != interval:
+            raise ValueError("Cached OHLCV instrument identity or interval mismatch")
         existing = pd.read_csv(target, dtype={"security_id": str}, low_memory=False)
         if "datetime" not in existing.columns or existing["datetime"].duplicated().any():
             raise ValueError("Cached OHLCV structure invalid")
-    missing = _uncovered(date.fromisoformat(start), date.fromisoformat(stop),
-                         previous.get("coverage", []))
-    if not missing:
-        return {"status": "cached", "rows": len(existing) if existing is not None else 0,
-                "rows_added": 0}
+    initial_count = len(existing) if existing is not None else 0
+    gaps = _uncovered(date.fromisoformat(start), date.fromisoformat(stop),
+                      previous.get("coverage", []))
+    window_days = 90 if interval is not None else 365
+    windows = [window for left, right in gaps
+               for window in date_windows(left, right, window_days)]
+    total = len(windows)
+    if not windows:
+        if on_progress:
+            on_progress(0, 0, initial_count)
+        return {"status": "cached", "rows": initial_count, "rows_added": 0,
+                "windows_completed": 0, "windows_total": 0}
     inst = Instrument(label="EQUITY_" + row["security_id"],
                       security_id=row["security_id"],
                       exchange_segment=row["exchange_segment"], instrument="EQUITY")
-    chunks, covered = [], list(previous.get("coverage", []))
-    for first, last in missing:
-        try:
-            frame = download_candles(inst, first.isoformat(), last.isoformat(),
-                                     interval=interval, pause_seconds=0.4)
-        except ValueError as exc:
-            if str(exc).startswith("No candles returned for "):
-                continue
-            raise
-        chunks.append(frame)
-        covered.append([first.isoformat(), last.isoformat()])
-    if not chunks:
-        return {"status": "no_data", "rows": len(existing) if existing is not None else 0,
-                "rows_added": 0}
-    incoming = pd.concat(chunks, ignore_index=True)
-    # Persist timestamps in one canonical representation. A reloaded CSV has
-    # string timestamps, while new Dhan frames use timezone-aware datetimes;
-    # mixing the two causes TypeError when sorting incremental updates.
+    covered = list(previous.get("coverage", []))
+    added = 0
+    attempted = 0
+
     def normalize(frame: pd.DataFrame) -> pd.DataFrame:
         copy = frame.copy()
         copy["datetime"] = (pd.to_datetime(copy["datetime"], utc=True, errors="raise")
                             .dt.tz_convert("Asia/Kolkata")
                             .dt.strftime("%Y-%m-%dT%H:%M:%S%z"))
         return copy
-    incoming = normalize(incoming)
-    existing = normalize(existing) if existing is not None else None
-    combined = pd.concat([existing, incoming], ignore_index=True) if existing is not None else incoming
-    combined = combined.sort_values("datetime").drop_duplicates("datetime", keep="last")
-    if combined.empty or combined["datetime"].isna().any():
-        raise ValueError("Empty or malformed downloaded OHLCV")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temp = target.with_name(target.name + "." + uuid.uuid4().hex[:8] + ".tmp")
-    try:
-        combined.to_csv(temp, index=False)
-        digest = hashlib.sha256(temp.read_bytes()).hexdigest()
-        os.replace(temp, target)
-    finally:
-        temp.unlink(missing_ok=True)
-    _atomic_json(manifest, {
-        "instrument_id": row["id"], "display_symbol": row["symbol"],
-        "interval_minutes": interval, "coverage": covered,
-        "rows": int(len(combined)), "sha256": digest,
-        "updated_utc": _now(), "source": "DhanHQ historical OHLCV",
-        "warning": "Dhan historical OHLCV is not verified dividend-adjusted total returns.",
-    })
-    return {"status": "complete", "rows": int(len(combined)), "rows_added": int(len(incoming))}
 
+    for first, last in windows:
+        if should_stop is not None and should_stop():
+            # Preserve already cached windows and stop before the next call.
+            raise InterruptedError("Batch pause requested after last completed date window")
+        frame: pd.DataFrame | None = None
+        try:
+            frame = download_candles(inst, first.isoformat(), last.isoformat(),
+                                     interval=interval, pause_seconds=0.4)
+        except ValueError as exc:
+            if not str(exc).startswith("No candles returned for "):
+                raise
+        attempted += 1
+        if frame is None or frame.empty:
+            # A no-data result is not evidence of complete historical coverage;
+            # do not mark this span as cached or synthesize missing candles.
+            if on_progress:
+                on_progress(attempted, total, len(existing) if existing is not None else 0)
+            continue
+        incoming = normalize(frame)
+        incoming = incoming.sort_values("datetime")
+        if incoming["datetime"].duplicated().any():
+            raise ValueError("Duplicate candle timestamps within Dhan date window")
+        combined = (pd.concat([existing, incoming], ignore_index=True)
+                    if existing is not None else incoming)
+        combined = combined.sort_values("datetime").drop_duplicates("datetime", keep="last")
+        if combined.empty or combined["datetime"].isna().any():
+            raise ValueError("Empty or malformed downloaded OHLCV")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temp = target.with_name(target.name + "." + uuid.uuid4().hex[:8] + ".tmp")
+        try:
+            combined.to_csv(temp, index=False)
+            digest = hashlib.sha256(temp.read_bytes()).hexdigest()
+            os.replace(temp, target)
+        finally:
+            temp.unlink(missing_ok=True)
+        covered.append([first.isoformat(), last.isoformat()])
+        _atomic_json(manifest, {
+            "instrument_id": row["id"], "display_symbol": row["symbol"],
+            "interval_minutes": interval, "coverage": covered,
+            "rows": int(len(combined)), "sha256": digest,
+            "updated_utc": _now(), "source": "DhanHQ historical OHLCV",
+            "window_size_days": window_days,
+            "warning": "Dhan historical OHLCV is not verified dividend-adjusted total returns.",
+        })
+        existing = combined
+        added += len(incoming)
+        if on_progress:
+            on_progress(attempted, total, len(existing))
+    return {
+        "status": "complete" if existing is not None else "no_data",
+        "rows": int(len(existing)) if existing is not None else 0,
+        "rows_added": added, "windows_completed": attempted,
+        "windows_total": total,
+    }
 
 def run_batch(batch_id: str, cancel_event: threading.Event | None = None) -> dict:
     data = _load_batch(batch_id)
@@ -421,8 +460,25 @@ def run_batch(batch_id: str, cancel_event: threading.Event | None = None) -> dic
             data["current_symbol"] = item["symbol"]
             _save_batch(data)
             try:
-                result = _fetch_history(item, data["from_date"], data["to_date"], data["interval"])
+                def window_progress(done: int, total: int, cached_rows: int):
+                    item.update(windows_completed=done, windows_total=total,
+                                rows=cached_rows)
+                    data["current_window"] = (f"{done}/{total}" if total else None)
+                    _save_batch(data)
+                result = _fetch_history(
+                    item, data["from_date"], data["to_date"], data["interval"],
+                    on_progress=window_progress,
+                    should_stop=(cancel_event.is_set if cancel_event is not None else None),
+                )
                 item.update(**result, error=None)
+                data["current_window"] = None
+            except InterruptedError:
+                item.update(status="pending", error=None)
+                data["status"] = "paused"
+                data["current_symbol"] = None
+                data["current_window"] = None
+                _save_batch(data)
+                return _summarize(data)
             except Exception as exc:
                 # The Dhan transport already hides vendor response content.
                 error = str(exc)
