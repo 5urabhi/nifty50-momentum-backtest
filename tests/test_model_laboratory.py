@@ -40,11 +40,14 @@ class ModelLaboratoryTests(unittest.TestCase):
     def setUp(self):
         self.patch=patch.object(model_lab.service,"dataset_path",
             return_value=(self.folder,self.record))
+        self.path_patch=patch.object(model_lab.service,"RESULTS",self.folder/"test_model_runs")
         self.patch.start()
+        self.path_patch.start()
         self.client=TestClient(app,base_url="http://127.0.0.1:8765")
 
     def tearDown(self):
         self.client.close()
+        self.path_patch.stop()
         self.patch.stop()
 
     def run_model(self, model: str, params=None, with_data=True):
@@ -159,6 +162,24 @@ class ModelLaboratoryTests(unittest.TestCase):
                 r=self.run_model("evt")
                 self.assertEqual(r.status_code,400,r.text)
                 self.assertIn("180 observed common",r.text.lower())
+
+    def test_persisted_model_runs_have_reproducible_source_evidence(self):
+        response=self.run_model("min_variance")
+        self.assertEqual(response.status_code,200,response.text)
+        result=response.json()
+        self.assertRegex(result["run_id"],r"^[0-9]{8}T[0-9]{6}Z_[0-9a-f]{10}$")
+        self.assertEqual(len(result["source_sha256"]),64)
+        listing=self.client.get("/api/lab/runs")
+        self.assertEqual(listing.status_code,200,listing.text)
+        self.assertTrue(any(item["id"]==result["run_id"] for item in listing.json()["runs"]))
+        record=self.client.get("/api/lab/runs/"+result["run_id"])
+        self.assertEqual(record.status_code,200,record.text)
+        self.assertEqual(record.json()["plots"],result["plots"])
+        self.assertEqual(record.json()["params"],result["params"])
+        invalid=self.client.get("/api/lab/runs/..%2F..%2F.env")
+        self.assertNotEqual(invalid.status_code,200)
+        invalid=self.client.get("/api/lab/runs/not-an-id")
+        self.assertEqual(invalid.status_code,400)
 
     def test_documentation_routes_have_only_allowlisted_text(self):
         for topic in ("user-guide","model-catalog","reproducibility"):
