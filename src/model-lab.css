@@ -148,3 +148,16 @@
  border-radius:8px;color:#062d2c;background:#77dfc5;font-size:11px;font-weight:750}
 .ql-download-offer button:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:780px){.ql-coverage-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.ql-config-library{margin:18px 0 4px;padding:16px;border:1px solid #38626b;
+ border-radius:10px;background:#112a37}
+.ql-config-library .ql-panel-title{margin-bottom:10px}
+.ql-config-row{display:flex;align-items:center;gap:7px;padding:8px 0;border-top:1px solid #2a4555}
+.ql-config-row>div:first-child{flex:1;min-width:0}
+.ql-config-row strong{display:block;color:#d5eee8;font-size:11px}
+.ql-config-row small{display:block;color:#92b4c0;font-size:9px;margin-top:4px}
+.ql-config-row button{display:inline-flex;gap:5px;align-items:center;background:#163442;
+ border:1px solid #365b65;color:#a8ddcd;padding:8px 10px;border-radius:7px;font-size:10px;cursor:pointer}
+.ql-config-row button:hover{border-color:#70d6bd}
+.ql-config-row button:disabled{opacity:.45}
+@media(max-width:650px){.ql-config-row{flex-wrap:wrap}.ql-config-row>div:first-child{flex:1 1 100%}}
