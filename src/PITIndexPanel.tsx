@@ -48,6 +48,15 @@ function previous(day:string){
 }
 const readable=(day:string)=>new Date(day+'T12:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
 
+function exportCsv(name:string, rows:string[][]){
+  // Export user-reviewable CSV instead of inventing any index membership.
+  const escaped=rows.map(row=>row.map(value=>'"'+String(value).replaceAll('"','""')+'"').join(',')).join('\r\n')+'\r\n'
+  const url=URL.createObjectURL(new Blob(['\uFEFF'+escaped],{type:'text/csv;charset=utf-8'}))
+  const a=document.createElement('a')
+  a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove()
+  window.setTimeout(()=>URL.revokeObjectURL(url),1000)
+}
+
 export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSyncBusy}:Props){
   const [status,setStatus]=useState<MembershipStatus|null>(null)
   const [asOf,setAsOf]=useState(fromDate)
@@ -57,6 +66,7 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
   const [issue,setIssue]=useState('')
   const [showChanges,setShowChanges]=useState(false)
   const [showAll,setShowAll]=useState(false)
+  const [showUnion,setShowUnion]=useState(false)
   const [showMissing,setShowMissing]=useState(true)
   const refresh=useCallback(async()=>{
     const next=await get<MembershipStatus>('/indices/status')
@@ -83,7 +93,7 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
       if(!controller.signal.aborted){setPlan(null);onPlan(null);setIssue(e instanceof Error?e.message:String(e))}
     }).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
     return()=>controller.abort()
-  },[mode,fromDate,toDate,asOf,status?.available,status?.covered_through,onPlan])
+  },[mode,fromDate,toDate,asOf,status?.available,status?.covered_through,status?.source_commit,onPlan])
   useEffect(()=>{
     if(!syncId)return
     onSyncBusy(true)
@@ -143,6 +153,18 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
         <div><strong>{plan.union_count}</strong><span>Distinct stocks in period</span></div>
         <div><strong>{plan.change_count}</strong><span>Add/remove events</span></div>
       </div>
+      <div className="dh-pit-chip-head">
+        <strong>Every stock belonging to {name} at any point in this period ({plan.union_count})</strong>
+        <div className="dh-pit-head-actions">
+          <button onClick={()=>exportCsv(
+            mode+'_'+fromDate+'_'+toDate+'_historical_union.csv',
+            [['index','from_inclusive','to_exclusive','symbol','membership_source_commit'],
+             ...plan.union_members.map(symbol=>[plan.index_name,fromDate,toDate,symbol,plan.source_commit])]
+          )}><ArrowDownToLine size={13}/> Export union CSV</button>
+          <button onClick={()=>setShowUnion(v=>!v)}>{showUnion?'Hide list':'Show list'} <ChevronDown size={14}/></button>
+        </div>
+      </div>
+      {showUnion&&<div className="dh-pit-chips">{plan.union_members.map(symbol=><span key={symbol}>{symbol}</span>)}</div>}
       <div className="dh-pit-asof">
         <div><div><CalendarDays size={16}/><strong>Who was in {name} on this date?</strong></div>
           <small>Membership follows exact inclusion and exclusion effective dates.</small></div>
@@ -150,7 +172,14 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
           onChange={e=>setAsOf(e.target.value)} aria-label="Historical index membership as-of date"/></label>
       </div>
       <div className="dh-pit-chip-head"><strong>{plan.asof_members.length} constituents on {readable(plan.asof_date)}</strong>
-        <button onClick={()=>setShowAll(v=>!v)}>{showAll?'Show fewer':'Show all'} <ChevronDown size={14}/></button></div>
+        <div className="dh-pit-head-actions">
+          <button onClick={()=>exportCsv(
+            mode+'_'+plan.asof_date+'_constituents.csv',
+            [['index','asof_date','symbol','membership_source_commit'],
+             ...plan.asof_members.map(symbol=>[plan.index_name,plan.asof_date,symbol,plan.source_commit])]
+          )}><ArrowDownToLine size={13}/> Export this date</button>
+          <button onClick={()=>setShowAll(v=>!v)}>{showAll?'Show fewer':'Show all'} <ChevronDown size={14}/></button>
+        </div></div>
       <div className="dh-pit-chips">{memberList.slice(0,showAll?memberList.length:24).map(s=><span key={s}>{s}</span>)}
         {!showAll&&memberList.length>24&&<span className="dh-pit-more">+{memberList.length-24} more</span>}</div>
       <div className="dh-pit-chip-head"><strong>Constituent changes in selected period</strong>
@@ -164,6 +193,11 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
         <div className={plan.unresolved_count?'issue':''}><span className="dh-led"/><strong>{plan.unresolved_count} missing/ambiguous Security IDs</strong></div></div>
       {plan.unresolved_count>0&&<div className="dh-pit-unresolved">
         <div><AlertTriangle size={17}/><strong>Historical members not found in the current Dhan master</strong>
+          <button onClick={()=>exportCsv(
+            mode+'_'+fromDate+'_'+toDate+'_unresolved_dhan_ids.csv',
+            [['index','from_inclusive','to_exclusive','symbol','unresolved_reason'],
+             ...plan.unresolved.map(item=>[plan.index_name,fromDate,toDate,item.symbol,item.reason])]
+          )}><ArrowDownToLine size={13}/> Export gaps</button>
           <button onClick={()=>setShowMissing(v=>!v)}>{showMissing?'Hide':'View'}</button></div>
         <p>These may be old, renamed, or delisted listings. The app will not invent mappings. Downloading only available stocks will leave a documented historical-price gap.</p>
         {showMissing&&<div>{plan.unresolved.map(u=><span key={u.symbol} title={u.reason}>{u.symbol}</span>)}</div>}</div>}
