@@ -489,13 +489,13 @@ def sync_index_history():
 
 @app.get("/api/indices/preview")
 def preview_historical_index(index_id: Literal["nifty50_pit", "banknifty_pit"],
-                             from_date: str, to_date: str):
+                             from_date: str, to_date: str, as_of_date: str | None = None):
     try:
         try:
             master = dhan_workspace.catalog()
         except FileNotFoundError:
             master = []
-        preview = pit_index.query(index_id, from_date, to_date, master)
+        preview = pit_index.query(index_id, from_date, to_date, master, as_of=as_of_date)
         return {k: value for k, value in preview.items() if k != "raw_intervals"}
     except Exception as exc:
         bad(exc)
