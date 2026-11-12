@@ -5,9 +5,10 @@ import {
   LoaderCircle, LockKeyhole, Pause, Play, RefreshCw, Search,
   ShieldCheck, UploadCloud, X
 } from 'lucide-react'
+import PITIndexPanel, {type MembershipPlan, type PITMode} from './PITIndexPanel'
 import './dhan-workspace.css'
 
-type SelectionMode = 'selected' | 'all_nse' | 'all_bse' | 'watchlist'
+type SelectionMode = 'selected' | 'all_nse' | 'all_bse' | 'watchlist' | PITMode
 type CatalogItem = {
   id:string;symbol:string;display_name:string;security_id:string;
   exchange_segment:string;instrument:string;series:string;isin:string;regular_eq:boolean
@@ -21,6 +22,8 @@ type BatchSummary = {
   interval:number|null;from_date:string;to_date:string;total:number;processed:number;
   counts:Record<string,number>;current_symbol:string|null;prepared_dataset_id?:string|null;
   errors:number;warning:string
+  historical_index_name?:string|null;historical_union_count?:number
+  historical_unresolved?:Array<{symbol:string;reason:string}>
 }
 type BatchDetails = BatchSummary & {
   items:Array<CatalogItem & {status:string;rows:number;rows_added:number;error?:string|null}>
@@ -60,13 +63,16 @@ function Section({title,aside,children}:{title:string;aside?:React.ReactNode;chi
 }
 function interpretMode(mode:SelectionMode){
   return {selected:'Handpicked stocks',all_nse:'All NSE cash equities (EQ series)',
-    all_bse:'All BSE cash equities',watchlist:'My ticker list'}[mode]
+    all_bse:'All BSE cash equities',watchlist:'My ticker list',
+    nifty50_pit:'NIFTY 50 · Historical members',banknifty_pit:'BANK NIFTY · Historical members'}[mode]
 }
 const options:Array<{mode:SelectionMode;title:string;description:string;icon:typeof Database}>=[
   {mode:'selected',title:'Choose stocks',description:'Search and add any combination of securities',icon:Search},
   {mode:'all_nse',title:'All NSE stocks',description:'Every current NSE EQ-series equity in the Dhan catalog',icon:Layers3},
   {mode:'all_bse',title:'All BSE stocks',description:'Current BSE cash-market equities in the Dhan catalog',icon:Database},
   {mode:'watchlist',title:'Paste a ticker list',description:'Import symbols from CSV or paste them directly',icon:FileSpreadsheet},
+  {mode:'nifty50_pit',title:'NIFTY 50 · Historical',description:'Stocks belonging to the index at each date, including past removals',icon:History},
+  {mode:'banknifty_pit',title:'BANK NIFTY · Historical',description:'Date-accurate banking index constituents, not just today’s banks',icon:Clock3},
 ]
 
 export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}){
@@ -85,6 +91,9 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const [toDate,setToDate]=useState(today)
   const [interval,setInterval]=useState('daily')
   const [acknowledged,setAcknowledged]=useState(false)
+  const [acknowledgedGaps,setAcknowledgedGaps]=useState(false)
+  const [pitPlan,setPitPlan]=useState<MembershipPlan|null>(null)
+  const [pitSyncBusy,setPitSyncBusy]=useState(false)
   const [batches,setBatches]=useState<BatchSummary[]>([])
   const [batchId,setBatchId]=useState('')
   const [details,setDetails]=useState<BatchDetails|null>(null)
@@ -184,7 +193,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
     tell('Refreshing the official instrument list in Python.')
   })
   const selectMode=(next:SelectionMode)=>{
-    setMode(next);setAcknowledged(false);setPreview(null)
+    setMode(next);setAcknowledged(false);setAcknowledgedGaps(false);setPitPlan(null);setPreview(null)
     if(next==='all_nse')setExchange('NSE')
     if(next==='all_bse')setExchange('BSE')
   }
@@ -210,21 +219,25 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
     return Array.from(new Set(watchlist.split(/[,;\s]+/).map(x=>x.trim().toUpperCase())
       .filter(x=>x&&x!=='SYMBOL'&&x!=='TICKER')))
   },[watchlist])
-  const selectionCount=mode==='all_nse'?counts.NSE:mode==='all_bse'?counts.BSE:
+  const pitMode=mode==='nifty50_pit'||mode==='banknifty_pit'
+  const selectionCount=pitMode?(pitPlan?.union_count||0):mode==='all_nse'?counts.NSE:mode==='all_bse'?counts.BSE:
     mode==='selected'?Object.keys(selected).length:cleanedSymbols.length
+  const downloadCount=pitMode?(pitPlan?.resolved_count||0):selectionCount
   const dateDays=(Date.parse(toDate)-Date.parse(fromDate))/86400000
   const daily=interval==='daily'
-  const estimatedRequests=selectionCount*Math.ceil(Math.max(0,dateDays)/(daily?365:90))
-  const tooManyIntraday=!daily&&selectionCount>100
+  const estimatedRequests=downloadCount*Math.ceil(Math.max(0,dateDays)/(daily?365:90))
+  const tooManyIntraday=!daily&&downloadCount>100
   const invalidDates=!Number.isFinite(dateDays)||dateDays<=0
   const startDisabled=!connection?.token_configured||!connection?.instrument_master_available||
-    selectionCount===0||working||Boolean(task)||invalidDates||tooManyIntraday||
-    (selectionCount>100&&!acknowledged)
+    downloadCount===0||working||Boolean(task)||pitSyncBusy||invalidDates||tooManyIntraday||
+    (downloadCount>100&&!acknowledged)||
+    (pitMode&&(!pitPlan||(pitPlan.unresolved_count>0&&!acknowledgedGaps)))
   const startBatch=()=>void run(()=>post<Job>('/dhan/batches',{
     selection:mode,ids:mode==='selected'?Object.keys(selected):[],
     tickers:mode==='watchlist'?cleanedSymbols:[],
     from_date:fromDate,to_date:toDate,
     interval:daily?null:Number(interval),acknowledged_bulk:acknowledged,
+    acknowledged_gaps:pitMode&&acknowledgedGaps,
   }),result=>{
     const id=result.batch?.id
     if(id){setBatchId(id);setStatusFilter('all');setDetailPage(1)}
@@ -265,8 +278,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
 
   return <div className="dh-workspace">
     <div className="dh-hero"><div><Pill tone="blue">DATA ACQUISITION · DHANHQ V2</Pill>
-      <h2>Download an entire market.<br/><em>Not one stock at a time.</em></h2>
-      <p>Select individual equities, a ticker list, or the full current NSE/BSE EQ-series universe. Historical candles are downloaded, verified, cached and retained on your own machine.</p>
+      <h2>Download an entire market.<br/><em>With its real historical membership.</em></h2>
+      <p>Select individual stocks, an entire NSE/BSE cash market, or historically accurate NIFTY 50 and BANK NIFTY constituent groups. The selected dates determine which companies belong.</p>
     </div><div className="dh-hero-stats"><div><strong>{counts.NSE?fmt(counts.NSE):'—'}</strong><span>NSE EQ-series instruments</span></div><div><strong>{fmt(batches.length)}</strong><span>Saved download batches</span></div></div></div>
 
     <div className="dh-connect">
@@ -291,8 +304,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
       {mode===item.mode&&<span className="dh-mode-selected"><Check size={13}/></span>}</button>)}</div>
 
     <div className="dh-grid">
-      <Section title={mode==='watchlist'?'Your ticker list':'Find and select stocks'} aside={<Pill tone="blue">{fmt(selectionCount)} in download selection</Pill>}>
-        {mode==='watchlist'?<div className="dh-paste">
+      <Section title={pitMode?'Historical index membership':mode==='watchlist'?'Your ticker list':'Find and select stocks'} aside={<Pill tone="blue">{pitMode?'Union: '+fmt(selectionCount):fmt(selectionCount)+' in selection'}</Pill>}>
+        {pitMode?<PITIndexPanel mode={mode as PITMode} fromDate={fromDate} toDate={toDate} onToDate={setToDate} onPlan={setPitPlan} onSyncBusy={setPitSyncBusy}/>:mode==='watchlist'?<div className="dh-paste">
           <p>Paste exact NSE tickers, separated by commas or lines. Or upload a CSV with symbols in the first column.</p>
           <textarea rows={11} spellCheck={false} value={watchlist} onChange={e=>setWatchlist(e.target.value)}
             placeholder={'RELIANCE\nTCS\nINFY\nHDFCBANK\nICICIBANK'} aria-label="NSE ticker list"/>
@@ -329,7 +342,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
       <Section title="Download settings" aside={<Pill tone="good"><ShieldCheck size={13}/> Read-only historical data</Pill>}>
         <div className="dh-settings">
           <div className="dh-picked-head"><span>Selected universe</span><strong>{interpretMode(mode)}</strong></div>
-          <div className="dh-selection-count"><strong>{fmt(selectionCount)}</strong><span>instruments</span></div>
+          <div className="dh-selection-count"><strong>{fmt(downloadCount)}</strong><span>{pitMode?'Dhan-mapped historical stocks': 'instruments'}</span></div>
+          {pitMode&&pitPlan&&<p className="dh-hint">{fmt(pitPlan.union_count)} distinct index constituents during this period; {fmt(pitPlan.resolved_count)} have unambiguous current Dhan IDs. The downloaded set is their historical union, not today’s constituents.</p>}
           {mode==='selected'&&<div className="dh-selected-pills">
             {Object.values(selected).slice(0,18).map(item=><button key={item.id} onClick={()=>toggleStock(item)} title={'Remove '+item.symbol}>{item.symbol}<X size={12}/></button>)}
             {Object.keys(selected).length>18&&<span>+{Object.keys(selected).length-18} more</span>}
@@ -348,11 +362,13 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
             <small>Rough minimum before retries; actual calls depend on date windows and cached coverage. Dhan applies its own limits.</small></div>
           {tooManyIntraday&&<p className="dh-error-note">Intraday batches are limited to 100 instruments. Use daily candles for full-market downloads.</p>}
           {invalidDates&&<p className="dh-error-note">The end date must be later than the start date.</p>}
-          {selectionCount>100&&<label className="dh-confirm"><input type="checkbox" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)}/>
-            <span>I understand this will request historical data for {fmt(selectionCount)} instruments. This may be a long-running operation and use my Dhan API allowance.</span></label>}
+          {downloadCount>100&&<label className="dh-confirm"><input type="checkbox" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)}/>
+            <span>I understand this will request historical data for {fmt(downloadCount)} instruments. This may be a long-running operation and use my Dhan API allowance.</span></label>}
+          {pitMode&&pitPlan?.unresolved_count? <label className="dh-confirm"><input type="checkbox" checked={acknowledgedGaps} onChange={e=>setAcknowledgedGaps(e.target.checked)}/>
+            <span>Download the {fmt(pitPlan.resolved_count)} mapped stocks even though {fmt(pitPlan.unresolved_count)} historical constituents cannot be resolved in the current Dhan catalog. Mark the resulting historical-price dataset INCOMPLETE.</span></label>:null}
           <button className="dh-primary" type="button" disabled={startDisabled} onClick={startBatch}>
             {working?<LoaderCircle size={17} className="dh-spin"/>:<ArrowDownToLine size={18}/>}
-            Download {selectionCount?fmt(selectionCount)+' instruments':'selected stocks'}
+            Download {downloadCount?fmt(downloadCount)+(pitMode?' historical constituents':' instruments'):'selected stocks'}
             <ArrowRight size={17}/></button>
           <p className="dh-hint">Files are stored locally by Dhan Security ID. Repeated date ranges reuse verified cached candles; no orders are placed.</p>
         </div>
@@ -386,6 +402,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
           {details.interval===null&&countsCompleted>0&&!details.prepared_dataset_id&&
             <button className="dh-small-btn primary" disabled={working||Boolean(task)||currentActive} onClick={prepare}><FileSpreadsheet size={16}/> Prepare monthly price matrix</button>}
           {details.prepared_dataset_id&&<Pill tone="good">Prepared dataset: {details.prepared_dataset_id}</Pill>}
+          {details.historical_index_name&&<div className="dh-pit-in-batch"><strong>{details.historical_index_name} · dated membership</strong><span>Universe: {details.historical_union_count} unique symbols · {details.historical_unresolved?.length||0} have no Dhan ID. Preparing daily candles writes membership.csv from saved effective-date intervals; a compatible benchmark remains required.</span></div>}
         </div>
         <div className="dh-detail-toolbar"><span>Per-stock results</span>
           <select aria-label="Filter download result status" value={statusFilter} onChange={e=>{setStatusFilter(e.target.value);setDetailPage(1)}}>
@@ -408,6 +425,6 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         </div>}
       </div>}
     </Section>
-    <div className="dh-footnote"><ShieldCheck size={18}/><p><strong>Research integrity:</strong> Dhan's current catalog is not historical Nifty 50/100/500 membership. Downloaded OHLCV is not independently verified dividend-reinvested total returns. A prepared price matrix remains incomplete for index backtesting until historical membership, benchmark and corporate-action evidence are supplied.</p></div>
+    <div className="dh-footnote"><ShieldCheck size={18}/><p><strong>Research integrity:</strong> Historical NIFTY memberships are reconstructed from dated NSE notices with recorded source versions. Unresolved delisted/renamed instruments and missing OHLCV are reported, never silently replaced. Price history is not dividend-reinvested total return data; completed index backtests still require benchmark and corporate-action verification.</p></div>
   </div>
 }
