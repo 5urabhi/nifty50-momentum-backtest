@@ -628,10 +628,8 @@ def prepare_dhan_batch(batch_id: str):
         state = dhan_workspace.batch_details(batch_id)
     except Exception as exc:
         bad(exc)
-    if state["interval"] is not None:
-        raise HTTPException(400, "Only daily candles can be prepared as monthly prices")
     if not state["counts"]["complete"] + state["counts"]["cached"]:
-        raise HTTPException(400, "No successfully downloaded daily candles")
+        raise HTTPException(400, "No successfully downloaded candles")
     return _spawn("dhan_prepare_batch", dhan_workspace.prepare_batch, batch_id)
 
 
