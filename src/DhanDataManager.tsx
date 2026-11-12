@@ -191,12 +191,13 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         if(r.status==='error')tell(r.error||'Data operation failed',true)
         else {
           tell(task.kind==='master'?'Instrument master refreshed.':
-            task.kind==='prepare'?'Monthly price matrix prepared and added to Data Manager.':
+            task.kind==='prepare'?'Daily/monthly research dataset prepared and added to Data Manager.':
+            task.kind==='benchmark'?'NIFTY price-index benchmark prepared from cached spot data; this is not a dividend-reinvested TRI.':
             'Download operation finished; see per-stock statuses below.')
           void loadConnection().then(status=>{if(status.instrument_master_available)void loadCounts()})
           void loadBatches()
           if(batchId)void refreshDetails(batchId)
-          if(task.kind==='prepare')onDataChanged()
+          if(task.kind==='prepare'||task.kind==='benchmark')onDataChanged()
         }
       }).catch(e=>{if(!disposed)tell(e instanceof Error?e.message:String(e),true)})
     },1900)
@@ -275,6 +276,10 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const prepare=()=>{if(!batchId)return;void run(()=>post<{job_id:string}>('/dhan/batches/'+batchId+'/prepare'),r=>{
     setTask({id:r.job_id,kind:'prepare'});tell('Preparing daily OHLCV and point-in-time monthly prices from local candles. No additional Dhan download is needed.')
   })}
+  const prepareBenchmark=()=>{if(!batchId)return;void run(
+    ()=>post<{job_id:string}>('/dhan/batches/'+batchId+'/prepare-price-benchmark'),
+    r=>{setTask({id:r.job_id,kind:'benchmark'});tell('Computing observed month-end NIFTY spot price returns from the saved index candles; no Dhan calls.')}
+  )}
   const acceptFile=async(file:File)=>{
     if(file.size>1024*1024){tell('Ticker CSV is too large (1 MiB max).',true);return}
     try{
@@ -451,6 +456,11 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
               <FileSpreadsheet size={16}/> Prepare research dataset from {details.interval===null?'daily':details.interval+'-minute'} candles
             </button>}
           {details.prepared_dataset_id&&<Pill tone="good">Prepared dataset: {details.prepared_dataset_id}</Pill>}
+          {details.prepared_dataset_id&&details.historical_index_name&&details.index_spot?.status==='complete'&&
+            <button className="dh-small-btn primary" type="button"
+              disabled={working||Boolean(task)} onClick={prepareBenchmark}>
+              <FileSpreadsheet size={16}/> Prepare price-index benchmark from saved index spot
+            </button>}
           {details.historical_index_name&&<div className="dh-pit-in-batch"><strong>{details.historical_index_name} · dated membership</strong><span>Universe: {details.historical_union_count} unique symbols · {details.historical_unresolved?.length||0} have no Dhan ID. Preparing cached minute or daily candles produces daily_prices.csv, monthly prices.csv and date-accurate membership.csv without re-downloading. An independent benchmark remains required.</span>
           {details.index_spot&&<span>Index spot OHLCV: {details.index_spot.status} · {details.index_spot.rows||0} rows{details.index_spot.file?" · saved to data/"+details.index_spot.file:""}{details.index_spot.error?" · "+details.index_spot.error:""}. Spot prices are not dividend-adjusted TRI.
           {details.index_spot.identity_source&&<> · ID source: {details.index_spot.identity_source==="verified_unique_dhan_scrip_master_match"?"Current Dhan instrument master":"Published Dhan IDX_I reference"}{details.index_spot.reference&&<> (<a href={details.index_spot.reference} target="_blank" rel="noreferrer">source ↗</a>)</>}</>}</span>}</div>}
