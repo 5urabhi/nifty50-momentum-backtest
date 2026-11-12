@@ -166,3 +166,32 @@
 
 .rw-download-link{display:inline-flex;align-items:center;gap:8px;padding:9px 12px;margin:9px 0;border-radius:8px;border:1px solid var(--rw-accent);color:var(--rw-accent);text-decoration:none;background:var(--rw-bg);font-weight:650}
 .rw-download-link:hover{filter:brightness(1.12);text-decoration:underline}
+
+
+.ra-column-picker{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));
+ gap:6px;max-height:230px;overflow:auto;margin:12px 0 18px;padding:11px;
+ border:1px solid var(--rw-stroke);border-radius:9px;background:var(--rw-bg)}
+.ra-column-picker label{display:flex;align-items:center;gap:8px;padding:7px;
+ font-size:11px;border-radius:6px;overflow-wrap:anywhere}
+.ra-column-picker label:hover{background:var(--rw-soft)}
+.ra-traces{display:grid;gap:8px;margin:18px 0}
+.ra-trace{display:flex;align-items:center;justify-content:space-between;
+ gap:12px;padding:8px;border:1px solid var(--rw-stroke);border-radius:8px}
+.ra-trace span{display:flex;align-items:center;gap:9px}
+.ra-trace input[type=color]{width:48px!important;height:36px;cursor:pointer;padding:2px!important}
+.ra-guided-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:12px;margin:14px 0}
+.ra-guided-card{border:1px solid var(--rw-stroke);padding:15px;border-radius:10px;
+ background:var(--rw-bg);min-width:0}
+.ra-guided-card strong{font-size:13px;display:block}
+.ra-guided-card small{color:var(--rw-muted);font-size:10px}
+.ra-guided-card code{display:block;background:var(--rw-card);padding:9px;
+ border-radius:6px;color:var(--rw-accent);overflow:auto;font-size:11px}
+.ra-guided-card p{color:var(--rw-muted);font-size:11px}
+.ra-guided-card button{padding:7px 9px!important;font-size:11px!important}
+.ra-steps{display:grid;gap:9px;padding-left:24px;color:var(--rw-muted)}
+.ra-run-versions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.rw-run-versions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px}
+.rw-run-versions button{font-size:10px}
+.ra-result .ql-chart-card{margin:0 0 15px}
+@media(max-width:880px){.ra-guided-cards{grid-template-columns:1fr}}
