@@ -3,26 +3,26 @@ import streamlit as st
 
 PAGES = (
     ("DATA & INGESTION", (
-        ("dashboard/pages/12_Dhan_Data_Setup.py", "Dhan Data Manager", "📥"),
-        ("dashboard/pages/13_Empirical_Readiness.py", "Empirical Readiness", "🧾"),
+        ("pages/12_Dhan_Data_Setup.py", "Dhan Data Manager", "📥"),
+        ("pages/13_Empirical_Readiness.py", "Empirical Readiness", "🧾"),
     )),
     ("INDEX & FACTORS", (
-        ("dashboard/pages/1_Index_Research.py", "Run Index Research", "📈"),
-        ("dashboard/pages/6_Factor_Laboratory.py", "Factor Laboratory", "🧮"),
-        ("dashboard/pages/7_Index_Comparisons.py", "Index Comparisons", "⚖️"),
+        ("pages/1_Index_Research.py", "Run Index Research", "📈"),
+        ("pages/6_Factor_Laboratory.py", "Factor Laboratory", "🧮"),
+        ("pages/7_Index_Comparisons.py", "Index Comparisons", "⚖️"),
     )),
     ("MATHEMATICAL LABS", (
-        ("dashboard/pages/3_Advanced_Mathematics.py", "Advanced Mathematics", "📐"),
-        ("dashboard/pages/5_Quantitative_Models.py", "Quantitative Models", "🔬"),
-        ("dashboard/pages/2_Model_Comparison.py", "Model Comparison", "📊"),
-        ("dashboard/pages/4_Rolling_Validation.py", "Rolling Validation", "⏱️"),
-        ("dashboard/pages/10_Visual_Validation.py", "2D / 3D Validation", "🌀"),
+        ("pages/3_Advanced_Mathematics.py", "Advanced Mathematics", "📐"),
+        ("pages/5_Quantitative_Models.py", "Quantitative Models", "🔬"),
+        ("pages/2_Model_Comparison.py", "Model Comparison", "📊"),
+        ("pages/4_Rolling_Validation.py", "Rolling Validation", "⏱️"),
+        ("pages/10_Visual_Validation.py", "2D / 3D Validation", "🌀"),
     )),
     ("RISK & EVIDENCE", (
-        ("dashboard/pages/9_Risk_Attribution.py", "Risk Attribution", "🎯"),
-        ("dashboard/pages/9_Robustness.py", "Robustness", "🛡️"),
-        ("dashboard/pages/8_Research_Report.py", "Research Reports", "📑"),
-        ("dashboard/pages/11_Run_History.py", "Saved Run History", "🗂️"),
+        ("pages/9_Risk_Attribution.py", "Risk Attribution", "🎯"),
+        ("pages/9_Robustness.py", "Robustness", "🛡️"),
+        ("pages/8_Research_Report.py", "Research Reports", "📑"),
+        ("pages/11_Run_History.py", "Saved Run History", "🗂️"),
     )),
 )
 
@@ -30,7 +30,7 @@ def show_workflow_nav() -> None:
     """Compact links available on each tab; no additional Streamlit buttons."""
     with st.sidebar:
         with st.expander("🧭 WORKSTATION WORKFLOW", expanded=False):
-            st.page_link("dashboard/app.py", label="Research Home", icon="🏠")
+            st.page_link("app.py", label="Research Home", icon="🏠")
             for category, entries in PAGES:
                 st.caption(category)
                 for path, name, icon in entries:
