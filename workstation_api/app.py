@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_workspace, service
+from . import dhan_workspace, pit_index, service
 
 load_dotenv(service.ROOT / ".env", override=False)
 
@@ -449,13 +449,14 @@ def simulate_paths(body: GbmRequest):
 
 class DhanBatchCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    selection: Literal["all_nse", "all_bse", "selected", "watchlist"]
+    selection: Literal["all_nse", "all_bse", "selected", "watchlist", "nifty50_pit", "banknifty_pit"]
     ids: list[str] = Field(default_factory=list, max_length=6000)
     tickers: list[str] = Field(default_factory=list, max_length=6000)
     from_date: str
     to_date: str
     interval: Literal[1, 5, 15, 25, 60] | None = None
     acknowledged_bulk: bool = False
+    acknowledged_gaps: bool = False
 
 
 BATCH_CANCEL_EVENTS: dict[str, Event] = {}
@@ -469,6 +470,33 @@ def dhan_catalog(query: str = "", exchange: Literal["NSE", "BSE"] = "NSE",
             query=query, exchange=exchange, page=page,
             per_page=per_page, regular_only=regular_only,
         )
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/indices/status")
+def index_history_status():
+    try:
+        return pit_index.status()
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/indices/sync")
+def sync_index_history():
+    return _spawn("index_membership_sync", pit_index.sync)
+
+
+@app.get("/api/indices/preview")
+def preview_historical_index(index_id: Literal["nifty50_pit", "banknifty_pit"],
+                             from_date: str, to_date: str):
+    try:
+        try:
+            master = dhan_workspace.catalog()
+        except FileNotFoundError:
+            master = []
+        preview = pit_index.query(index_id, from_date, to_date, master)
+        return {k: value for k, value in preview.items() if k != "raw_intervals"}
     except Exception as exc:
         bad(exc)
 
