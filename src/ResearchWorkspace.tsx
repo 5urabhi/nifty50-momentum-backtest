@@ -931,7 +931,7 @@ function AutomationPanel({datasets,selectedDataset,onSelectDataset,models,runs,b
   perform:<T,>(action:()=>Promise<T>,done?:(r:T)=>void)=>Promise<void>;
   startJob:(job:{job_id:string;status:string},caption:string)=>void
 }){
-  const [tool,setTool]=useState<'sweep'|'validation'|'scenario'>('sweep')
+  const [tool,setTool]=useState<'sweep'|'validation'|'scenario'|'repro'>('sweep')
   const [modelId,setModelId]=useState('gbm')
   const [parameter,setParameter]=useState('volatility')
   const [values,setValues]=useState(loadDraft('ql-rw-sweep-values','0.10, 0.20, 0.30'))
@@ -942,6 +942,8 @@ function AutomationPanel({datasets,selectedDataset,onSelectDataset,models,runs,b
   const [scenarioRun,setScenarioRun]=useState('')
   const [shocks,setShocks]=useState('RELIANCE=-0.05, TCS=-0.03')
   const [scenarioResult,setScenarioResult]=useState<Raw|null>(null)
+  const [auditRun,setAuditRun]=useState('')
+  const [repro,setRepro]=useState<Raw|null>(null)
   const chosen=models.find(x=>x.id===modelId)
   const numeric=(chosen?.parameters||[]).filter(p=>p.type==='number'||p.type==='integer')
   const historicalDatasets=dataOptions(datasets).filter(x=>x.value!=='synthetic')
@@ -967,6 +969,9 @@ function AutomationPanel({datasets,selectedDataset,onSelectDataset,models,runs,b
   }
   const runValidation=()=>perform(()=>api<{job_id:string;status:string}>('/workspace/validate',{
     dataset_id:selectedDataset,...validation},'POST'),r=>startJob(r,'Chronological validation'))
+  const inspectRepro=(recompute:boolean)=>perform(
+    ()=>api<Raw>('/workspace/reproducibility/'+encodeURIComponent(auditRun)+
+          '?recompute='+String(recompute)),setRepro)
   const stress=()=>{
     const pairs=shocks.split(/[,\n]/).map(s=>s.trim()).filter(Boolean)
     const parsed:Record<string,number>={}
@@ -981,9 +986,10 @@ function AutomationPanel({datasets,selectedDataset,onSelectDataset,models,runs,b
   }
   return <div className="rw-stack">
     <Box title="Reproducible research automation">
-      <div className="rw-segments">{(['sweep','validation','scenario'] as const).map(v=>
+      <div className="rw-segments">{(['sweep','validation','scenario','repro'] as const).map(v=>
         <button key={v} className={tool===v?'active':''} onClick={()=>setTool(v)}>
-          {v==='sweep'?'Parameter sweeps':v==='validation'?'Walk-forward / holdout':'Scenario analysis'}
+          {v==='sweep'?'Parameter sweeps':v==='validation'?'Walk-forward / holdout':
+            v==='scenario'?'Scenario analysis':'Reproducibility audit'}
         </button>)}</div>
       <p className="rw-help">Research jobs run inside the local Python process using saved market data. They never place orders or submit broker requests.</p>
     </Box>
@@ -1044,6 +1050,34 @@ function AutomationPanel({datasets,selectedDataset,onSelectDataset,models,runs,b
           <p><Check size={15}/> Returns, fold dates, allocations and uncertainty are saved.</p>
         </div>
         <p className="rw-caution">Corporate actions, dividends, PIT selection, transaction costs and prospective fills still need independent evidence before investment-performance claims.</p>
+      </Box>
+    </div>}
+    {tool==='repro'&&<div className="rw-two">
+      <Box title="Saved model reproducibility checker">
+        <Select label="Frozen model result" value={auditRun} onChange={v=>{setAuditRun(v);setRepro(null)}}
+          options={[{value:'',label:'Choose saved model run'},...runs.filter(r=>r.kind==='model_run')
+            .map(r=>({value:r.id,label:r.label}))]}/>
+        <p className="rw-help">First verify the original price-file SHA-256. Then optionally recompute numerical figures using the saved model settings. Reports identify the original and current Git commit and Python/numerical library versions.</p>
+        <div className="rw-button-group">
+          <button disabled={busy||!auditRun} onClick={()=>inspectRepro(false)}>
+            <ShieldCheck size={15}/> Check source data & versions</button>
+          <button className="rw-primary" disabled={busy||!auditRun}
+            onClick={()=>inspectRepro(true)}><RefreshCw size={15}/> Recompute and compare figures</button>
+        </div>
+      </Box>
+      <Box title="Reproducibility evidence">
+        {repro?<><NumberStats data={[
+          {label:'Verification',value:String(repro.verification_status||'Unverified')},
+          {label:'Source unchanged',value:String(repro.source_unchanged??'No observed source')},
+          {label:'Environment unchanged',value:String(repro.environment_unchanged??'Legacy run')},
+          {label:'Figure equality',value:String(repro.recomputed_figure_match??'Not recomputed')},
+        ]}/>
+        <p className="rw-note">{String(repro.message||'')}</p>
+        <p className="rw-caution">{String(repro.warning||'Inspect numerical and data provenance.')}</p>
+        <button onClick={()=>safeDownload('quantlab_reproducibility_'+auditRun+'.json',
+          JSON.stringify(repro,null,2),'application/json')}>
+          <Download size={14}/> Export reproducibility evidence</button>
+        </>:<Empty title="No audit recorded">Select a saved model to check its original source and reproduce charts.</Empty>}
       </Box>
     </div>}
     {tool==='scenario'&&<div className="rw-two">
