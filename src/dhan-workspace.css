@@ -141,3 +141,64 @@
 @media(max-width:930px){.dh-grid{grid-template-columns:1fr}.dh-hero{align-items:flex-start}.dh-hero-stats{flex-direction:column}.dh-hero-stats>div{min-width:140px}.dh-list{max-height:360px}}
 @media(max-width:620px){.dh-mode-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dh-mode{padding:12px;min-height:132px}.dh-hero{display:block;padding:22px}.dh-hero-stats{flex-direction:row;margin-top:17px}.dh-connect>div{min-width:190px}.dh-panel{padding:15px}.dh-batch-row{gap:6px;padding:9px 3px}.dh-batch-row .dh-pill{font-size:8px}.dh-batch-numbers{display:none}.dh-progress-cards{grid-template-columns:repeat(2,1fr)}.dh-settings-fields{grid-template-columns:1fr}.dh-instrument-id{display:none}.dh-preview{padding:9px}}
 @media(prefers-reduced-motion:reduce){.dh-meter>span{transition:none}.dh-spin{animation:none}}
+
+/* Point-in-time NIFTY 50 and BANK NIFTY membership inspection. */
+.dh-pit-panel{display:grid;gap:15px}
+.dh-pit-source{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-radius:9px;background:#132835;border:1px solid #2d4b5b;padding:13px}
+.dh-pit-source>div{display:flex;align-items:center;gap:12px}
+.dh-pit-source-icon{height:39px;width:39px;display:grid;place-items:center;border-radius:9px;background:#19564c;color:#a1f0d6;flex-shrink:0}
+.dh-pit-source strong,.dh-pit-intro strong{display:block;color:#e9f3f4;font-size:12px}
+.dh-pit-source small{display:block;color:#99b2c1;max-width:345px;line-height:1.45;font-size:9px;margin-top:4px}
+.dh-pit-coverage{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dh-pit-coverage>span{display:inline-flex;align-items:center;gap:6px;color:#86b9b2;border:1px solid #2b4b54;background:#102936;border-radius:6px;font-size:9px;padding:7px 9px}
+.dh-pit-intro{display:flex;flex-direction:column;align-items:center;text-align:center;gap:13px;padding:25px;background:#102632;border:1px dashed #356167;border-radius:9px}
+.dh-pit-intro>svg{color:#63daba}
+.dh-pit-intro p{color:#91acba;font-size:11px;line-height:1.6;max-width:430px}
+.dh-pit-loading{display:flex;align-items:center;gap:10px;color:#a4d2c9;font-size:10px}
+.dh-pit-alert{display:flex;align-items:flex-start;gap:12px;border-radius:9px;background:#3b3025;border:1px solid #765e3a;padding:13px;color:#e5c594}
+.dh-pit-alert>svg{flex-shrink:0;margin-top:1px}
+.dh-pit-alert strong{display:block;font-size:11px}
+.dh-pit-alert p{font-size:10px;line-height:1.6;margin:6px 0 10px}
+.dh-pit-alert .dh-small-btn{background:#302f2c;border-color:#86603d}
+.dh-pit-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.dh-pit-counts>div{border:1px solid #2e4954;border-radius:8px;background:#0b2430;padding:13px 9px}
+.dh-pit-counts strong{display:block;color:#91eccb;font:600 23px 'Space Grotesk',sans-serif}
+.dh-pit-counts span{display:block;color:#8da6b6;font-size:9px;margin-top:4px;line-height:1.4}
+.dh-pit-asof{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:14px 0;border-top:1px solid #30465a}
+.dh-pit-asof>div>div{display:flex;align-items:center;gap:8px}
+.dh-pit-asof>div>div svg{color:#68ddbf}
+.dh-pit-asof strong{font-size:12px}
+.dh-pit-asof small{display:block;color:#8ea5b6;margin-top:6px;font-size:10px}
+.dh-pit-asof label{display:flex;align-items:center;gap:8px;color:#96b3bd;font-size:10px}
+.dh-pit-asof input{border:1px solid #456173;background:#0b1a26;color:#ebf7f7;border-radius:7px;padding:8px;font-size:10px;max-width:152px}
+.dh-pit-chip-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.dh-pit-chip-head strong{font-size:11px}
+.dh-pit-chip-head button{display:inline-flex;align-items:center;gap:4px;background:transparent;border:0;color:#7fdec4;font-size:10px;font-weight:700}
+.dh-pit-chips,.dh-pit-unresolved>div:last-child{display:flex;flex-wrap:wrap;gap:7px;max-height:260px;overflow-y:auto}
+.dh-pit-chips>span,.dh-pit-unresolved>div:last-child>span{border:1px solid #31575c;background:#17353b;color:#bce8d7;border-radius:5px;padding:7px 9px;font:700 9px 'Space Grotesk',sans-serif}
+.dh-pit-chips .dh-pit-more{background:#152b39;color:#91adbc}
+.dh-pit-events{display:grid;gap:5px;max-height:245px;overflow-y:auto}
+.dh-pit-events>div{display:grid;grid-template-columns:96px 1fr 64px 50px;gap:9px;align-items:center;background:#152735;border:1px solid #2d4350;border-radius:6px;padding:9px;font-size:10px}
+.dh-pit-events>div>span:first-child{color:#8ba4b4}
+.dh-pit-events>div>a{color:#70dabf;font-size:9px}
+.dh-pit-events>div>small{color:#8095a9;overflow:hidden;text-overflow:ellipsis}
+.dh-pit-action{font-size:9px!important;font-weight:800}
+.dh-pit-action.added{color:#7ce6b1}.dh-pit-action.removed{color:#ecae98}
+.dh-pit-resolve{display:flex;gap:12px;flex-wrap:wrap;border:1px solid #344c59;background:#102430;border-radius:8px;padding:13px}
+.dh-pit-resolve>div{display:flex;align-items:center;gap:10px}
+.dh-pit-resolve strong{font-size:10px}
+.dh-pit-resolve>div.issue .dh-led{background:#dfa873;box-shadow:0 0 0 4px #483b2a}
+.dh-pit-unresolved{padding:13px;background:#362a25;border:1px solid #735342;border-radius:9px}
+.dh-pit-unresolved>div:first-child{display:flex;align-items:center;gap:9px}
+.dh-pit-unresolved>div:first-child>svg{color:#f0b283}
+.dh-pit-unresolved strong{font-size:11px;flex:1}
+.dh-pit-unresolved button{border:0;background:none;color:#f3d3a1;font-size:10px}
+.dh-pit-unresolved p{line-height:1.6;font-size:10px;color:#e2bea7}
+.dh-pit-unresolved>div:last-child>span{background:#422d29;border-color:#805b4d;color:#f4c4ab}
+.dh-pit-disclaimer{display:flex;gap:9px;align-items:flex-start;border-top:1px solid #364a52;padding:12px 0 0;color:#91aeaf}
+.dh-pit-disclaimer>svg{flex-shrink:0;color:#72dcc1}
+.dh-pit-disclaimer p{line-height:1.7;font-size:10px;margin:0}
+.dh-pit-in-batch{display:flex;flex-direction:column;gap:7px;flex-basis:100%;padding:10px;border:1px solid #3b5c62;border-radius:8px;background:#112d35}
+.dh-pit-in-batch strong{color:#9aecce;font-size:11px}
+.dh-pit-in-batch span{color:#9ab8c5;font-size:10px;line-height:1.6}
+@media(max-width:650px){.dh-pit-counts{grid-template-columns:repeat(2,1fr)}.dh-pit-asof{display:block}.dh-pit-asof label{margin-top:12px}.dh-pit-events>div{grid-template-columns:78px 1fr 50px;gap:5px}.dh-pit-events>div>a,.dh-pit-events>div>small{grid-column:2/4}}
