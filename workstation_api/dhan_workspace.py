@@ -65,7 +65,9 @@ def _catalog_cached(filename: str, modified_ns: int, size: int) -> tuple[dict, .
     segment = _column(columns, "SEGMENT", "SEM_SEGMENT")
     security_id = _column(columns, "SECURITY_ID", "SEM_SMST_SECURITY_ID")
     instrument = _column(columns, "INSTRUMENT", "SEM_INSTRUMENT_NAME")
-    symbol = _column(columns, "SEM_TRADING_SYMBOL", "TRADING_SYMBOL", "SYMBOL", "DISPLAY_NAME", "SEM_CUSTOM_SYMBOL", "SYMBOL_NAME", "SM_SYMBOL_NAME")
+    trading_symbol_column = _column(columns, "SEM_TRADING_SYMBOL", "TRADING_SYMBOL", "SYMBOL")
+    symbol = trading_symbol_column or _column(
+        columns, "DISPLAY_NAME", "SEM_CUSTOM_SYMBOL", "SYMBOL_NAME", "SM_SYMBOL_NAME")
     display = _column(columns, "SYMBOL_NAME", "SM_SYMBOL_NAME", "DISPLAY_NAME", "SEM_CUSTOM_SYMBOL")
     series = _column(columns, "SERIES", "SEM_SERIES")
     isin = _column(columns, "ISIN")
@@ -99,6 +101,10 @@ def _catalog_cached(filename: str, modified_ns: int, size: int) -> tuple[dict, .
             "instrument": "EQUITY", "series": trade_series or "UNSPECIFIED",
             "isin": str(row[isin]).strip()[:20] if isin else "",
             "regular_eq": exch == "BSE" or trade_series in ("", "EQ"),
+            # A detailed Dhan master may have display/company names but
+            # no canonical exchange trading ticker. Never use such fallback
+            # labels for historical constituent matching.
+            "trading_symbol_verified": bool(trading_symbol_column),
             "series_supplied": bool(series),
         })
     return tuple(sorted(items, key=lambda row: (row["exchange_segment"], row["symbol"], row["security_id"])))
