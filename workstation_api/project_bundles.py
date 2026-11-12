@@ -11,6 +11,7 @@ from zipfile import ZipFile, ZIP_DEFLATED, BadZipFile
 from datetime import datetime, timezone
 import hashlib
 import json
+import re
 
 from . import model_lab, research_library
 
@@ -19,6 +20,17 @@ MAX_RECORDS = 150
 ALLOWED = frozenset({"project", "notebook", "note", "chart", "comparison",
                      "configuration", "dashboard", "study"})
 EXCLUDED_PAYLOAD_KEYS = frozenset({"access_token", "secret", "api_key", "password", "credentials"})
+CREDENTIAL_TERMS=("token","secret","api_key","api-key","password",
+                  "credential","authorization","private_key","private-key")
+SENSITIVE_VALUE=re.compile(
+    r"(?i)(DHAN[_-]?ACCESS[_-]?TOKEN\\s*[=:]|BEARER\\s+[A-Za-z0-9._~+/-]{8,}|"
+    r"API[_ -]?KEY\\s*[=:]|BEGIN\\s+(?:RSA|EC|OPENSSH)?\\s*PRIVATE KEY)"
+)
+
+
+def _secret_field(key: str) -> bool:
+    lowered=key.casefold()
+    return lowered in EXCLUDED_PAYLOAD_KEYS or any(s in lowered for s in CREDENTIAL_TERMS)
 
 
 def _safe(value, depth=0):
@@ -27,12 +39,14 @@ def _safe(value, depth=0):
         raise ValueError("Research bundle exceeds maximum JSON nesting")
     if isinstance(value, dict):
         return {str(k): _safe(v, depth+1) for k, v in value.items()
-                if str(k).lower() not in EXCLUDED_PAYLOAD_KEYS}
+                if not _secret_field(str(k))}
     if isinstance(value, list):
         if len(value) > 10000:
             raise ValueError("Bundle contains an oversized array")
         return [_safe(v,depth+1) for v in value]
-    if value is None or isinstance(value, (str,int,float,bool)):
+    if isinstance(value,str):
+        return "[REDACTED: credential-like text]" if SENSITIVE_VALUE.search(value) else value
+    if value is None or isinstance(value, (int,float,bool)):
         return value
     raise ValueError("Unsupported exported JSON value")
 
