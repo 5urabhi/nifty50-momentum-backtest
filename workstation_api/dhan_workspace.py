@@ -573,10 +573,76 @@ def run_batch(batch_id: str, cancel_event: threading.Event | None = None) -> dic
             ACTIVE_BATCHES.discard(batch_id)
 
 
+def _batch_daily_ohlcv(row: dict, interval: int | None,
+                       begin: date, end: date) -> tuple[pd.DataFrame, dict]:
+    """Build session-level OHLCV strictly from an authenticated local cache.
+
+    No Dhan network calls. OHLCV bars are sorted by actual Asia/Kolkata
+    timestamps and grouped by the trading date, never by UTC date. Duplicate
+    timestamps and invalid prices fail rather than silently passing.
+    """
+    source = _history_file(row, interval)
+    sidecar = source.with_suffix(".json")
+    if (not source.is_file() or not sidecar.is_file()
+            or source.is_symlink() or sidecar.is_symlink()):
+        raise ValueError("Missing local Dhan candle cache: " + row["symbol"])
+    metadata = json.loads(sidecar.read_text())
+    if metadata.get("instrument_id") != row["id"] or metadata.get("interval_minutes") != interval:
+        raise ValueError("Cached instrument/interval mismatch: " + row["symbol"])
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    if digest != metadata.get("sha256"):
+        raise ValueError("OHLCV SHA-256 mismatch: " + row["symbol"])
+    required = ["datetime", "open", "high", "low", "close", "volume"]
+    frame = pd.read_csv(source, usecols=required)
+    if frame.empty:
+        raise ValueError("Empty cached OHLCV: " + row["symbol"])
+    stamp = pd.to_datetime(frame["datetime"], utc=True, errors="raise").dt.tz_convert("Asia/Kolkata")
+    if stamp.duplicated().any():
+        raise ValueError("Duplicate timestamps in cached OHLCV: " + row["symbol"])
+    for key in ("open", "high", "low", "close", "volume"):
+        frame[key] = pd.to_numeric(frame[key], errors="raise")
+    if (frame[required[1:]].isna().any().any()
+            or (frame[["open", "high", "low", "close"]] <= 0).any().any()
+            or (frame["volume"] < 0).any()):
+        raise ValueError("Invalid OHLCV observations: " + row["symbol"])
+    if ((frame["high"] < frame[["open", "close", "low"]].max(axis=1))
+            | (frame["low"] > frame[["open", "close", "high"]].min(axis=1))).any():
+        raise ValueError("Inconsistent OHLC bars: " + row["symbol"])
+    within = ((stamp.dt.date >= begin) & (stamp.dt.date < end))
+    if not within.any():
+        raise ValueError("No cached candles inside batch dates: " + row["symbol"])
+    frame = frame.loc[within].copy()
+    dates = stamp.loc[within].dt.tz_localize(None).dt.normalize()
+    frame["_date"] = pd.DatetimeIndex(dates)
+    frame["_stamp"] = stamp.loc[within].to_numpy()
+    frame = frame.sort_values("_stamp", kind="stable")
+    daily = frame.groupby("_date", sort=True).agg(
+        open=("open", "first"), high=("high", "max"),
+        low=("low", "min"), close=("close", "last"),
+        volume=("volume", "sum"), bars=("_stamp", "size"),
+    )
+    daily.index.name = "date"
+    if daily.empty:
+        raise ValueError("No observed market sessions: " + row["symbol"])
+    expected = 375 // interval if interval is not None and 375 % interval == 0 else None
+    short_sessions = int((daily["bars"] < expected).sum()) if expected else 0
+    return daily, {
+        "column": row.get("pit_symbol", row["symbol"]),
+        "security_id": row["security_id"],
+        "exchange_segment": row["exchange_segment"],
+        "source_sha256": digest,
+        "source_interval_minutes": interval,
+        "source_rows_in_range": len(frame),
+        "daily_sessions": len(daily),
+        "bar_count_min": int(daily["bars"].min()),
+        "bar_count_max": int(daily["bars"].max()),
+        "potential_incomplete_sessions": short_sessions,
+        "expected_bars_regular_session": expected,
+    }
+
+
 def prepare_batch(batch_id: str) -> dict:
     data = _load_batch(batch_id)
-    if data["interval"] is not None:
-        raise ValueError("Monthly price matrices can only be prepared from daily OHLCV")
     eligible = [row for row in data["items"] if row["status"] in ("complete", "cached")]
     if not eligible:
         raise ValueError("No completed daily instruments to prepare")
@@ -585,30 +651,13 @@ def prepare_batch(batch_id: str) -> dict:
     if (output / "prices.csv").exists():
         raise ValueError("Prepared dataset already exists; refusing to overwrite")
     streams, mappings = [], []
+    daily_ohlcv: dict[str, pd.DataFrame] = {}
     used: set[str] = set()
+    begin = date.fromisoformat(data["from_date"])
+    finish = date.fromisoformat(data["to_date"])
     for row in eligible:
-        source = _history_file(row, None)
-        meta = json.loads(source.with_suffix(".json").read_text())
-        if hashlib.sha256(source.read_bytes()).hexdigest() != meta.get("sha256"):
-            raise ValueError("OHLCV cache changed after download; refusing to prepare")
-        frame = pd.read_csv(source, usecols=["datetime", "close"])
-        times = pd.to_datetime(frame["datetime"], utc=True, errors="raise").dt.tz_convert("Asia/Kolkata")
-        values = pd.to_numeric(frame["close"], errors="raise")
-        if values.isna().any() or (values <= 0).any():
-            raise ValueError("Invalid recorded closing prices")
-        # A shared cache can contain MORE history than this batch requested.
-        # Preparing a batch must never leak observations outside its dates.
-        within = ((times.dt.date >= date.fromisoformat(data["from_date"]))
-                  & (times.dt.date < date.fromisoformat(data["to_date"])))
-        if not within.any():
-            continue
-        # Anchor monthly data to actual observed sessions; never promote a
-        # stale security close to a subsequent month-end trading date.
-        selected_days = times.loc[within].dt.tz_localize(None).dt.normalize()
-        if selected_days.duplicated().any():
-            raise ValueError("Duplicate local OHLC daily sessions: " + row["symbol"])
-        observed = pd.Series(values.loc[within].to_numpy(dtype=float),
-                             index=pd.DatetimeIndex(selected_days)).sort_index()
+        observed_ohlcv, mapping = _batch_daily_ohlcv(
+            row, data["interval"], begin, finish)
         symbol = row.get("pit_symbol", row["symbol"])
         if data.get("historical_index"):
             if symbol in used or not SAFE_SYMBOL.fullmatch(symbol):
@@ -616,11 +665,12 @@ def prepare_batch(batch_id: str) -> dict:
         elif symbol in used or not SAFE_SYMBOL.fullmatch(symbol):
             symbol = row["exchange_segment"] + "_" + row["security_id"]
         used.add(symbol)
+        observed = observed_ohlcv["close"].copy()
         observed.name = symbol
         streams.append(observed)
-        mappings.append({"column": symbol, "security_id": row["security_id"],
-                         "exchange_segment": row["exchange_segment"],
-                         "source_sha256": meta["sha256"]})
+        daily_ohlcv[symbol] = observed_ohlcv
+        mapping["column"] = symbol
+        mappings.append(mapping)
     if not streams:
         raise ValueError("No observed trading closes within the selected batch dates")
     daily_panel = pd.concat(streams, axis=1).sort_index()
@@ -636,6 +686,27 @@ def prepare_batch(batch_id: str) -> dict:
     prices = daily_panel.reindex(marks)
     if prices.empty:
         raise ValueError("No monthly market sessions in downloaded candles")
+    # Preserve a daily close matrix for factor research and one per-security
+    # daily OHLCV record for auditing. Never forward-fill missing sessions.
+    daily_panel.to_csv(output / "daily_prices.csv", index_label="date")
+    daily_folder = output / "daily_ohlcv"
+    daily_folder.mkdir(exist_ok=True)
+    for symbol, bars in daily_ohlcv.items():
+        bars.to_csv(daily_folder / (symbol + ".csv"), index_label="date")
+    _atomic_json(output / "DAILY_AGGREGATION_PROVENANCE.json", {
+        "source_batch": batch_id,
+        "source_interval_minutes": data["interval"],
+        "generated_utc": _now(),
+        "timezone": "Asia/Kolkata",
+        "daily_close_rule": "last observed bar on each exchange-local date",
+        "monthly_close_rule": "last observed market session in each fully-covered calendar month",
+        "total_daily_observed_dates": len(daily_panel),
+        "securities": mappings,
+        "warning": "Potential missing intraday bars or exchange holidays require "
+                   "independent session-calendar validation; aggregating does "
+                   "not create missing observations, corporate-action adjustments, "
+                   "or a dividend-reinvested benchmark.",
+    })
     historical = data.get("historical_index")
     missing_symbols: list[str] = []
     missing_membership_prices = 0
@@ -678,6 +749,9 @@ def prepare_batch(batch_id: str) -> dict:
         "source_batch": batch_id, "generated_utc": _now(),
         "from_inclusive": data["from_date"], "to_exclusive": data["to_date"],
         "columns": mappings, "observations": len(prices),
+        "source_interval_minutes": data["interval"],
+        "daily_prices_file": "daily_prices.csv",
+        "daily_ohlcv_directory": "daily_ohlcv",
         "month_marks": "last observed trading session; missing prices remain NaN",
         "warning": "UNADJUSTED MONTHLY PRICES ONLY. No benchmark, PIT constituents, "
                    "delisting coverage or dividend-reinvested total returns established.",
@@ -688,6 +762,9 @@ def prepare_batch(batch_id: str) -> dict:
             "file": str(Path("data") / "dhan" / "monthly_research" / batch_id / "prices.csv"),
             "securities": len(mappings), "months": len(prices),
             "membership_generated": bool(historical),
+            "daily_aggregation_generated": True,
+            "daily_observed_sessions": len(daily_panel),
+            "source_interval_minutes": data["interval"],
             "membership_missing_symbols": missing_symbols,
             "missing_eligible_price_observations": missing_membership_prices,
             "ready_for_backtesting": False,
