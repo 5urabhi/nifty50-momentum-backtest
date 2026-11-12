@@ -158,15 +158,18 @@ def inspect_quality(dataset_id: str, *, max_assets: int = 60) -> dict:
         return {"dataset_id": dataset_id, "ready": False,
                 "message": "Dataset has no price observations", "assets": []}
     file = folder / file_name
-    raw = pd.read_csv(file)
-    if "date" not in raw.columns:
+    # Audit a bounded subset of securities without loading an entire
+    # 6,000-asset long-history file into RAM.
+    header = pd.read_csv(file, nrows=0)
+    if "date" not in header.columns:
         raise ValueError("Dataset price CSV lacks date column")
+    columns = [name for name in header if name != "date"]
+    if len(columns) > 10000:
+        raise ValueError("Unbounded data-quality matrix")
+    raw = pd.read_csv(file, usecols=["date", *columns[:max_assets]])
     raw_dates = pd.to_datetime(raw["date"], errors="coerce")
     duplicates = int(raw_dates.duplicated().sum())
     invalid_dates = int(raw_dates.isna().sum())
-    columns = [name for name in raw if name != "date"]
-    if len(columns) > 10000:
-        raise ValueError("Unbounded data-quality matrix")
     inspected = []
     for col in columns[:max_assets]:
         series = pd.to_numeric(raw[col], errors="coerce")
@@ -183,6 +186,9 @@ def inspect_quality(dataset_id: str, *, max_assets: int = 60) -> dict:
     return {"dataset_id": dataset_id, "label": record["label"], "source_file": file_name,
             "price_dates": len(raw), "asset_count": len(columns),
             "assessed_assets": len(inspected), "duplicate_dates": duplicates,
+            "unassessed_assets": max(0,len(columns)-len(inspected)),
+            "latest_observed_date": raw_dates.max().date().isoformat()
+                if raw_dates.notna().any() else None,
             "invalid_dates": invalid_dates, "assets": inspected,
             "sha256": hashlib.sha256(file.read_bytes()).hexdigest(),
             "warning": "Large daily moves may be genuine or unadjusted corporate actions. "
