@@ -137,6 +137,18 @@ class ModelLaboratoryTests(unittest.TestCase):
         self.assertEqual(surf.json()["plots"][0]["kind"],"surface3d")
         self.assertTrue(any("hypothetical" in w for w in surf.json()["limitations"]))
 
+    def test_remaining_empirical_models_produce_bounded_real_outputs(self):
+        for model in ("garch", "efficient_frontier", "evt"):
+            response=self.run_model(model)
+            self.assertEqual(response.status_code,200,(model,response.text[:900]))
+            outcome=response.json()
+            self.assertEqual(outcome["model_id"],model)
+            self.assertEqual(outcome["mode"],"historical")
+            self.assertTrue(outcome["plots"])
+            self.assertTrue(outcome["metrics"])
+            self.assertFalse(outcome["source"]["missing_prices_forward_filled"])
+            self.assertEqual(outcome["source"]["frequency"],"daily")
+
     def test_rejects_unsupported_and_out_of_range_models(self):
         bad=[
             ("not_a_model",{},400),("gbm",{"seed":-1},400),
