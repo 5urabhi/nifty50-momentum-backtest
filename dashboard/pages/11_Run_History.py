@@ -29,7 +29,7 @@ folders=sorted((p for p in RUNS.iterdir() if p.is_dir() and (p/"research_manifes
 
 if not folders:
     st.info("No saved experiments yet. Run Index Research with a synthetic or approved dataset to create a run.")
-    st.page_link("dashboard/pages/1_Index_Research.py",label="Open Index Research →",icon="📈")
+    st.page_link("pages/1_Index_Research.py",label="Open Index Research →",icon="📈")
     st.stop()
 
 summary=[]
@@ -128,4 +128,4 @@ with tabs[3]:
     if pdf.is_file():
         st.download_button("Download PDF research draft",pdf.read_bytes(),
             file_name=selected.name+".pdf",mime="application/pdf")
-st.page_link("dashboard/pages/1_Index_Research.py",label="Run another experiment →",icon="📈")
+st.page_link("pages/1_Index_Research.py",label="Run another experiment →",icon="📈")
