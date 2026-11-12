@@ -209,16 +209,43 @@ def inspect_quality(dataset_id: str, *, max_assets: int = 60) -> dict:
         inspected.append({"symbol": col, "prices": len(clean),
                           "missing_prices": gaps, "invalid_prices": nonpositive,
                           "returns_gt_40pct": extreme, "last_10_constant": stalled})
+    latest = raw_dates.max() if raw_dates.notna().any() else None
+    oldest = raw_dates.min() if raw_dates.notna().any() else None
+    weekdays_since = None
+    weekday_gaps = None
+    if latest is not None:
+        today = pd.Timestamp.now(tz="UTC").tz_localize(None).normalize()
+        weekdays_since = max(0, int(len(pd.bdate_range(latest.normalize() +
+                    pd.Timedelta(days=1), today))))
+    if (oldest is not None and file_name == "daily_prices.csv" and len(raw) > 0):
+        observed = set(raw_dates.dropna().dt.normalize())
+        expected = pd.bdate_range(oldest.normalize(), latest.normalize())
+        weekday_gaps = max(0, len(set(expected)-observed))
+    issues = {
+        "duplicate_dates": duplicates,
+        "invalid_dates": invalid_dates,
+        "missing_asset_values_assessed": sum(x["missing_prices"] for x in inspected),
+        "nonpositive_prices_assessed": sum(x["invalid_prices"] for x in inspected),
+        "large_moves_assessed": sum(x["returns_gt_40pct"] for x in inspected),
+        "potentially_stale_assets_assessed": sum(bool(x["last_10_constant"]) for x in inspected),
+    }
     return {"dataset_id": dataset_id, "label": record["label"], "source_file": file_name,
             "price_dates": len(raw), "asset_count": len(columns),
             "assessed_assets": len(inspected), "duplicate_dates": duplicates,
             "unassessed_assets": max(0,len(columns)-len(inspected)),
-            "latest_observed_date": raw_dates.max().date().isoformat()
-                if raw_dates.notna().any() else None,
+            "latest_observed_date": latest.date().isoformat() if latest is not None else None,
+            "oldest_observed_date": oldest.date().isoformat() if oldest is not None else None,
+            "weekdays_since_latest": weekdays_since,
+            "weekdays_missing_in_daily_span": weekday_gaps,
+            "recent_market_data": (weekdays_since is not None and weekdays_since <= 5),
+            "issues": issues,
             "invalid_dates": invalid_dates, "assets": inspected,
             "sha256": file_sha256(file),
-            "warning": "Large daily moves may be genuine or unadjusted corporate actions. "
-                       "A structural data audit is not an independent total-return certification."}
+            "warning": "Freshness is relative to UTC current date; old research windows may "
+                       "intentionally end in the past. Weekday gap counts include NSE holidays "
+                       "and should not be treated as confirmed missing exchange sessions. "
+                       "Large moves may be genuine or unadjusted corporate actions. "
+                       "This is not an independently audited total-return dataset."}
 
 
 def _selected_returns(dataset_id: str, assets: int, train_window: int) -> tuple[pd.DataFrame, dict]:
