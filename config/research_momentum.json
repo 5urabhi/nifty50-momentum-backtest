@@ -1,0 +1,18 @@
+{
+  "name": "momentum_12_1_index",
+  "factor_weights": {"momentum": 1.0},
+  "top_n": 10,
+  "weighting": "equal",
+  "max_weight": 0.20,
+  "rebalance_every": 3,
+  "cost_bps": 10.0,
+  "execution_lag": 1,
+  "momentum_formation": 12,
+  "momentum_skip": 1,
+  "volatility_lookback": 12,
+  "validation_start": "2020-01-31",
+  "final_test_start": "2023-01-31",
+  "dataset_status": "unverified",
+  "benchmark_name": "user_supplied",
+  "source_note": "Replace with actual source and license evidence before citing."
+}

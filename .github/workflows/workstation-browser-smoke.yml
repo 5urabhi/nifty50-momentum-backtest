@@ -1,0 +1,80 @@
+name: QuantLab Ubuntu browser acceptance
+
+on:
+  push:
+    branches:
+      - feature/quantlab-model-laboratory-and-guide-20261113
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      PYTHONPATH: .
+      QUANTLAB_SMOKE_URL: http://127.0.0.1:5173
+      QUANTLAB_SMOKE_ARTIFACT_DIR: artifacts/browser-smoke
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install research engine and browser dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          npm install --no-audit --no-fund
+          npm install --no-save --ignore-scripts playwright@1.56.1 --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Seed isolated synthetic CI fixtures (no Dhan token or broker orders)
+        run: python tests/browser_smoke_seed.py
+
+      - name: Start loopback-only Python API and React/Vite frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m uvicorn workstation_api.app:app --host 127.0.0.1 --port 8765 > /tmp/quantlab-api.log 2>&1 &
+          echo $! > /tmp/quantlab-api.pid
+          npm run dev -- --host 127.0.0.1 --port 5173 --strictPort > /tmp/quantlab-vite.log 2>&1 &
+          echo $! > /tmp/quantlab-vite.pid
+          for i in $(seq 1 75); do
+            if curl --fail --silent --max-time 1 http://127.0.0.1:8765/api/health > /tmp/quantlab-health.json &&
+               curl --fail --silent --max-time 1 http://127.0.0.1:5173/ >/dev/null; then
+              echo "Both local services are healthy"
+              cat /tmp/quantlab-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Python API startup log:"
+          tail -n 100 /tmp/quantlab-api.log
+          echo "Vite startup log:"
+          tail -n 100 /tmp/quantlab-vite.log
+          exit 1
+
+      - name: Exercise actual Chromium UI -> API -> local research data -> files
+        run: node tests/browser-smoke.mjs
+
+      - name: Archive screenshots, API logs, and browser assertions
+        if: always()
+        run: |
+          mkdir -p artifacts/browser-smoke
+          cp /tmp/quantlab-api.log artifacts/browser-smoke/api.log 2>/dev/null || true
+          cp /tmp/quantlab-vite.log artifacts/browser-smoke/vite.log 2>/dev/null || true
+          cp /tmp/quantlab-health.json artifacts/browser-smoke/health.json 2>/dev/null || true
+          printf "Smoke uses CI-only constructed synthetic data and no live Dhan account.\n" > artifacts/browser-smoke/SCOPE.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quantlab-ubuntu-browser-acceptance
+          path: artifacts/browser-smoke
+          retention-days: 14

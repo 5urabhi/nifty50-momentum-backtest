@@ -1,0 +1,105 @@
+"""Local rolling model evaluation using uploaded non-synthetic return histories."""
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+# Ensure project packages resolve when Streamlit runs a page by file path.
+import sys
+from pathlib import Path as _ProjectPath
+_PROJECT_ROOT = str(_ProjectPath(__file__).resolve().parents[2])
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from dashboard.workstation_nav import show_workflow_nav
+from dashboard.workspace_data import active_asset_returns, active_source_label
+from index_research.model_validation import (
+    rolling_volatility_forecasts,variance_forecast_scores,
+    rolling_covariance_portfolios
+)
+
+st.set_page_config(page_title="Out-of-Sample Model Diagnostics",layout="wide")
+show_workflow_nav()
+st.title("Out-of-Sample Model Diagnostics")
+st.caption("Rolling covariance and volatility comparisons; input data never uploaded to a hosted service by this code")
+st.warning("These are exploratory risk-estimator comparisons, NOT investable portfolio backtests. "
+           "No transaction costs, delisting treatment, or benchmark methodology are modeled in this page.")
+
+use_active=st.checkbox("Use active Index Research experiment data",value=False)
+if use_active:
+    st.warning("Using "+active_source_label()+". This does not certify genuine market performance.")
+st.page_link("dashboard/pages/1_Index_Research.py",label="Open Index Research to activate or change inputs →",icon="📈")
+upload=st.file_uploader("Or upload monthly decimal simple returns: date + >=2 securities",type="csv",
+                        disabled=use_active)
+if upload is None and not use_active:
+    st.info("Run Index Research and enable the shared-data checkbox, or upload a CSV.")
+    st.stop()
+try:
+    if use_active:
+        x=active_asset_returns(minimum=48,max_assets=30)
+    else:
+        data=pd.read_csv(upload)
+        if len(data.columns)<3:
+            raise ValueError("date and at least two security columns required")
+        dates=pd.to_datetime(data.iloc[:,0],errors="raise")
+        if dates.duplicated().any() or dates.isna().any() or not dates.is_monotonic_increasing:
+            raise ValueError("ordered, unique and valid dates required")
+        x=data.iloc[:,1:].apply(pd.to_numeric,errors="raise")
+        x.index=pd.DatetimeIndex(dates)
+    if len(x)<48 or x.isna().any().any() or not np.isfinite(x.to_numpy()).all():
+        raise ValueError("at least 48 fully observed rows required")
+    if len(x.columns)>30:
+        raise ValueError("this interactive model comparison is limited to 30 securities")
+    use_garch=st.checkbox("Add rolling GARCH(1,1) (slower; >=60 training months)",value=False)
+    min_window=60 if use_garch else 24
+    if len(x)<min_window+12:
+        st.error(f"Need at least {min_window+12} observations for this configuration.")
+        st.stop()
+    window=st.slider("Train window (months)",min_value=min_window,max_value=len(x)-12,
+                      value=min(max(60,36) if use_garch else 36,len(x)-12))
+    decay=st.slider("EWMA decay",min_value=.50,max_value=.99,value=.94,step=.01)
+    shrinkage=st.slider("Covariance diagonal shrinkage",min_value=0.0,
+                         max_value=1.0,value=.25,step=.05)
+    tab1,tab2=st.tabs(["Volatility forecast diagnostics","Portfolio covariance comparison"])
+    with tab1:
+        security=st.selectbox("Security",list(x.columns))
+        forecasts=rolling_volatility_forecasts(x[security],train_window=window,
+                                               ewma_decay=decay,include_garch=use_garch)
+        scores=variance_forecast_scores(forecasts)
+        if use_garch:
+            st.metric("GARCH fit convergence",f"{forecasts['garch_converged'].mean():.1%}")
+            st.warning("QLIKE/MSE are calculated on the available observations per model. "
+                       "When GARCH fits fail, compare only an identical holdout subset.")
+        st.dataframe(scores,hide_index=True,use_container_width=True)
+        selected=["sample_variance_forecast","ewma_variance_forecast","realized_variance"]
+        if use_garch:
+            selected.append("garch_variance_forecast")
+        display=forecasts[selected].rename(columns={
+            "sample_variance_forecast":"Historical sample",
+            "ewma_variance_forecast":"EWMA",
+            "garch_variance_forecast":"GARCH(1,1)",
+            "realized_variance":"Squared realized return (noisy)"})
+        st.plotly_chart(px.line(display,title="Strictly prior-history variance forecast vs observed squared return"),use_container_width=True)
+        st.caption("Lower holdout QLIKE and squared error are better under their respective losses. "
+                   "Squared realized returns are noisy variance proxies.")
+    with tab2:
+        cap=max(1/len(x.columns),.25)
+        models=rolling_covariance_portfolios(
+            x,train_window=window,rebalance_every=3,
+            max_weight=cap,shrinkage_intensity=shrinkage,ewma_decay=decay)
+        net_columns=[name for name in models.columns if not name.endswith(("_turnover","_gross"))]
+        net_models=models[net_columns]
+        wealth=(1+net_models).cumprod()
+        st.plotly_chart(px.line(wealth,title="Frictionless rolling covariance portfolio wealth (illustrative)",
+                      labels={"value":"Wealth multiple","index":"Date"}),use_container_width=True)
+        summary=pd.DataFrame({
+            "model":net_columns,
+            "monthly_mean":[float(net_models[c].mean()) for c in net_columns],
+            "monthly_volatility":[float(net_models[c].std(ddof=1)) for c in net_columns],
+            "annualized_turnover":[float(models[f"{c}_turnover"].mean()*12) for c in net_columns],
+            "holdout_observations":[len(models)]*len(net_columns),
+        })
+        st.dataframe(summary,hide_index=True,use_container_width=True)
+        st.caption("Drift-aware turnover is included; sector caps, full market-impact costs and official benchmark are absent; "
+                   "these curves are diagnostic, not evidence of an investable index.")
+except Exception as exc:
+    st.error(f"Model validation blocked: {exc}")

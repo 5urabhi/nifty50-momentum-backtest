@@ -1,0 +1,68 @@
+/* Searchable QuantLab user guide — same design language as the research terminal. */
+.qg-guide{display:grid;gap:17px;color:#e0edf5}
+.qg-hero{display:flex;justify-content:space-between;gap:30px;align-items:center;
+ border:1px solid #2b615d;border-radius:14px;padding:28px;
+ background:linear-gradient(125deg,#123c3e 0%,#132a3b 70%,#11202f 100%)}
+.qg-hero h2{font-size:26px;line-height:1.15;margin:10px 0;letter-spacing:-.04em}
+.qg-hero p{max-width:780px;font-size:12px;line-height:1.75;color:#a2bbc9}
+.qg-doc-buttons{display:flex;gap:9px;flex-wrap:wrap;margin-top:19px}
+.qg-doc-buttons a{display:inline-flex;align-items:center;gap:7px;background:#1a4045;border:1px solid #316960;
+ padding:11px 12px;border-radius:8px;color:#bbffe9;font-size:11px;font-weight:700}
+.qg-doc-buttons a:hover{background:#275a55}
+.qg-hero-icon{display:grid;place-items:center;color:#80efd1;border:1px solid #297264;
+ border-radius:50%;background:#164d47;min-width:105px;height:105px;box-shadow:0 0 60px #65ecc71d}
+.qg-panel{border:1px solid #294050;border-radius:12px;background:#111e2d;padding:21px}
+.qg-head{display:flex;align-items:center;gap:9px;color:#63dab9;margin-bottom:16px}
+.qg-head h3{margin:0;font-size:14px;color:#dcebf4}
+.qg-steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.qg-steps article{display:flex;flex-direction:column;gap:12px;border:1px solid #304b5c;
+ border-radius:10px;background:#0e2533;padding:15px}
+.qg-number{font:800 23px ui-monospace,SFMono-Regular,Consolas,monospace;color:#64dfc1}
+.qg-steps h4{font-size:12px;margin:0 0 7px;color:#e1f0f2}
+.qg-steps p{color:#93adba;font-size:10px;line-height:1.65;min-height:110px}
+.qg-steps button{display:flex;align-items:center;gap:7px;background:transparent;border:0;
+ color:#71e6c8;padding:0;margin-top:12px;font-weight:700;font-size:11px}
+.qg-two{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.75fr);gap:15px;align-items:start}
+.qg-stack{display:grid;gap:15px}
+.qg-search{display:flex;align-items:center;gap:10px;background:#0a1724;border:1px solid #39536a;
+ border-radius:9px;padding:10px 13px;color:#7fd8c5;margin:0 0 14px}
+.qg-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:#ecf7f5;font-size:12px}
+.qg-search:focus-within{outline:2px solid #51ba9c}
+.qg-accordions details{border:1px solid #294252;border-radius:8px;margin-bottom:8px;background:#112538}
+.qg-accordions summary{padding:13px 15px;cursor:pointer;font-size:12px;font-weight:700;color:#d4e8f1}
+.qg-accordions details[open]{border-color:#457c78}
+.qg-accordions details p{font-size:11px;line-height:1.8;color:#a9c2ca;padding:0 15px 14px;margin:0}
+.qg-glossary{margin:0}.qg-glossary div{padding:10px 0;border-bottom:1px solid #263d4e}
+.qg-glossary div:last-child{border:0}
+.qg-glossary dt{color:#70e4c6;font-weight:800;font-size:11px}
+.qg-glossary dd{color:#a2b6c5;line-height:1.6;font-size:10px;margin:5px 0 0}
+.qg-integrity p{font-size:11px;line-height:1.7;color:#b4c9cd}
+.qg-integrity strong{color:#dcf4ec}
+.qg-integrity>button{display:inline-flex;align-items:center;gap:8px;background:#17483f;border:1px solid #37836e;
+ border-radius:7px;color:#b9f6dc;font-size:11px;padding:10px 13px}
+.qg-note{display:flex;gap:9px;align-items:center;margin-top:18px;padding:11px 12px;border-radius:7px;
+ background:#172e3b;border:1px solid #2f5964;font-size:10px;color:#88bcb8}
+@media(max-width:1250px){.qg-steps{grid-template-columns:repeat(3,minmax(0,1fr))}.qg-steps p{min-height:0}}
+@media(max-width:850px){.qg-two{grid-template-columns:1fr}.qg-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.qg-hero{padding:18px}.qg-hero-icon{display:none}.qg-steps{grid-template-columns:1fr}.qg-doc-buttons a{flex:1}}
+
+
+/* Searchable mathematical metric explanations */
+.qg-metric-guide{margin-bottom:17px}
+.qg-metric-layout{display:grid;grid-template-columns:minmax(190px,290px) minmax(0,1fr);gap:15px}
+.qg-metric-list{display:grid;align-content:start;gap:6px;max-height:340px;overflow:auto}
+.qg-metric-list button{border:1px solid #335565;background:#122c3b;
+ color:#c7dedc;text-align:left;padding:10px;border-radius:7px;cursor:pointer;font-size:12px}
+.qg-metric-list button.active{border-color:#70dac2;background:#195247;color:#e9fff9}
+.qg-metric-detail{border:1px solid #345363;background:#0c2634;
+ border-radius:10px;padding:17px;overflow-wrap:anywhere}
+.qg-metric-detail h4{font-size:18px;margin:0 0 14px;color:#d9fff1}
+.qg-metric-detail h5{font-size:12px;margin:15px 0 5px;color:#8fdbca}
+.qg-metric-detail p{font-size:12px;line-height:1.7;color:#b5cad3}
+.qg-metric-detail code{display:block;padding:13px;border:1px solid #3b596b;border-radius:8px;
+ background:#0a1929;color:#ffdc9e;font-size:12px;white-space:pre-wrap}
+.qg-metric-detail button{padding:9px 12px;border:1px solid #58cbb4;border-radius:7px;
+ background:#14443d;color:#e4fff1;display:inline-flex;gap:7px;align-items:center;cursor:pointer}
+.qg-metric-list button:focus-visible,.qg-metric-detail button:focus-visible{outline:2px solid #89ffe0}
+@media(max-width:720px){.qg-metric-layout{grid-template-columns:1fr}
+.qg-metric-list{grid-template-columns:repeat(2,minmax(0,1fr));max-height:180px}}

@@ -1,0 +1,18 @@
+{
+  "name": "LEGACY_STATIC_UNIVERSE_DEMONSTRATION",
+  "factor_weights": {"momentum": 1.0},
+  "top_n": 10,
+  "weighting": "equal",
+  "max_weight": 0.20,
+  "rebalance_every": 3,
+  "cost_bps": 10.0,
+  "execution_lag": 1,
+  "momentum_formation": 12,
+  "momentum_skip": 1,
+  "volatility_lookback": 12,
+  "validation_start": "2019-01-01",
+  "final_test_start": "2022-01-01",
+  "dataset_status": "static_universe_demo",
+  "benchmark_name": "INTERNAL_EQUAL_WEIGHT_COMPLETE_CASE_NOT_NIFTY",
+  "source_note": "Survivorship-biased complete-case subset of original CSV; ambiguous first-of-month date labels; benchmark is constructed, not official."
+}

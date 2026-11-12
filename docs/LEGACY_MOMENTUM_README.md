@@ -1,0 +1,190 @@
+> Archived original momentum research README (preserved verbatim below); numbers have NOT been audited in the new project.
+
+# Nifty 50 Momentum Strategy Backtest
+
+
+
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Research Motivation](#research-motivation)
+- [Data Pipeline](#data-pipeline)
+- [Strategy Logic](#strategy-logic)
+- [How to Run](#how-to-run)
+- [Key Results & Plots](#key-results--plots)
+- [Customization & Extensions](#customization--extensions)
+- [Dependencies](#dependencies)
+- [Acknowledgements](#acknowledgements)
+
+---
+
+## Project Overview
+
+
+This repository presents a **reproducible empirical study** of the **cross-sectional momentum anomaly** on India’s **Nifty-50** equity universe (2012–2025).  
+It follows the canonical *Jegadeesh & Titman (1993)* methodology while extending it with modern, vectorized Python backtesting and robust statistical inference.
+
+The code builds an end-to-end pipeline — from data acquisition and cleaning, through signal construction and portfolio rebalancing, to full statistical evaluation and visualization.
+
+---
+## Research Motivation
+
+Momentum remains one of the most persistent return anomalies documented in global markets.  
+While it has been extensively studied in U.S. and developed markets, its behavior in **emerging markets such as India** remains under-explored.  
+This project aims to provide a **transparent, reproducible** evaluation of whether the anomaly persists after realistic frictions.
+
+---
+
+## Data Pipeline
+
+1. **Universe Definition:**  
+   - Uses a static list of Nifty 50 tickers compatible with Yahoo Finance.
+2. **Data Download:**  
+   - Fetches fully adjusted monthly close prices for all Nifty 50 stocks using `yfinance`.
+   - Handles missing or delisted stocks gracefully.
+3. **Data Cleaning:**  
+   - Forward-fills missing data, drops periods where all prices are NaN.
+   - Stores the clean dataset as `nifty50_prices_monthly.csv` for reproducibility.
+
+---
+### Methodology
+
+| Component | Description |
+|------------|--------------|
+| **Universe** | Static Nifty-50 constituents (Yahoo Finance tickers, 2012–2025) |
+| **Data** | Adjusted monthly close prices via `yfinance` |
+| **Signal** | Past cumulative return over a `formation` period, skipping last `skip` month |
+| **Portfolio** | Long top *N* and short bottom *N* stocks (long-short) or long-only variant |
+| **Weighting** | Equal or volatility-scaled |
+| **Holding Period** | Rebalanced monthly |
+| **Transaction Costs** | Modeled via proportional `tc_bps` per side |
+| **Statistics** | Annualized return/volatility, Sharpe, Sortino, max drawdown, turnover |
+| **Inference** | Newey-West HAC t-stats, bootstrap Sharpe confidence intervals |
+
+---
+## Strategy Logic
+
+- **Momentum Signal Calculation:**  
+  For each stock and month, computes the cumulative return over a configurable "formation period" (e.g., 12 months), skipping the most recent "skip period" (e.g., 1 month) to mitigate mean reversion.
+
+    - **Signal Formula:**  
+      \[
+      Secret
+      \]
+    - **Portfolio Formation:**
+        - Ranks all stocks by signal value at each rebalance date.
+        - Longs the top N stocks, shorts the bottom N stocks (e.g., N=5).
+        - Dollar-neutral: equal weights long and short.
+        - Holds the portfolio for a configurable holding period (default: 1 month).
+
+- **Return Calculation:**
+    - Calculates monthly returns for each stock.
+    - Tracks the P&L for the rebalanced portfolio.
+
+- **Performance Visualization:**
+    - Plots cumulative strategy returns and enables extension to add Sharpe, drawdown, or rolling stats.
+
+
+---
+
+## How to Run
+
+1. **Clone the repo and install dependencies:**
+    ```bash
+    git clone https://github.com/5urabhi/nifty50-momentum-backtest.git
+    cd nifty50-momentum-backtest
+    pip install -r requirements.txt
+    ```
+2. **Launch Jupyter Notebook:**
+    ```bash
+    jupyter notebook main.ipynb
+    ```
+3. **Run all cells.**
+    - The notebook will download fresh data and output both tables and performance plots.
+
+---
+
+## Key Results & Plots
+
+###  Key Findings
+
+Baseline vs Optimized Configuration
+
+| Metric | **Baseline (Naïve)** | **Optimized** |
+|:--|--:|--:|
+| **Annualized Return** | 0.28 % | **132.86 %** |
+| **Annualized Volatility** | 12.43 % | **39.73 %** |
+| **Sharpe Ratio** | 0.02 | **3.34** |
+| **Max Drawdown** | −39.97 % | −41.55 % |
+| **Formation Period** | 12 m | **9 m** |
+| **Skip Period** | 1 m | 1 m |
+| **Holding Period** | 1 m | 1 m |
+| **Signal Type** | Cumulative Return | **Cumulative Return** |
+| **Long Only** | ❌ (Long–Short) | ✅ (Long Only) |
+| **Weighting Scheme** | Equal Weight | **Volatility-Scaled (exp = 2.0)** |
+| **Top N / Bottom N** | 5 / 5 | **6 / 0** |
+| **Transaction Cost (bps)** | 10 | **20** |
+| **Max Weight** | — | **20 %** |
+
+> The optimized long-only, volatility-scaled strategy achieves **over 3× higher risk-adjusted returns** than the naïve baseline,  
+> with a Sharpe ratio of **3.34** despite realistic transaction costs.
+
+
+ ![image](https://github.com/user-attachments/assets/3e1afe61-3c21-40a2-94f1-e579d778ffe8)
+
+- **Portfolio statistics:**  
+  - Monthly and annualized return
+  - Sharpe ratio, max drawdown (add as needed)
+  - Table of monthly P&L and top holdings per rebalance
+
+---
+### Interpretation
+
+- The **baseline** (equal-weighted, long–short) portfolio barely outperformed cash after costs — typical when signal, horizon, or weighting are not tuned.  
+- The **optimized** configuration (long-only, volatility-adjusted weights, 9-month formation) effectively captures medium-term momentum while reducing noise and turnover.  
+- Volatility scaling (`pow_vol = 2.0`) penalizes high-variance names, stabilizing returns and improving Sharpe.  
+- Performance remains robust under bootstrap and HAC/Newey–West inference, confirming **statistical significance (t ≈ 3.4)**.  
+
+
+
+---
+
+## Customization & Extensions
+
+- **Universe:**  
+  Modify the ticker list to backtest other indices (e.g., S&P 500, Bank Nifty).
+- **Parameters:**  
+  Change `FORMATION_PERIOD`, `SKIP_PERIOD`, `HOLDING_PERIOD`, `TOP_N`, `BOTTOM_N` at the top of the notebook.
+- **Transaction Costs:**  
+  Add slippage/commission in the portfolio return calculation for more realistic simulation.
+- **Analytics:**  
+  Extend plots and stats: rolling Sharpe, drawdown, heatmaps, etc.
+- **Alternative Signals:**  
+  Swap the cumulative return for other factors (e.g., volatility, value, quality).
+
+---
+
+## Dependencies
+
+- `yfinance`
+- `pandas`
+- `numpy`
+- `matplotlib`
+- `tqdm`
+- `openpyxl`
+
+Install with:
+```bash
+pip install -r requirements.txt
+
+ ```
+## Acknowledgements
+
+- **Yahoo Finance** for free and programmatic access to historical stock price data.
+- **NSE India** for providing official index definitions and stock lists.
+- Classic finance research, especially:
+    - Jegadeesh, N. and Titman, S. (1993). “Returns to Buying Winners and Selling Losers: Implications for Stock Market Efficiency.” *Journal of Finance*, 48(1), 65-91.
+- Developers and maintainers of open-source libraries:  
+  `pandas`, `numpy`, `yfinance`, `matplotlib`, and `tqdm`.
+
+
