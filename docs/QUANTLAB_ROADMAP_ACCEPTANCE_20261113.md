@@ -1,6 +1,6 @@
 # QuantLab Research Workstation — Roadmap Acceptance Register
 
-**Scope:** Feature branch feature/quantlab-model-laboratory-and-guide-20261113.
+**Scope:** Main branch, merged through Pull Request #2.
 **Date:** November 13, 2026. **Evidence:** Repository implementations and
 automated CI (not a substitute for interactive browser acceptance).
 
@@ -93,3 +93,41 @@ catalog. No broker trading-order endpoints are used.
 **Release decision:** merge only after the specific branch's complete CI
 passes and meaningful local UI smoke tests are reviewed. The feature branch
 can be run directly without merging.
+
+
+## Verified release record (November 13, 2026)
+
+GitHub PR #2 merged to main on merge commit
+d5708c4c1d466f983389c627898c351deae224ac after CI validation.
+
+- React TypeScript build and Python regression suite: **passed** on feature commit
+  cb1afffd277975ad3098bd290b3e46d5f421df8f (workflow 43320383793).
+- Actual Ubuntu 24.04 headless Chromium browser smoke: **11/11 steps passed**
+  (workflow 43320383609, artifact 13990610928).
+- Browser connected to real local Vite and FastAPI servers and exercised:
+  all eight navigation destinations; observed-column plotting; chart saving,
+  notebook attachment and interactive HTML export; statistics; parameter-grid
+  preflight; generated PDF/HTML/Markdown report downloads; saved-run comparison;
+  global search; metric help; and mobile navigation.
+- Browser smoke also asserts no unhandled JavaScript exceptions and no
+  backend HTTP 5xx during those flows.
+- Fixtures are deterministic **synthetic CI test inputs**, clearly labeled;
+  no broker credential was present, no orders were placed, and no shared
+  licensed market observations were modified.
+- GitHub workflows are configured to run on future main pushes and PRs.
+
+**Scope of verification:** automated browser/system checks in GitHub Actions,
+not a claim to have viewed or controlled the user's personal Ubuntu desktop.
+A user-device smoke is recommended for their browser, historical data volume,
+file permissions and Dhan token configuration. This is not a prerequisite to
+the successful CI-validated merge but remains an environment-specific check.
+
+**Run the merged application:**
+
+    git fetch origin
+    git switch main
+    git pull --ff-only origin main
+    bash run.sh
+
+Open the local address printed by the launcher (normally
+http://127.0.0.1:5173). No separate Vercel deployment is required or claimed.
