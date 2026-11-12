@@ -7,6 +7,13 @@ import io
 import numpy as np
 import pandas as pd
 import streamlit as st
+# Ensure project packages resolve when Streamlit runs a page by file path.
+import sys
+from pathlib import Path as _ProjectPath
+_PROJECT_ROOT = str(_ProjectPath(__file__).resolve().parents[2])
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
 from dashboard.workstation_nav import show_workflow_nav
 from dashboard.workspace_data import active_asset_returns, active_source_label
 import plotly.express as px
