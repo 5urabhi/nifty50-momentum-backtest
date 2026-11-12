@@ -23,8 +23,8 @@ EXCLUDED_PAYLOAD_KEYS = frozenset({"access_token", "secret", "api_key", "passwor
 CREDENTIAL_TERMS=("token","secret","api_key","api-key","password",
                   "credential","authorization","private_key","private-key")
 SENSITIVE_VALUE=re.compile(
-    r"(?i)(DHAN[_-]?ACCESS[_-]?TOKEN\\s*[=:]|BEARER\\s+[A-Za-z0-9._~+/-]{8,}|"
-    r"API[_ -]?KEY\\s*[=:]|BEGIN\\s+(?:RSA|EC|OPENSSH)?\\s*PRIVATE KEY)"
+    r"(?i)(DHAN[_-]?ACCESS[_-]?TOKEN\s*[=:]|BEARER\s+[A-Za-z0-9._~+/-]{8,}|"
+    r"API[_ -]?KEY\s*[=:]|BEGIN\s+(?:RSA|EC|OPENSSH)?\s*PRIVATE KEY)"
 )
 
 
