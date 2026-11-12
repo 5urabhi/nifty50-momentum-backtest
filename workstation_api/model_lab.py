@@ -6,6 +6,12 @@ access, synthetic substitute for missing real history, or claims of OOS alpha.
 """
 from __future__ import annotations
 from datetime import datetime, timezone
+from pathlib import Path
+import hashlib
+import json
+import os
+import re
+import uuid
 import math
 import numpy as np
 import pandas as pd
@@ -525,3 +531,75 @@ def run_model(model_id: str, dataset_id: str | None = None,
             raise ValueError("Nonfinite numerical model result; no figure was published")
     assert_finite(response)
     return response
+
+
+# Durable model-run artifacts live in Git-ignored results/. No credentials,
+# account identities, raw source candles or brokerage positions are serialized.
+RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z_[0-9a-f]{10}$")
+
+
+def _run_root() -> Path:
+    return service.RESULTS / "model_laboratory"
+
+
+def save_result(result: dict) -> dict:
+    """Append an atomic, source-checksummed copy of a successfully computed model."""
+    if result.get("model_id") not in CATALOG:
+        raise ValueError("Cannot save an unregistered model result")
+    snapshot=dict(result)
+    source=snapshot.get("source")
+    if source:
+        folder,_record=service.dataset_path(source["dataset_id"])
+        selected=folder/source["source_file"]
+        if not selected.is_file() or selected.is_symlink():
+            raise ValueError("Observed source disappeared before result archival")
+        snapshot["source_sha256"]=hashlib.sha256(selected.read_bytes()).hexdigest()
+    run_id=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")+"_"+uuid.uuid4().hex[:10]
+    snapshot["run_id"]=run_id
+    encoded=json.dumps(snapshot,ensure_ascii=False,allow_nan=False,indent=2).encode("utf-8")
+    if len(encoded)>4_000_000:
+        raise ValueError("Model result exceeds safe local archive size")
+    root=_run_root()
+    root.mkdir(parents=True,exist_ok=True)
+    filename=root/(run_id+".json")
+    # Exclusive creation: no overwrite and no unbounded JSON history in memory.
+    with open(filename,"xb") as handle:
+        handle.write(encoded)
+        handle.flush()
+        os.fsync(handle.fileno())
+    return snapshot
+
+
+def list_saved_models() -> list[dict]:
+    root=_run_root()
+    if not root.is_dir() or root.is_symlink():
+        return []
+    rows=[]
+    for p in sorted(root.glob("*.json"),reverse=True)[:60]:
+        if p.is_symlink() or not RUN_ID.fullmatch(p.stem):
+            continue
+        try:
+            result=json.loads(p.read_text(encoding="utf-8"))
+        except (OSError,ValueError,TypeError):
+            continue
+        if result.get("run_id")!=p.stem or result.get("model_id") not in CATALOG:
+            continue
+        rows.append({"id":p.stem,"model_id":result["model_id"],
+            "title":result.get("title"),"group":result.get("group"),
+            "mode":result.get("mode"),"generated_utc":result.get("generated_utc"),
+            "dataset_id":(result.get("source") or {}).get("dataset_id"),
+            "observations":(result.get("source") or {}).get("observations"),
+            "figures":len(result.get("plots",[]))})
+    return rows[:30]
+
+
+def read_saved_model(run_id: str) -> dict:
+    if not RUN_ID.fullmatch(run_id):
+        raise ValueError("Invalid model-run identifier")
+    target=_run_root()/(run_id+".json")
+    if not target.is_file() or target.is_symlink():
+        raise FileNotFoundError("Saved model run unavailable")
+    result=json.loads(target.read_text(encoding="utf-8"))
+    if result.get("run_id")!=run_id or result.get("model_id") not in CATALOG:
+        raise ValueError("Invalid saved model metadata")
+    return result
