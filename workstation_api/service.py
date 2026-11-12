@@ -63,7 +63,7 @@ def _source_dirs():
                     yield prefix + path.name, label + " · " + path.name, path, kind
 
 
-def datasets():
+def datasets(include_archived: bool = False):
     output = []
     for dataset_id, label, folder, kind in _source_dirs():
         missing = [n for n in REQUIRED if not (folder / n).is_file()]
@@ -140,13 +140,17 @@ def datasets():
                      "raw Dhan monthly closes; not independently total-return adjusted" if kind == "dhan"
                      else "user supplied; source and PIT status unverified",
         })
+    if not include_archived:
+        from . import research_library
+        output = [r for r in output if not research_library.resource_status(
+            "dataset", r["id"])["archived"]]
     return output
 
 
 def dataset_path(dataset_id: str) -> tuple[Path, dict]:
     if not SAFE_ID.fullmatch(dataset_id):
         raise ValueError("Unknown dataset identifier")
-    record = next((item for item in datasets() if item["id"] == dataset_id), None)
+    record = next((item for item in datasets(include_archived=True) if item["id"] == dataset_id), None)
     if record is None:
         raise ValueError("Dataset is unavailable")
     for key, _, path, _ in _source_dirs():
@@ -242,7 +246,7 @@ def _run_path(run_id: str) -> Path:
     return path
 
 
-def runs():
+def runs(include_archived: bool = False, limit: int = 100):
     if not RESULTS.is_dir():
         return []
     output = []
@@ -264,7 +268,11 @@ def runs():
             "first_price_date": meta.get("first_price_date"),
             "last_price_date": meta.get("last_price_date"),
         })
-    return output[:100]
+    if not include_archived:
+        from . import research_library
+        output = [r for r in output if not research_library.resource_status(
+            "research_run", r["id"])["archived"]]
+    return output[:limit]
 
 
 def run_details(run_id: str) -> dict:
