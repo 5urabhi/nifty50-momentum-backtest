@@ -583,12 +583,22 @@ def verify_reproducibility(run_id: str, *, recompute: bool = False) -> dict:
         expected = json.dumps(saved.get("plots", []), sort_keys=True, allow_nan=False)
         actual = json.dumps(candidate.get("plots", []), sort_keys=True, allow_nan=False)
         recomputed = expected == actual
+    current_engine=model_lab._engine_version()
+    saved_engine=saved.get("execution_environment")
+    version_match=(saved_engine==current_engine if saved_engine else None)
+    status=("source_changed" if matches is False else
+            "figure_mismatch" if recomputed is False else
+            "charts_recomputed" if recomputed is True else "not_recomputed")
     return {"run_id": run_id, "source_sha256": saved.get("source_sha256"),
             "current_source_sha256": current_hash, "source_unchanged": matches,
-            "recomputed_figure_match": recomputed,
-            "reproducible": matches is not False and recomputed is not False,
-            "message": ("Source changed since the saved run. Historical results remain frozen."
+            "saved_environment":saved_engine, "current_environment":current_engine,
+            "environment_unchanged":version_match,
+            "recomputed_figure_match": recomputed, "verification_status":status,
+            "reproducible": (matches is not False and recomputed is True),
+            "message": ("Input data changed; historical result remains frozen."
                         if matches is False else
-                        "Source integrity checked. Recompute optionally verifies chart determinism."),
-            "warning": "Exact reproduction may depend on Python, SciPy and BLAS versions; "
-                       "a matching checksum does not independently certify the data."}
+                        "Figures reproduced from saved parameters." if recomputed is True else
+                        "Checksum inspected only; rerun the model to test numerical reproducibility."),
+            "warning": "Exact reproduction depends on Git commit, Python, numerical libraries, "
+                       "BLAS, random seeds and the source data. Identical data hashes do not "
+                       "independently certify input market accuracy."}
