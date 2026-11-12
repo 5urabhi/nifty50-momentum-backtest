@@ -329,13 +329,13 @@ class DatedIndexMembershipTests(unittest.TestCase):
         # fully-covered calendar month used by the PIT stock-price matrix.
         batch = dw.create_batch("nifty50_pit", [], [],
                                 "2025-06-10", "2026-02-01", 1, False)
-        with patch.object(dw, "download_candles", side_effect=self._candles), \\
+        with patch.object(dw, "download_candles", side_effect=self._candles), \
              patch.object(index_spot, "download_candles", side_effect=self._candles):
             done = dw.run_batch(batch["id"])
         self.assertEqual(done["counts"]["complete"], 51)
         self.assertEqual(done["index_spot"]["status"], "complete")
         with patch.object(dw, "download_candles",
-                          side_effect=AssertionError("No broker calls during preparation")), \\
+                          side_effect=AssertionError("No broker calls during preparation")), \
              patch.object(index_spot, "download_candles",
                           side_effect=AssertionError("No index broker calls during preparation")):
             prepared = dw.prepare_batch(batch["id"])
