@@ -382,7 +382,7 @@ def resource_action(kind: str, item_id: str, operation: str, *,
 
 def resource_listing(*, include_trashed: bool = False) -> list[dict]:
     rows = []
-    for dataset in service.datasets():
+    for dataset in service.datasets(include_archived=True):
         status = resource_status("dataset", dataset["id"])
         if not include_trashed and (status["archived"] or status["trashed"]):
             continue
@@ -391,8 +391,8 @@ def resource_listing(*, include_trashed: bool = False) -> list[dict]:
                          dataset["id"].startswith("upload_") or
                          dataset["id"].startswith("dhan_batch_")),
                      **status})
-    for group, data in (("model_run", model_lab.list_saved_models()),
-                        ("research_run", service.runs())):
+    for group, data in (("model_run", model_lab.list_saved_models(include_archived=True, limit=1000)),
+                        ("research_run", service.runs(include_archived=True, limit=1000))):
         for result in data:
             status = resource_status(group, result["id"])
             if not include_trashed and (status["archived"] or status["trashed"]):
