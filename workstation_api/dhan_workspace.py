@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from index_research.dhan_data import Instrument, download_candles
-from . import pit_index, service
+from . import index_spot, pit_index, service
 
 KEY = re.compile(r"^(NSE_EQ|BSE_EQ):([0-9]{1,12})$")
 BATCH_ID = re.compile(r"^batch_[a-f0-9]{16}$")
@@ -227,6 +227,7 @@ def _summarize(data: dict) -> dict:
         "source": ("DhanHQ OHLCV + reconstructed dated NSE membership"
                    if data.get("historical_index") else "DhanHQ current instrument master"),
         "historical_index_name": data.get("historical_index", {}).get("index_name"),
+        "index_spot": data.get("index_spot"),
         "historical_union_count": len(data.get("historical_index", {}).get("union_members", [])),
         "historical_unresolved": data.get("historical_index", {}).get("unresolved", []),
         "membership_covered_through": data.get("historical_index", {}).get("covered_through"),
@@ -239,7 +240,8 @@ def _summarize(data: dict) -> dict:
 
 def create_batch(selection: str, ids: list[str], tickers: list[str],
                  from_date: str, to_date: str, interval: int | None,
-                 acknowledged_bulk: bool, acknowledged_gaps: bool = False) -> dict:
+                 acknowledged_bulk: bool, acknowledged_gaps: bool = False,
+                 include_index_spot: bool = True) -> dict:
     start, stop = date.fromisoformat(from_date), date.fromisoformat(to_date)
     if not start < stop <= date.today() + timedelta(days=1):
         raise ValueError("Select a valid historical date range (end exclusive)")
@@ -279,6 +281,8 @@ def create_batch(selection: str, ids: list[str], tickers: list[str],
         "items": [{**row, "status": "pending", "rows": 0, "rows_added": 0, "error": None}
                   for row in instruments],
         **({"historical_index": pit_index.pin_selection(plan)} if plan else {}),
+        **({"index_spot": {"status": "pending", "warning": "Price-index candles are not TRI"}}
+           if plan and include_index_spot else {}),
     }
     _atomic_json(folder / "manifest.json", data)
     return _summarize(data)
@@ -431,6 +435,10 @@ def run_batch(batch_id: str, cancel_event: threading.Event | None = None) -> dic
                     _save_batch(data)
                     return _summarize(data)
             _save_batch(data)
+        if data.get("index_spot") and (cancel_event is None or not cancel_event.is_set()):
+            if data["index_spot"]["status"] != "complete":
+                data["index_spot"] = index_spot.download(data)
+                _save_batch(data)
         data["status"] = "completed"
         data["current_symbol"] = None
         _save_batch(data)
@@ -521,6 +529,7 @@ def prepare_batch(batch_id: str) -> dict:
             "missing_historical_symbols": missing_symbols,
             "missing_eligible_price_observations": missing_membership_prices,
             "fully_covered_months_only": True,
+            "index_spot": data.get("index_spot"),
             "warning": "Independently reconstructed interval history (not NSE-certified). "
                        "Dhan price candles lack a verified dividend-total-return adjustment."
         })
