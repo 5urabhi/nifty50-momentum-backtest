@@ -17,7 +17,7 @@ import shutil
 import sqlite3
 import uuid
 
-from . import model_lab, service
+from . import model_lab, service, report_charts
 
 KINDS = frozenset({"configuration", "project", "notebook", "chart", "comparison",
                    "dashboard", "note", "report", "study"})
@@ -214,7 +214,7 @@ def action(item_id: str, action_name: str, *, confirm: bool = False) -> dict:
         if not confirm or not previous["trashed"]:
             raise ValueError("Permanent deletion requires a trashed item and confirmation")
         if previous["kind"] == "report":
-            for ext in (".html", ".md", ".pdf"):
+            for ext in (".html", ".md", ".pdf", ".charts.json"):
                 (report_root() / (item_id + ext)).unlink(missing_ok=True)
         with LOCK, _connect() as conn:
             conn.execute("DELETE FROM records WHERE id=? AND trashed=1", (item_id,))
@@ -462,6 +462,7 @@ def render_notebook_report(notebook_id: str, *, format: str = "html") -> dict:
     if not isinstance(cells, list) or len(cells) > 100:
         raise ValueError("Notebook must have at most 100 cells")
     sections = []
+    figures = []
     for cell in cells:
         if not isinstance(cell, dict) or cell.get("type") not in ("markdown", "run", "chart", "table"):
             raise ValueError("Notebook contains an unsupported cell")
@@ -477,6 +478,22 @@ def render_notebook_report(notebook_id: str, *, format: str = "html") -> dict:
             sections.append((kind, json.dumps({"model": record["title"], "run_id": run_id,
                                                "source": record.get("source"),
                                                "metrics": metrics}, ensure_ascii=False, indent=2)))
+        elif kind == "chart" and cell.get("chart_id"):
+            chart_id = str(cell.get("chart_id", ""))
+            chart = get(chart_id)
+            if chart["kind"] != "chart" or chart["trashed"]:
+                raise ValueError("Notebook chart reference is unavailable")
+            plot = chart["payload"].get("plot")
+            if plot is None and isinstance(chart["payload"].get("plots"), list):
+                plot = next(iter(chart["payload"]["plots"]), None)
+            if not isinstance(plot, dict):
+                raise ValueError("Referenced saved chart has no plot snapshot")
+            if len(figures) >= 16:
+                raise ValueError("Notebook report supports at most 16 embedded figures")
+            figures.append({"title": chart["title"], "chart_id": chart_id, "plot": plot})
+            sections.append((kind, "Saved figure: " + chart["title"] +
+                " | chart ID: " + chart_id + " | " +
+                str(cell.get("content",""))[:2000]))
         else:
             sections.append((kind, str(cell.get("content", ""))[:12000]))
     lines = ["# " + notebook["title"], "",
@@ -489,6 +506,16 @@ def render_notebook_report(notebook_id: str, *, format: str = "html") -> dict:
                      "generated_utc": now(), "section_count": len(sections)})
     report_root().mkdir(parents=True, exist_ok=True)
     md = "\n".join(lines)
+    # Freeze selected graph snapshots so later chart edits cannot alter this report.
+    if figures:
+        encoded_figures = json.dumps(figures, ensure_ascii=False, allow_nan=False)
+        if len(encoded_figures.encode("utf-8")) > 3_000_000:
+            raise ValueError("Report figures exceed 3MB; narrow selected charts")
+        (report_root() / (report["id"] + ".charts.json")).write_text(
+            encoded_figures, encoding="utf-8")
+    figure_html = "".join("<section><h2>Figure " + str(i+1) + ": " +
+           html.escape(figure["title"]) + "</h2>" + report_charts.svg(figure["plot"]) +
+           "</section>" for i, figure in enumerate(figures))
     document = "<!doctype html><html lang='en'><head><meta charset='utf-8'>" + \
         "<meta name='viewport' content='width=device-width,initial-scale=1'>" + \
         "<title>" + html.escape(notebook["title"]) + "</title>" + \
@@ -499,11 +526,11 @@ def render_notebook_report(notebook_id: str, *, format: str = "html") -> dict:
         "<small>Generated " + html.escape(now()) + \
         " · Observed data and theoretical simulations must not be conflated.</small>" + \
         "".join("<h2>" + html.escape(kind.title()) + "</h2><pre>" +
-                html.escape(body) + "</pre>" for kind, body in sections) + "</body></html>"
+                html.escape(body) + "</pre>" for kind, body in sections) + figure_html + "</body></html>"
     (report_root() / (report["id"] + ".md")).write_text(md, encoding="utf-8")
     (report_root() / (report["id"] + ".html")).write_text(document, encoding="utf-8")
-    _write_pdf(report["id"], notebook["title"], md)
-    return {**report, "formats": ["markdown", "html", "pdf"]}
+    _write_pdf(report["id"], notebook["title"], md, figures=figures)
+    return {**report, "formats": ["markdown", "html", "pdf"], "figures": len(figures)}
 
 
 def report_path(report_id: str, format: str) -> Path:
@@ -519,7 +546,7 @@ def report_path(report_id: str, format: str) -> Path:
     return path
 
 
-def _write_pdf(report_id: str, title: str, body: str) -> None:
+def _write_pdf(report_id: str, title: str, body: str, figures: list | None = None) -> None:
     """Create a paginated, selectable PDF with conservative report styling."""
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter
@@ -550,6 +577,16 @@ def _write_pdf(report_id: str, title: str, body: str) -> None:
                                        body_style))
         else:
             story.append(Spacer(1, 6))
+    for index, figure in enumerate(figures or []):
+        story.append(Paragraph("Figure " + str(index+1) + ": " +
+                              html.escape(figure["title"]), heading_style))
+        drawing = report_charts.pdf_drawing(figure["plot"])
+        if drawing is not None:
+            story.append(drawing)
+            story.append(Spacer(1, 8))
+        else:
+            story.append(Paragraph("3D plot: inspect the full archived surface "
+                                   "in QuantLab Graph Studio.", body_style))
     def footer(canvas, doc):
         canvas.saveState()
         canvas.setFont("Helvetica", 8)
@@ -584,13 +621,18 @@ def edit_report(report_id: str, content: str) -> dict:
     path = report_root() / (report_id + ".md")
     path.write_text(content, encoding="utf-8")
     safe = html.escape(content)
+    figures_path = report_root() / (report_id + ".charts.json")
+    figures = json.loads(figures_path.read_text(encoding="utf-8")) if figures_path.is_file() else []
+    figure_html = "".join("<h2>Figure " + str(i+1) + ": " + html.escape(item["title"]) +
+                          "</h2>" + report_charts.svg(item["plot"])
+                          for i,item in enumerate(figures))
     (report_root() / (report_id + ".html")).write_text(
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<title>" + html.escape(record["title"]) + "</title></head>"
         "<body style='font:16px/1.6 system-ui;max-width:920px;margin:4rem auto;padding:2rem'>"
         "<h1>" + html.escape(record["title"]) + "</h1><pre style='white-space:pre-wrap'>"
-        + safe + "</pre></body></html>", encoding="utf-8")
-    _write_pdf(report_id, record["title"], content)
+        + safe + "</pre>" + figure_html + "</body></html>", encoding="utf-8")
+    _write_pdf(report_id, record["title"], content, figures=figures)
     metadata = {**record["payload"], "edited_utc": now(), "manually_edited": True}
     return update(report_id, payload=metadata)
 
