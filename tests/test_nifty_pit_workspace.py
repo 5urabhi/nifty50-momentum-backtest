@@ -323,6 +323,36 @@ class DatedIndexMembershipTests(unittest.TestCase):
         self.assertFalse(registry["ready"])
         self.assertIn("missing_eligible_price_observations", registry["missing"])
 
+    def test_cached_minute_batch_prepares_daily_and_pit_monthly_without_new_dhan_calls(self):
+        # This is the downloaded-data workflow from the React screenshot:
+        # 51 downloaded minute histories, no daily broker download.
+        self._sync()
+        batch = dw.create_batch("nifty50_pit", [], [],
+                                "2025-07-01", "2026-02-01", 1, False)
+        with patch.object(dw, "download_candles", side_effect=self._candles):
+            finished = dw.run_batch(batch["id"])
+        self.assertEqual(finished["counts"]["complete"], 51)
+        with patch.object(dw, "download_candles", side_effect=AssertionError(
+                "Preparation must not call Dhan again")):
+            prepared = dw.prepare_batch(batch["id"])
+        self.assertEqual(prepared["source_interval_minutes"], 1)
+        self.assertTrue(prepared["daily_aggregation_generated"])
+        self.assertTrue(prepared["membership_generated"])
+        self.assertFalse(prepared["ready_for_backtesting"])
+        folder = service.DATA / "dhan" / "monthly_research" / batch["id"]
+        self.assertTrue((folder / "daily_prices.csv").is_file())
+        self.assertTrue((folder / "daily_ohlcv" / "STK00.csv").is_file())
+        self.assertTrue((folder / "prices.csv").is_file())
+        self.assertTrue((folder / "membership.csv").is_file())
+        evidence = json.loads((folder / "DAILY_AGGREGATION_PROVENANCE.json").read_text())
+        self.assertEqual(evidence["source_interval_minutes"], 1)
+        matrix = pd.read_csv(folder / "prices.csv")
+        self.assertEqual(len(matrix), 7)
+        registered = next(item for item in service.datasets()
+                          if item["id"] == prepared["dataset_id"])
+        self.assertTrue(registered["has_prices"])
+        self.assertIn("benchmark.csv", registered["missing"])
+
     def test_membership_matrix_uses_pinned_intervals_not_later_catalog(self):
         self._sync()
         batch = dw.create_batch("nifty50_pit", [], [],
