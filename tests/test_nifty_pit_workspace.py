@@ -200,6 +200,47 @@ class DatedIndexMembershipTests(unittest.TestCase):
         self.assertTrue((service.DATA / spot["file"]).is_file())
         self.assertIn("not a dividend-reinvested", spot["warning"])
 
+    def test_membership_month_end_uses_last_trading_day_without_stale_prices(self):
+        # 2025-11-30 is a Sunday. Mark the 2025-11-28 trading close,
+        # and expose any security missing that session rather than carrying
+        # its earlier November close forward.
+        self._sync()
+        securities = dw.catalog()
+        missing_id = next(item["security_id"] for item in securities
+                          if item["symbol"] == "HDFCBANK")
+        batch = dw.create_batch("banknifty_pit", [], [],
+                                "2025-10-01", "2025-12-01", None, False)
+
+        def one_missing_close(inst, first, stop, **kwargs):
+            frame = self._candles(inst, first, stop, **kwargs)
+            if inst.security_id == missing_id:
+                frame = frame.loc[
+                    frame["datetime"].dt.date != date(2025, 11, 28)
+                ].reset_index(drop=True)
+            return frame
+
+        with patch.object(dw, "download_candles", side_effect=one_missing_close):
+            self.assertEqual(dw.run_batch(batch["id"])["counts"]["failed"], 0)
+        outcome = dw.prepare_batch(batch["id"])
+        self.assertEqual(outcome["months"], 2)
+        self.assertEqual(outcome["missing_eligible_price_observations"], 1)
+        path = service.DATA / "dhan" / "monthly_research" / batch["id"]
+        matrix = pd.read_csv(path / "prices.csv")
+        self.assertEqual(matrix["date"].tolist(), ["2025-10-31", "2025-11-28"])
+        self.assertTrue(pd.isna(matrix.loc[1, "HDFCBANK"]))
+        self.assertFalse(pd.isna(matrix.loc[0, "HDFCBANK"]))
+        membership = pd.read_csv(path / "membership.csv")
+        self.assertTrue(bool(membership.loc[
+            (membership["date"] == "2025-11-28")
+            & (membership["ticker"] == "HDFCBANK"), "eligible",
+        ].iloc[0]))
+        metadata = json.loads((path / "PIT_MEMBERSHIP_PROVENANCE.json").read_text())
+        self.assertIn("last observed", metadata["month_marks"])
+        registry = next(item for item in service.datasets()
+                        if item["id"] == outcome["dataset_id"])
+        self.assertFalse(registry["ready"])
+        self.assertIn("missing_eligible_price_observations", registry["missing"])
+
     def test_membership_matrix_uses_pinned_intervals_not_later_catalog(self):
         self._sync()
         batch = dw.create_batch("nifty50_pit", [], [],
