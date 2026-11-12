@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight,
-  CircleAlert, Clock3, Database, FileSpreadsheet, History, Layers3,
+  CircleAlert, Clock3, Database, FileSpreadsheet, History, Info, Layers3,
   LoaderCircle, LockKeyhole, Pause, Play, RefreshCw, Search,
   ShieldCheck, UploadCloud, X
 } from 'lucide-react'
