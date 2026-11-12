@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -103,8 +103,8 @@ def _spawn(kind: str, action, *args, **kwargs):
                 JOBS.pop(old, None)
                 JOB_FUTURES.pop(old, None)
                 JOB_RETRY_SPECS.pop(old, None)
-        if kind in {"workspace_parameter_sweep", "workspace_validation",
-                    "workspace_report"}:
+        if kind in {"workspace_parameter_sweep", "workspace_grid_sweep",
+                    "workspace_validation", "workspace_report"}:
             JOB_RETRY_SPECS[task_id] = (kind, action, args, kwargs)
         queued_snapshot = dict(JOBS[task_id])
     _persist_job(queued_snapshot)
@@ -739,6 +739,179 @@ def workspace_retry_job(job_id: str):
                                      "After restart, rerun the original configuration.")
     kind, action, args, kwargs = spec
     return _spawn(kind, action, *args, **kwargs)
+
+
+# -------------------------- Advanced research -------------------------
+class PlotBuildRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    dataset_id: str = Field(min_length=1,max_length=120)
+    fields: list[str] = Field(min_length=1,max_length=18)
+    kind: Literal["line","scatter","histogram","kde","qq","drawdown",
+                  "cumulative","rolling_volatility","correlation"] = "line"
+    transform: Literal["price","return","log_return","base100","zscore"] = "return"
+    first: str | None = None
+    last: str | None = None
+    lookback: int = Field(default=20,ge=2,le=252)
+    title: str | None = Field(default=None,max_length=120)
+
+
+class DiagnosticRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    dataset_id: str
+    asset: str
+    start: str | None = None
+    end: str | None = None
+
+
+class FactorAttributionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    dataset_id: str
+    target: str
+    factors: list[str] = Field(min_length=1,max_length=6)
+    training_fraction: float = Field(default=.7,ge=.5,le=.85)
+
+
+class SignificanceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    study_ids: list[str] = Field(min_length=1,max_length=6)
+    seed: int = Field(default=2026,ge=0,le=2147483647)
+
+
+class GridResearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model_id: str = Field(pattern=r"^[a-z_]+$")
+    dataset_id: str | None = None
+    axes: dict[str,list[float]] = Field(min_length=1,max_length=2)
+    params: dict = Field(default_factory=dict)
+    metric_name: str | None = Field(default=None,max_length=120)
+    confirm_run: bool = False
+
+
+class ResourceMetadataRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str | None = Field(default=None,max_length=120)
+    description: str | None = Field(default=None,max_length=2500)
+    tags: list[str] | None = Field(default=None,max_length=20)
+    favorite: bool | None = None
+
+
+@app.get("/api/workspace/plot-builder/columns/{dataset_id}")
+def research_plot_builder_columns(dataset_id: str):
+    try:
+        return research_advanced.columns(dataset_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/plot-builder")
+def research_plot_builder(body: PlotBuildRequest):
+    try:
+        return research_advanced.build_plot(**body.model_dump())
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/diagnostics")
+def research_diagnostics(body: DiagnosticRequest):
+    try:
+        return research_advanced.diagnose(**body.model_dump())
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/factor-attribution")
+def research_factor_attribution(body: FactorAttributionRequest):
+    try:
+        return research_advanced.factor_proxy_attribution(**body.model_dump())
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/significance")
+def research_significance(body: SignificanceRequest):
+    try:
+        return research_advanced.significance(**body.model_dump())
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/grid/estimate")
+def research_grid_estimate(body: GridResearchRequest):
+    try:
+        preview=research_advanced.grid_estimate(body.model_id,body.axes,body.params)
+        return {k:v for k,v in preview.items() if k!="configurations"}
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/grid/run")
+def research_grid_run(body: GridResearchRequest):
+    if not body.confirm_run:
+        raise HTTPException(400,"Explicitly confirm the estimated experiment grid")
+    try:
+        research_advanced.grid_estimate(body.model_id,body.axes,body.params)
+        return _spawn("workspace_grid_sweep",research_advanced.grid_sweep,
+                      body.model_id,body.dataset_id,body.axes,body.params,
+                      metric_name=body.metric_name)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/guided/{goal}")
+def research_guided(goal: Literal["portfolio_allocation","volatility","tail_risk",
+                  "stochastic_models","derivatives","factor_exposures"],
+                    dataset_id: str = ""):
+    try:
+        return research_advanced.guided(goal,dataset_id or None)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/resources/metadata")
+def research_resource_metadata(kind: Literal["dataset","model_run","research_run"],item_id: str):
+    try:
+        return research_library.resource_info(kind,item_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.patch("/api/workspace/resources/metadata")
+def research_resource_edit(kind: Literal["dataset","model_run","research_run"],
+                           item_id: str,body: ResourceMetadataRequest):
+    try:
+        return research_library.set_resource_info(kind,item_id,
+                            **body.model_dump(exclude_unset=True))
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/resources/duplicate-model/{run_id}")
+def research_resource_duplicate_model(run_id: str):
+    try:
+        return research_library.duplicate_model_run(run_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/projects/{project_id}/bundle.zip")
+def research_project_export(project_id: str):
+    try:
+        path=project_bundles.bundle_path(project_id)
+        return FileResponse(path,filename="quantlab_project_"+project_id+".zip",
+                            media_type="application/zip")
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/projects/import-bundle")
+async def research_project_import_bundle(file: UploadFile = File(...)):
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(400,"Upload a QuantLab .zip project bundle")
+    try:
+        content=await file.read(project_bundles.MAX_BUNDLE+1)
+        return project_bundles.import_bundle(content)
+    except Exception as exc:
+        bad(exc)
 
 
 @app.get("/api/dhan/credentials/check")
