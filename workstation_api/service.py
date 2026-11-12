@@ -79,12 +79,23 @@ def datasets():
                     missing.append("unverified_membership_source")
             except (ValueError, OSError, TypeError):
                 missing.append("unreadable_membership_provenance")
+        aggregation = {}
+        aggregation_path = folder / "DAILY_AGGREGATION_PROVENANCE.json"
+        if aggregation_path.is_file() and not aggregation_path.is_symlink():
+            try:
+                aggregation = json.loads(aggregation_path.read_text())
+            except (ValueError, OSError, TypeError):
+                missing.append("unreadable_daily_aggregation_provenance")
         output.append({
             "id": dataset_id,
             "label": (str(historical.get("index_name")) + " · " + label) if historical else label,
             "kind": kind,
             "ready": not missing, "missing": missing,
             "has_prices": "prices.csv" in items,
+            "has_daily_prices": "daily_prices.csv" in items,
+            "source_interval_minutes": aggregation.get("source_interval_minutes"),
+            "daily_session_count": aggregation.get("total_daily_observed_dates"),
+            "has_daily_ohlcv": (folder / "daily_ohlcv").is_dir(),
             "has_fundamentals": "fundamentals.csv" in items,
             "has_sectors": "sectors.csv" in items,
             "historical_index": historical.get("index_name"),
@@ -92,8 +103,13 @@ def datasets():
             "unresolved_index_symbols": len(historical.get("missing_historical_symbols", [])),
             "files": sorted(items),
             "basis": ("PIT " + str(historical.get("index_name")) +
-                      " membership from reconstructed NSE announcements; "
-                      "Dhan OHLCV is NOT dividend-reinvested TRI, and provenance is unverified")
+                      " membership reconstructed from dated NSE announcements; "
+                      "daily/monthly observations derived from original Dhan " +
+                      (str(aggregation.get("source_interval_minutes")) + "-minute candles; "
+                       if aggregation.get("source_interval_minutes") is not None else
+                       "daily candles; ") +
+                      "corporate-action adjusted total returns and a compatible benchmark "
+                      "are NOT independently validated")
                      if historical else
                      "synthetic" if kind == "synthetic" else
                      "raw Dhan monthly closes; not independently total-return adjusted" if kind == "dhan"
