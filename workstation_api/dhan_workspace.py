@@ -280,6 +280,8 @@ def _summarize(data: dict) -> dict:
                                    "symbol": data.get("current_symbol")} if data.get("current_window") else None),
         "counts": counts, "current_symbol": data.get("current_symbol"),
         "prepared_dataset_id": data.get("prepared_dataset_id"),
+        "has_price_benchmark": bool(data.get("prepared_dataset_id") and
+            (service.DATA / "dhan" / "monthly_research" / data["id"] / "benchmark.csv").is_file()),
         "errors": counts["failed"],
         "source": ("DhanHQ OHLCV + reconstructed dated NSE membership"
                    if data.get("historical_index") else "DhanHQ current instrument master"),
