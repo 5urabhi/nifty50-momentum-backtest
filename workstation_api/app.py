@@ -461,6 +461,7 @@ class SavedComparison(BaseModel):
     normalize: Literal["none","base100","zscore"] = "none"
     alignment: Literal["intersection","union"] = "intersection"
     title: str = Field(default="Saved model comparison", max_length=120)
+    layout: Literal["overlay","split"] = "overlay"
 
 
 class SweepRequest(BaseModel):
