@@ -69,7 +69,8 @@ class QuantLabClient:
         preview=self.index_preflight(config)
         if preview["blockers"]:
             raise QuantLabRequestError("Index preflight blocked: "+"; ".join(preview["blockers"]))
-        return self._request("POST","/api/workspace/index-studio/run",config)
+        return self._request("POST","/api/workspace/index-studio/run",
+                             {"experiment":config,"confirm":True})
 
     def job(self,job_id:str)->dict:
         return self._request("GET","/api/jobs/"+_id(job_id))
