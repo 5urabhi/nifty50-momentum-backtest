@@ -95,6 +95,25 @@ function EquityChart({rows,caption='Strategy vs benchmark',height=270}:{rows:Dic
     <p className="ws-caption">Normalized to 1.00 at the start of the saved return series. Descriptive research only; not proof of investability.</p>
   </div>
 }
+function FanChart({rows}:{rows:Dict[]}){
+  if(rows.length<2)return null
+  const all=rows.flatMap(row=>[Number(row.p05),Number(row.median),Number(row.p95)])
+  const lo=Math.min(...all), hi=Math.max(...all),range=Math.max(.01,hi-lo)
+  const point=(row:Dict,i:number,key:'p05'|'median'|'p95')=>{
+    const x=38+(i/(rows.length-1))*900
+    const y=248-(Number(row[key])-lo)/range*213
+    return x.toFixed(2)+','+y.toFixed(2)
+  }
+  const median=rows.map((r,i)=>point(r,i,'median')).join(' ')
+  const upper=rows.map((r,i)=>point(r,i,'p95'))
+  const lower=rows.map((r,i)=>point(r,i,'p05')).reverse()
+  return <div className="ws-chart"><div className="ws-chartheader">Synthetic GBM simulation · 5th–95th percentile band</div><svg viewBox="0 0 975 280" role="img" aria-label="Synthetic GBM distribution with fifth, median and ninety-fifth percentile tracks">
+    {[0,.25,.5,.75,1].map(v=><g key={v}><line x1="38" x2="938" y1={248-v*213} y2={248-v*213} stroke="#253143" strokeDasharray="3 7"/><text x="3" y={252-v*213} fontSize="11" fill="#8198a9">{number(lo+v*range,0)}</text></g>)}
+    <polygon points={upper.concat(lower).join(' ')} fill="#4bd2b5" opacity=".14"/>
+    <polyline points={median} fill="none" stroke="#6ae1bd" strokeWidth="3" vectorEffect="non-scaling-stroke"/>
+    <text x="38" y="273" fontSize="11" fill="#8198a9">0 years</text><text x="865" y="273" fontSize="11" fill="#8198a9">{number(rows[rows.length-1].time,1)} years</text>
+  </svg><p className="ws-caption">Calculated from a seeded stochastic Python simulation; it does not use market data or forecast returns.</p></div>
+}
 function BarRows({rows,valueKey='weight',nameKey='name'}:{rows:Dict[];valueKey?:string;nameKey?:string}){
   if(!rows.length)return <Empty title="No exposure data">Select a completed research run to inspect portfolio exposures.</Empty>
   const top=rows.slice(0,14); const max=Math.max(...top.map(r=>Math.abs(Number(r[valueKey]||0))),.00001)
@@ -124,6 +143,10 @@ function App(){
   const [busy,setBusy]=useState(false)
   const [notice,setNotice]=useState<{text:string;error:boolean}|null>(null)
   const [model,setModel]=useState<Model|null>(null)
+  const [option,setOption]=useState({spot:100,strike:100,years_to_expiry:1,risk_free_rate:.05,volatility:.25,dividend_yield:0,option_type:'call'})
+  const [optionResult,setOptionResult]=useState<Dict|null>(null)
+  const [gbm,setGbm]=useState({initial_price:100,annual_drift:.08,annual_volatility:.2,years:1,steps:100,paths:150,seed:2026})
+  const [gbmResult,setGbmResult]=useState<{rows:Dict[];warning:string;paths:number;seed:number}|null>(null)
   const [auditResult,setAuditResult]=useState<Dict|null>(null)
   const [modelMethod,setModelMethod]=useState('shrinkage')
   const [modelCap,setModelCap]=useState(.3)
@@ -183,6 +206,8 @@ function App(){
   const begin=(id:Tab)=>{setTab(id);setMenu(false);window.scrollTo(0,0)}
   const startRun=()=>execute(()=>post<{job_id:string;status:Job['status']}>('/experiments',{...config,dataset_id:selectedDataset}),r=>{setJob({id:r.job_id,kind:'experiment',status:'queued'});notify('Python research job queued.')})
   const startModel=()=>execute(()=>post<Model>('/models/minimum-variance',{dataset_id:selectedDataset,method:modelMethod,max_weight:modelCap}),r=>{setModel(r);notify('Python optimization completed.')})
+  const priceOption=()=>execute(()=>post<Dict>('/models/black-scholes',option),r=>{setOptionResult(r);notify('Black–Scholes calculations completed in Python.')})
+  const simulateGbm=()=>execute(()=>post<{rows:Dict[];warning:string;paths:number;seed:number}>('/models/gbm',gbm),r=>{setGbmResult(r);notify('Python stochastic simulation completed.')})
   const synthetic=()=>execute(()=>post<Dataset>('/datasets/synthetic',{}),r=>{void refresh();setSelectedDataset(r.id);notify('Synthetic fixture created. This is not historical market evidence.')})
   const upload=async(file:File)=>{
     await execute(async()=>{
@@ -245,6 +270,33 @@ function App(){
         {tab==='visual'&&<>{withRun(<Card title="Cumulative strategy / benchmark path" extra={classification}>{chart}</Card>)}{panel('rank_ic','Cross-sectional factor validation')}</>}
         {(tab==='mathematics'||tab==='models')&&<>
           <div className="ws-grid halves"><Card title="Minimum variance / covariance modeling"><p className="ws-caption">Run the existing Python covariance and optimization engine on observations from the selected dataset. No client-side fake optimization.</p><div className="ws-setup-row">{dataPicker}</div><div className="ws-form-grid"><Select label="Covariance estimator" value={modelMethod} onChange={setModelMethod} options={[{value:'sample',label:'Sample covariance'},{value:'shrinkage',label:'Diagonal shrinkage'},{value:'ewma',label:'Exponentially weighted (EWMA)'}]}/><NumberInput label="Maximum allocation per asset" value={modelCap} onChange={setModelCap} step={.05} min={.05} max={1}/></div><div className="ws-actions"><button className="ws-button primary" disabled={!dataset?.has_prices||busy} onClick={startModel}><Sigma size={16}/> Solve in Python</button></div></Card><Card title="Risk model summary">{model?<><div className="ws-model-metrics"><Metric label="Annualized volatility" value={percent(model.annualized_volatility)}/><Metric label="Expected return, in sample" value={percent(model.annualized_expected_return)}/><Metric label="Monthly historical VaR 95%" value={percent(model.historical_monthly_var95)}/><Metric label="Monthly tail loss 95%" value={percent(model.historical_monthly_tail_loss95)}/></div><p className="ws-caption">{model.warning}</p></>:<Empty title="No model computed">Choose a dataset and run an optimization to inspect its real calculated portfolio solution.</Empty>}</Card></div>{model&&<div className="ws-grid halves"><Card title="Optimized asset weights"><BarRows rows={model.weights}/></Card><Card title="Observed correlation matrix"><Table rows={model.correlation} max={15}/></Card></div>}
+          {tab==='mathematics'&&<>
+            <div className="ws-grid halves">
+              <Card title="Black–Scholes / European options"><p className="ws-caption">Theoretical European option pricing and Greeks, calculated by the existing Python engine.</p>
+                <div className="ws-form-grid">
+                  <NumberInput label="Underlying spot" value={option.spot} min={.01} onChange={v=>setOption({...option,spot:v})}/>
+                  <NumberInput label="Strike price" value={option.strike} min={.01} onChange={v=>setOption({...option,strike:v})}/>
+                  <NumberInput label="Years to expiry" value={option.years_to_expiry} min={.001} step={.1} onChange={v=>setOption({...option,years_to_expiry:v})}/>
+                  <NumberInput label="Risk-free rate (decimal)" value={option.risk_free_rate} step={.01} onChange={v=>setOption({...option,risk_free_rate:v})}/>
+                  <NumberInput label="Volatility (decimal)" value={option.volatility} min={.01} step={.01} onChange={v=>setOption({...option,volatility:v})}/>
+                  <NumberInput label="Dividend yield (decimal)" value={option.dividend_yield} step={.01} onChange={v=>setOption({...option,dividend_yield:v})}/>
+                  <Select label="Option type" value={option.option_type} options={[{value:'call',label:'Call'},{value:'put',label:'Put'}]} onChange={v=>setOption({...option,option_type:v})}/>
+                </div><button className="ws-button primary" disabled={busy} onClick={priceOption}><Sigma size={14}/> Calculate option Greeks</button>
+                {optionResult&&<div className="ws-data-audit">{['price','delta','gamma','vega','theta','rho'].map(k=><div key={k}><span>{label(k)}</span><strong>{number(optionResult[k],5)}</strong></div>)}</div>}
+              </Card>
+              <Card title="Stochastic process / GBM simulation"><p className="ws-caption">Seeded Python Monte Carlo with visible percentile bands. Explicitly synthetic, not a forecast.</p>
+                <div className="ws-form-grid">
+                  <NumberInput label="Initial price" value={gbm.initial_price} min={.01} onChange={v=>setGbm({...gbm,initial_price:v})}/>
+                  <NumberInput label="Annual drift" value={gbm.annual_drift} step={.01} onChange={v=>setGbm({...gbm,annual_drift:v})}/>
+                  <NumberInput label="Annual volatility" value={gbm.annual_volatility} min={0} step={.01} onChange={v=>setGbm({...gbm,annual_volatility:v})}/>
+                  <NumberInput label="Horizon in years" value={gbm.years} step={.25} min={.01} onChange={v=>setGbm({...gbm,years:v})}/>
+                  <NumberInput label="Time steps" value={gbm.steps} min={10} max={260} onChange={v=>setGbm({...gbm,steps:v})}/>
+                  <NumberInput label="Monte Carlo paths" value={gbm.paths} min={10} max={500} onChange={v=>setGbm({...gbm,paths:v})}/>
+                </div><button className="ws-button primary" disabled={busy} onClick={simulateGbm}><Activity size={14}/> Simulate in Python</button>
+                {gbmResult&&<FanChart rows={gbmResult.rows}/>}
+              </Card>
+            </div>
+          </>}
           <Card title="Existing Python model library"><div className="ws-model-directory">{['Covariance estimation','Minimum variance','Historical VaR / tail loss','Risk parity','Factor regression','Black–Scholes and Greeks','GBM / OU / GARCH','PCA and factor exposures','Portfolio theory and constrained optimization'].map(n=><div key={n}><BookOpen size={17}/><span>{n}</span><Tag tone={['Covariance estimation','Minimum variance','Historical VaR / tail loss'].includes(n)?'good':'neutral'}>{['Covariance estimation','Minimum variance','Historical VaR / tail loss'].includes(n)?'CONNECTED':'PYTHON LIBRARY'}</Tag></div>)}</div><p className="ws-caption">Other mathematical engines remain in Python but do not yet have individual React controls in this migration.</p></Card>
         </>}
         {tab==='reports'&&<>{withRun(<Card title="Generate reproducible research report"><p className="ws-caption">Generate an offline HTML report and PDF draft from selected saved Python run artifacts. Synthetic demonstrations are explicitly labeled.</p><div className="ws-actions"><button className="ws-button primary" disabled={!selectedRun||busy} onClick={downloadReport}><FileText size={15}/> Build HTML + PDF</button></div><div className="ws-artifact-list">{(detail?.artifacts||[]).map(name=><a key={name} href={'/api/runs/'+encodeURIComponent(selectedRun)+'/files/'+encodeURIComponent(name)} download><FileArchive size={16}/><span>{name}</span><ArrowDownToLine size={14}/></a>)}</div></Card>)}</>}
