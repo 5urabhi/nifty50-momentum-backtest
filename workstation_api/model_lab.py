@@ -8,6 +8,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 import hashlib
+import subprocess
+import platform
+import importlib.metadata
 import json
 import os
 import re
@@ -556,6 +559,33 @@ def _run_root() -> Path:
     return service.RESULTS.parent / "model_laboratory"
 
 
+def _engine_version() -> dict:
+    """Record code and numerical environment without exposing credentials."""
+    version = None
+    try:
+        completed = subprocess.run(["git", "rev-parse", "HEAD"], cwd=service.ROOT,
+                                   capture_output=True, text=True, check=False,timeout=2)
+        if completed.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", completed.stdout.strip()):
+            version = completed.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    try:
+        scipy_version=importlib.metadata.version("scipy")
+    except importlib.metadata.PackageNotFoundError:
+        scipy_version=None
+    return {"code_commit": version,"python":platform.python_version(),
+            "numpy":np.__version__,"pandas":pd.__version__,
+            "scipy":scipy_version,"model_catalog":"quantlab-model-laboratory-v1"}
+
+
+def _sha256_file(file: Path) -> str:
+    h=hashlib.sha256()
+    with file.open("rb") as src:
+        for block in iter(lambda:src.read(1024*1024), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
 def save_result(result: dict) -> dict:
     """Append an atomic, source-checksummed copy of a successfully computed model."""
     if result.get("model_id") not in CATALOG:
@@ -567,7 +597,8 @@ def save_result(result: dict) -> dict:
         selected=folder/source["source_file"]
         if not selected.is_file() or selected.is_symlink():
             raise ValueError("Observed source disappeared before result archival")
-        snapshot["source_sha256"]=hashlib.sha256(selected.read_bytes()).hexdigest()
+        snapshot["source_sha256"]=_sha256_file(selected)
+    snapshot["execution_environment"]=_engine_version()
     run_id=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")+"_"+uuid.uuid4().hex[:10]
     snapshot["run_id"]=run_id
     encoded=json.dumps(snapshot,ensure_ascii=False,allow_nan=False,indent=2).encode("utf-8")
