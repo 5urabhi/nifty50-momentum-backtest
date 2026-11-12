@@ -25,7 +25,7 @@ MODES = {"nifty50_pit": "Nifty 50", "banknifty_pit": "Nifty Bank"}
 SOURCE_REPOSITORY = "aditya-jha/nse-historical-membership"
 SOURCE_LICENSE = "CC0-1.0 (data), independent reconstruction; NSE trademarks not licensed"
 SOURCE_PREFIX = "https://raw.githubusercontent.com/" + SOURCE_REPOSITORY + "/"
-SOURCE_API = "https://api.github.com/repos/" + SOURCE_REPOSITORY + "/commits/main"
+SOURCE_API = "https://api.github.com/repos/" + SOURCE_REPOSITORY + "/git/ref/heads/main"
 MEMBERS_FILE = "index_history/data/index_membership_history.csv"
 COVERAGE_FILE = "COVERAGE.md"
 OFFICIAL_BANK_NOTICE = "https://www.niftyindices.com/Press_Release/ind_prs01122025.pdf"
@@ -173,7 +173,11 @@ def sync() -> dict:
     No application secrets are sent to GitHub. Raw/source and normalized/official
     patch checksums remain in ignored local data, never assumed authoritative.
     """
-    sha = json.loads(_fetch(SOURCE_API, 200_000).decode("utf-8")).get("sha", "")
+    # The lightweight Git ref avoids GitHub's large /commits/main payload.
+    # Pin subsequent CSV and coverage requests to this immutable commit SHA.
+    ref = json.loads(_fetch(SOURCE_API, 32_000).decode("utf-8"))
+    git_object = ref.get("object", {}) if isinstance(ref, dict) else {}
+    sha = git_object.get("sha", "") if git_object.get("type") == "commit" else ""
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise ValueError("Unable to pin historical membership source commit")
     csv_url = SOURCE_PREFIX + sha + "/" + MEMBERS_FILE
