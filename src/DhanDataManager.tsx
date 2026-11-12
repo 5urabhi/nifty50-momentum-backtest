@@ -24,6 +24,7 @@ type BatchSummary = {
   errors:number;warning:string
   historical_index_name?:string|null;historical_union_count?:number
   historical_unresolved?:Array<{symbol:string;reason:string}>
+  index_spot?:{status:string;rows?:number;file?:string;error?:string;warning?:string}
 }
 type BatchDetails = BatchSummary & {
   items:Array<CatalogItem & {status:string;rows:number;rows_added:number;error?:string|null}>
@@ -92,6 +93,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const [interval,setInterval]=useState('daily')
   const [acknowledged,setAcknowledged]=useState(false)
   const [acknowledgedGaps,setAcknowledgedGaps]=useState(false)
+  const [includeIndexSpot,setIncludeIndexSpot]=useState(true)
   const [pitPlan,setPitPlan]=useState<MembershipPlan|null>(null)
   const [pitSyncBusy,setPitSyncBusy]=useState(false)
   const [batches,setBatches]=useState<BatchSummary[]>([])
@@ -238,6 +240,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
     from_date:fromDate,to_date:toDate,
     interval:daily?null:Number(interval),acknowledged_bulk:acknowledged,
     acknowledged_gaps:pitMode&&acknowledgedGaps,
+    include_index_spot:pitMode&&includeIndexSpot,
   }),result=>{
     const id=result.batch?.id
     if(id){setBatchId(id);setStatusFilter('all');setDetailPage(1)}
@@ -364,6 +367,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
           {invalidDates&&<p className="dh-error-note">The end date must be later than the start date.</p>}
           {downloadCount>100&&<label className="dh-confirm"><input type="checkbox" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)}/>
             <span>I understand this will request historical data for {fmt(downloadCount)} instruments. This may be a long-running operation and use my Dhan API allowance.</span></label>}
+          {pitMode&&<label className="dh-confirm"><input type="checkbox" checked={includeIndexSpot} onChange={e=>setIncludeIndexSpot(e.target.checked)}/>
+            <span>Also request the selected NIFTY/BANK NIFTY index-level spot OHLCV when Dhan lists an unambiguous IDX_I instrument. This is a price-index series, not TRI benchmark.</span></label>}
           {pitMode&&pitPlan?.unresolved_count? <label className="dh-confirm"><input type="checkbox" checked={acknowledgedGaps} onChange={e=>setAcknowledgedGaps(e.target.checked)}/>
             <span>Download the {fmt(pitPlan.resolved_count)} mapped stocks even though {fmt(pitPlan.unresolved_count)} historical constituents cannot be resolved in the current Dhan catalog. Mark the resulting historical-price dataset INCOMPLETE.</span></label>:null}
           <button className="dh-primary" type="button" disabled={startDisabled} onClick={startBatch}>
@@ -402,7 +407,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
           {details.interval===null&&countsCompleted>0&&!details.prepared_dataset_id&&
             <button className="dh-small-btn primary" disabled={working||Boolean(task)||currentActive} onClick={prepare}><FileSpreadsheet size={16}/> Prepare monthly price matrix</button>}
           {details.prepared_dataset_id&&<Pill tone="good">Prepared dataset: {details.prepared_dataset_id}</Pill>}
-          {details.historical_index_name&&<div className="dh-pit-in-batch"><strong>{details.historical_index_name} · dated membership</strong><span>Universe: {details.historical_union_count} unique symbols · {details.historical_unresolved?.length||0} have no Dhan ID. Preparing daily candles writes membership.csv from saved effective-date intervals; a compatible benchmark remains required.</span></div>}
+          {details.historical_index_name&&<div className="dh-pit-in-batch"><strong>{details.historical_index_name} · dated membership</strong><span>Universe: {details.historical_union_count} unique symbols · {details.historical_unresolved?.length||0} have no Dhan ID. Preparing daily candles writes membership.csv from saved effective-date intervals; a compatible benchmark remains required.</span>
+          {details.index_spot&&<span>Index spot OHLCV: {details.index_spot.status} · {details.index_spot.rows||0} rows{details.index_spot.file?" · saved to data/"+details.index_spot.file:""}{details.index_spot.error?" · "+details.index_spot.error:""}. Spot prices are not dividend-adjusted TRI.</span>}</div>}
         </div>
         <div className="dh-detail-toolbar"><span>Per-stock results</span>
           <select aria-label="Filter download result status" value={statusFilter} onChange={e=>{setStatusFilter(e.target.value);setDetailPage(1)}}>
