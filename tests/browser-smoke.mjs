@@ -138,6 +138,38 @@ try {
     assert.ok((await page.locator('.rw-stats').first().innerText()).includes('jarque'))
     await screenshot('05-statistical-diagnostics')
   })
+  await step('evidence gate remains unverified and trained ML completes its real holdout',async()=>{
+    await researchTab('Evidence & ML').click()
+    await page.getByRole('heading',{name:'Research-data evidence register'}).waitFor()
+    await page.getByText('Historical investability certified',{exact:true}).waitFor()
+    const evidence=await apiJson('/api/workspace/integrity/upload_ci_browser_smoke')
+    assert.equal(evidence.historical_investability_certified,false)
+    assert.equal(evidence.prospective_trading_certified,false)
+    await page.getByRole('button',{name:'Live Dhan Check'}).click()
+    await page.getByText(/Choose a prepared DAILY Dhan dataset/).waitFor()
+    // No real credential, no vendor API calls, and no data mutation.
+    await page.getByRole('button',{name:'ML / RL Holdout'}).click()
+    await page.getByText('Preferred (+20%)').waitFor()
+    await page.getByText('Minimum training+holdout requirement satisfied').waitFor()
+    page.once('dialog',dialog=>dialog.accept())
+    const pendingResponse=page.waitForResponse(r=>
+      new URL(r.url()).pathname==='/api/workspace/learning/run'&&
+      r.request().method()==='POST')
+    await page.getByRole('button',{name:/Confirm & run chronological research/}).click()
+    const started=await pendingResponse
+    assert.equal(started.status(),200,await started.text())
+    const submitted=await started.json()
+    assert.ok(submitted.job_id)
+    const finished=await waitJobComplete(submitted.job_id)
+    assert.equal(finished.result.method,'ridge')
+    assert.ok(finished.result.last_training_label_date <
+      finished.result.first_test_decision_date,'No test future labels in training')
+    const csv=await page.request.get(base+'/api/workspace/studies/'+finished.result.study_id+
+      '/returns.csv')
+    assert.equal(csv.status(),200,'Full chronological holdout CSV downloaded')
+    assert.ok((await csv.text()).split('\n').length>40)
+    await screenshot('06-learning-evidence')
+  })
   await step('guided research and two-parameter grid preflight',async()=>{
     await researchTab('Guided & Grids').click()
     await page.getByRole('heading',{name:/Guided Research/}).waitFor()
