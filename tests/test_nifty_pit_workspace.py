@@ -183,6 +183,24 @@ class DatedIndexMembershipTests(unittest.TestCase):
         self.assertNotIn(self.stocks[0], on_event["asof_members"])
         self.assertEqual(on_event["end_count"], 50)
 
+    def test_detailed_master_display_names_cannot_masquerade_as_trading_symbols(self):
+        self._sync()
+        detailed = pd.DataFrame([
+            {"EXCH_ID": "NSE", "SEGMENT": "E", "SECURITY_ID": "19585",
+             "INSTRUMENT": "EQUITY", "SYMBOL_NAME": "BSE",
+             "DISPLAY_NAME": "BSE LTD", "SERIES": "EQ"}
+        ])
+        detailed.to_csv(self.master, index=False)
+        dw._catalog_cached.cache_clear()
+        rows = dw.catalog()
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0]["trading_symbol_verified"])
+        plan = pit.query("nifty50_pit", "2025-01-01", "2025-06-01", rows)
+        self.assertEqual(plan["resolved_count"], 0)
+        self.assertTrue(all(item["reason"] == "refresh_compact_dhan_scrip_master"
+                            for item in plan["unresolved"]))
+        self.assertTrue(any("compact CSV" in warning for warning in plan["warnings"]))
+
     def test_never_extrapolate_after_source_cover_date_or_before_start(self):
         self._sync()
         with self.assertRaisesRegex(ValueError, "documents coverage only through"):
