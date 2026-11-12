@@ -81,6 +81,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const [connection,setConnection]=useState<DhanStatus|null>(null)
   const [credentialCheck,setCredentialCheck]=useState<DhanCredentialCheck|null>(null)
   const [credentialChecking,setCredentialChecking]=useState(false)
+  const [credentialError,setCredentialError]=useState<string|null>(null)
   const [mode,setMode]=useState<SelectionMode>('selected')
   const [exchange,setExchange]=useState<'NSE'|'BSE'>('NSE')
   const [query,setQuery]=useState('')
@@ -119,12 +120,17 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   },[])
   const verifyCredentials=async()=>{
     setCredentialChecking(true)
+    setCredentialError(null)
+    setCredentialCheck(null)
     try{
       const r=await api<DhanCredentialCheck>('/dhan/credentials/check')
       setCredentialCheck(r)
       tell(r.message,!r.ok)
-    }catch(e){tell(e instanceof Error?e.message:String(e),true)}
-    finally{setCredentialChecking(false)}
+    }catch(e){
+      const message=e instanceof Error?e.message:String(e)
+      setCredentialError(message)
+      tell(message,true)
+    }finally{setCredentialChecking(false)}
   }
   const loadBatches=useCallback(async()=>{
     const data=await api<{batches:BatchSummary[]}>('/dhan/batches')
@@ -306,6 +312,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         {credentialChecking?<LoaderCircle size={15} className="dh-spin"/>:<ShieldCheck size={15}/>}
         Verify Dhan API access
       </button>
+      {credentialError&&<small className="dh-credential-brief" role="alert">Verification failed: {credentialError}</small>}
+      {credentialCheck&&<small className="dh-credential-brief" role="status">{credentialCheck.code}: {credentialCheck.message}</small>}
       <button className="dh-small-btn" type="button" disabled={working||Boolean(task)} onClick={refreshMaster}>
         {task?.kind==='master'?<LoaderCircle size={15} className="dh-spin"/>:<RefreshCw size={15}/>}
         Refresh instrument catalog
@@ -416,7 +424,18 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         {details.status==='paused' && (details.items||[]).some(item=>item.error?.includes('HTTP 401')||item.error?.includes('HTTP 403')) &&
           <div className="dh-pit-alert"><CircleAlert size={18}/><div><strong>Dhan rejected a historical-data request (HTTP 401/403).</strong>
             <p>The presence of a token in .env does not prove that it is unexpired or permitted to fetch historical market data. Your batch is paused, not deleted. Verify the token and Data API subscription before resuming.</p>
-            <button className="dh-small-btn" type="button" disabled={credentialChecking} onClick={()=>void verifyCredentials()}>Verify token and Data API subscription</button>
+            <button className="dh-small-btn" type="button" disabled={credentialChecking} onClick={()=>void verifyCredentials()}>
+              {credentialChecking?<LoaderCircle size={14} className="dh-spin"/>:<ShieldCheck size={14}/>}
+              {credentialChecking?'Checking Dhan profile…':'Verify token and Data API subscription'}
+            </button>
+            {credentialCheck&&<div className="dh-credential-result" role="status">
+              <strong>{credentialCheck.ok?'Dhan profile verified':'Dhan profile check failed'} · {credentialCheck.code}</strong>
+              <p>{credentialCheck.message}</p>
+              <p>Token valid: {credentialCheck.token_valid===null?'unconfirmed':credentialCheck.token_valid?'yes':'no'} · Data API active: {credentialCheck.data_plan_active===null?'unconfirmed':credentialCheck.data_plan_active?'yes':'no'}</p>
+              {credentialCheck.token_validity&&<p>Token expiry (reported by Dhan): {credentialCheck.token_validity}</p>}
+              {credentialCheck.ok&&<p>Profile is valid; if candles still return HTTP 401, review the terminal log for the exact endpoint and contact Dhan support with the time and HTTP status. Do not share your token.</p>}
+            </div>}
+            {credentialError&&<div className="dh-credential-result" role="alert"><strong>Verification request failed</strong><p>{credentialError}</p><p>Check the terminal running bash run.sh for details.</p></div>}
           </div></div>}
         <div className="dh-progress-label"><span>{progress}% processed {details.current_symbol?'· Now: '+details.current_symbol:''}{details.current_window?' · Window '+details.current_window:''}</span>
           <span>{fmt(details.processed)} / {fmt(details.total)}</span></div>
