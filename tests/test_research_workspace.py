@@ -165,6 +165,72 @@ class ResearchWorkspaceTests(unittest.TestCase):
         self.assertIn("Geometric Brownian Motion",html)
         self.assertTrue(research_library.report_path(report["id"],"markdown").exists())
 
+    def test_split_panel_compare_accepts_different_saved_evidence(self):
+        gbm = self._saved()
+        bsm = model_lab.save_result(model_lab.run_model("black_scholes"))
+        chosen = [{"kind":"model_run","run_id":gbm["run_id"]},
+                  {"kind":"model_run","run_id":bsm["run_id"]}]
+        split = research_insights.compare(chosen, layout="split")
+        self.assertEqual(split["layout"],"split")
+        self.assertEqual(len(split["plots"]), 2)
+        self.assertNotIn("plot", split)
+        invalid = self.client.post("/api/workspace/compare",json={"selections":chosen})
+        self.assertEqual(invalid.status_code,400,invalid.text)
+        valid = self.client.post("/api/workspace/compare",json={
+            "selections": chosen, "layout": "split"})
+        self.assertEqual(valid.status_code,200,valid.text)
+
+    def test_report_pdf_export_and_edit_updates_all_formats(self):
+        notebook = research_library.create("notebook","Portfolio report",{
+            "cells":[{"type":"markdown","content":"Risk attribution is hypothetical."}]})
+        report = research_library.render_notebook_report(notebook["id"])
+        pdf = research_library.report_path(report["id"], "pdf")
+        self.assertTrue(pdf.read_bytes().startswith(b"%PDF"))
+        source = self.client.get("/api/workspace/reports/"+report["id"]+"/source")
+        self.assertEqual(source.status_code,200,source.text)
+        changed = self.client.put("/api/workspace/reports/"+report["id"]+"/source",
+                                  json={"content":"# Updated research\n\nNew findings"})
+        self.assertEqual(changed.status_code,200,changed.text)
+        html = research_library.report_path(report["id"],"html").read_text()
+        md = research_library.report_path(report["id"],"markdown").read_text()
+        self.assertIn("New findings",html)
+        self.assertIn("New findings",md)
+        self.assertTrue(research_library.report_path(report["id"],"pdf").read_bytes().startswith(b"%PDF"))
+        response = self.client.get("/api/workspace/reports/"+report["id"]+"/pdf")
+        self.assertEqual(response.status_code,200)
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_job_history_saved_across_sessions(self):
+        snapshot = {"id":"abc12345","kind":"workspace_validation","status":"complete",
+                    "created_utc":"2026-11-01T00:00:00+00:00",
+                    "result":{"status":"ready","study_id":"study_123"}}
+        research_library.store_job(snapshot)
+        historic = research_library.list_job_history()
+        self.assertTrue(historic)
+        self.assertEqual(historic[0]["id"],"abc12345")
+        self.assertEqual(historic[0]["result"]["study_id"],"study_123")
+        pending = {**snapshot,"id":"abc12346","status":"running"}
+        research_library.store_job(pending)
+        rows = research_library.list_job_history()
+        self.assertEqual(next(x for x in rows if x["id"]=="abc12346")["status"],"interrupted")
+
+    def test_archived_dataset_remains_resolvable_and_protects_source(self):
+        self.assertTrue(any(x["id"]==self.dataset_id for x in service.datasets()))
+        research_library.resource_action("dataset",self.dataset_id,"archive")
+        self.assertFalse(any(x["id"]==self.dataset_id for x in service.datasets()))
+        self.assertEqual(service.dataset_path(self.dataset_id)[0],self.source_folder)
+        listed = research_library.resource_listing(include_trashed=True)
+        self.assertTrue(any(x["id"]==self.dataset_id and x["archived"] for x in listed))
+        research_library.resource_action("dataset",self.dataset_id,"unarchive")
+        self.assertTrue(any(x["id"]==self.dataset_id for x in service.datasets()))
+
+    def test_referenced_dataset_prevents_unsafe_delete(self):
+        research_library.create("note","Source is needed",
+                                {"dataset_id":self.dataset_id})
+        with self.assertRaisesRegex(ValueError,"referenced"):
+            research_library.resource_action("dataset",self.dataset_id,"trash",confirm=True)
+        self.assertTrue(self.source_folder.exists())
+
     def test_workspace_api_create_edit_search_and_archive(self):
         created = self.client.post("/api/workspace/records",json={
             "kind":"project","title":"Index Research","payload":{"goal":"factor study"},
