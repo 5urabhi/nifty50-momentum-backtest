@@ -140,7 +140,7 @@ class BulkDhanWorkstationTests(unittest.TestCase):
         created = dw.create_batch("all_nse", [], [], "2025-01-01", "2025-02-01", None, False)
         attempts = {"TCS": 0}
         def sometimes_fail(inst, *args, **kwargs):
-            if inst.label == "TCS":
+            if inst.security_id == "11536":
                 attempts["TCS"] += 1
                 if attempts["TCS"] == 1:
                     raise RuntimeError("Dhan HTTP 503 (response hidden)")
