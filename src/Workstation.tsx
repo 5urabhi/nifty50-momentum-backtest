@@ -2,10 +2,9 @@ import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
   Activity, ArrowDownToLine, ArrowRight, BarChart3, Beaker, BookOpen, Check,
   CheckCircle2, ChevronRight, CircleAlert, Clock3, Database, FileArchive,
-  FileText, FlaskConical, Gauge, Layers3, LineChart, LoaderCircle,
-  LockKeyhole, Menu, Play, RefreshCw, Settings2, ShieldAlert,
-  ShieldCheck, Sigma, SlidersHorizontal, TrendingUp, Upload,
-  Wallet, Workflow, X
+  FileText, FlaskConical, Gauge, LoaderCircle,
+  LockKeyhole, Menu, Play, RefreshCw, Settings2,
+  ShieldCheck, Sigma, Upload, X
 } from 'lucide-react'
 import './workstation.css'
 import DhanDataManager from './DhanDataManager'
