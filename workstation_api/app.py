@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_workspace, pit_index, service
+from . import dhan_auth, dhan_workspace, pit_index, service
 
 load_dotenv(service.ROOT / ".env", override=False)
 
@@ -273,6 +273,15 @@ def portfolio_model(body: ModelRequest):
         return service.portfolio_model(body.dataset_id, body.method, body.max_weight)
     except Exception as exc:
         bad(exc)
+
+
+@app.get("/api/dhan/credentials/check")
+def dhan_credentials_check():
+    """Explicit user-requested, read-only live Dhan profile check.
+
+    Does not expose account information or access-token values.
+    """
+    return dhan_auth.check_profile()
 
 
 @app.get("/api/dhan/status")
