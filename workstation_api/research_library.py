@@ -199,7 +199,7 @@ def action(item_id: str, action_name: str, *, confirm: bool = False) -> dict:
         if not confirm or not previous["trashed"]:
             raise ValueError("Permanent deletion requires a trashed item and confirmation")
         if previous["kind"] == "report":
-            for ext in (".html", ".md"):
+            for ext in (".html", ".md", ".pdf"):
                 (report_root() / (item_id + ext)).unlink(missing_ok=True)
         with LOCK, _connect() as conn:
             conn.execute("DELETE FROM records WHERE id=? AND trashed=1", (item_id,))
@@ -470,17 +470,94 @@ def render_notebook_report(notebook_id: str, *, format: str = "html") -> dict:
                 html.escape(body) + "</pre>" for kind, body in sections) + "</body></html>"
     (report_root() / (report["id"] + ".md")).write_text(md, encoding="utf-8")
     (report_root() / (report["id"] + ".html")).write_text(document, encoding="utf-8")
-    return {**report, "formats": ["markdown", "html"]}
+    _write_pdf(report["id"], notebook["title"], md)
+    return {**report, "formats": ["markdown", "html", "pdf"]}
 
 
 def report_path(report_id: str, format: str) -> Path:
     report = get(report_id)
     if report["kind"] != "report" or report["trashed"]:
         raise FileNotFoundError("Report unavailable")
-    ext = {"markdown": ".md", "html": ".html"}.get(format)
+    ext = {"markdown": ".md", "html": ".html", "pdf": ".pdf"}.get(format)
     if ext is None:
-        raise ValueError("Choose HTML or Markdown")
+        raise ValueError("Choose HTML, Markdown or PDF")
     path = report_root() / (report_id + ext)
     if not path.is_file() or path.is_symlink():
         raise FileNotFoundError("Report artifact unavailable")
     return path
+
+
+def _write_pdf(report_id: str, title: str, body: str) -> None:
+    """Create a paginated, selectable PDF with conservative report styling."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    target = report_root() / (report_id + ".pdf")
+    temp = target.with_name(target.name + "." + uuid.uuid4().hex[:8] + ".tmp")
+    title_style = ParagraphStyle("title", fontName="Helvetica-Bold", fontSize=17,
+                                 leading=23, textColor=colors.HexColor("#173d48"),
+                                 spaceAfter=20)
+    heading_style = ParagraphStyle("h", fontName="Helvetica-Bold", fontSize=12,
+                                   leading=17, textColor=colors.HexColor("#157468"),
+                                   spaceBefore=12, spaceAfter=8)
+    body_style = ParagraphStyle("body", fontName="Helvetica", fontSize=9.5,
+                                leading=14, textColor=colors.HexColor("#2d4050"),
+                                spaceAfter=5, wordWrap="CJK")
+    story = [Paragraph(html.escape(title), title_style), Spacer(1, 8)]
+    # A line is wrapped in chunks before ReportLab receives it, preventing
+    # overflowing long JSON identifiers and equations.
+    for text_line in body.splitlines():
+        if text_line.startswith("# "):
+            continue
+        if text_line.startswith("## "):
+            story.append(Paragraph(html.escape(text_line[3:]), heading_style))
+        elif text_line.strip():
+            for offset in range(0, len(text_line), 130):
+                story.append(Paragraph(html.escape(text_line[offset:offset+130]),
+                                       body_style))
+        else:
+            story.append(Spacer(1, 6))
+    def footer(canvas, doc):
+        canvas.saveState()
+        canvas.setFont("Helvetica", 8)
+        canvas.setFillColor(colors.HexColor("#607884"))
+        canvas.drawString(48, 33, "QuantLab | local research evidence - not investment advice")
+        canvas.drawRightString(letter[0]-48, 33, str(doc.page))
+        canvas.restoreState()
+    try:
+        report_root().mkdir(parents=True, exist_ok=True)
+        doc = SimpleDocTemplate(str(temp), pagesize=letter,
+                leftMargin=48,rightMargin=48,topMargin=52,bottomMargin=54,
+                title=title, author="QuantLab Research")
+        doc.build(story, onFirstPage=footer, onLaterPages=footer)
+        temp.replace(target)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def report_source(report_id: str) -> dict:
+    path = report_path(report_id, "markdown")
+    return {"id": report_id, "content": path.read_text(encoding="utf-8")}
+
+
+def edit_report(report_id: str, content: str) -> dict:
+    """Update a user-edited report's frozen text, HTML and PDF together."""
+    if not isinstance(content, str) or not 1 <= len(content.strip()) <= 90_000:
+        raise ValueError("Report body must contain 1-90000 characters")
+    record = get(report_id)
+    if record["kind"] != "report" or record["trashed"]:
+        raise ValueError("Only active generated reports may be edited")
+    report_root().mkdir(parents=True, exist_ok=True)
+    path = report_root() / (report_id + ".md")
+    path.write_text(content, encoding="utf-8")
+    safe = html.escape(content)
+    (report_root() / (report_id + ".html")).write_text(
+        "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
+        "<title>" + html.escape(record["title"]) + "</title></head>"
+        "<body style='font:16px/1.6 system-ui;max-width:920px;margin:4rem auto;padding:2rem'>"
+        "<h1>" + html.escape(record["title"]) + "</h1><pre style='white-space:pre-wrap'>"
+        + safe + "</pre></body></html>", encoding="utf-8")
+    _write_pdf(report_id, record["title"], content)
+    metadata = {**record["payload"], "edited_utc": now(), "manually_edited": True}
+    return update(report_id, payload=metadata)
