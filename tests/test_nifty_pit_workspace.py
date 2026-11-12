@@ -176,6 +176,30 @@ class DatedIndexMembershipTests(unittest.TestCase):
         self.assertEqual(partial["historical_union_count"], 50)
         self.assertEqual(len(partial["historical_unresolved"]), 1)
 
+    def test_optional_index_spot_uses_verified_idx_i_mapping(self):
+        self._sync()
+        master = pd.read_csv(self.master, dtype=str)
+        master = pd.concat([master, pd.DataFrame([{
+            "SEM_EXM_EXCH_ID": "IDX", "SEM_SEGMENT": "I",
+            "SEM_SMST_SECURITY_ID": "13", "SEM_INSTRUMENT_NAME": "INDEX",
+            "SEM_TRADING_SYMBOL": "NIFTY", "SEM_CUSTOM_SYMBOL": "NIFTY 50",
+            "SEM_SERIES": "",
+        }])], ignore_index=True)
+        master.to_csv(self.master, index=False)
+        dw._catalog_cached.cache_clear()
+        batch = dw.create_batch("nifty50_pit", [], [], "2025-01-01",
+                                "2025-03-01", None, False, include_index_spot=True)
+        with patch.object(dw, "download_candles", side_effect=self._candles), patch(
+                "workstation_api.index_spot.download_candles",
+                side_effect=self._candles):
+            done = dw.run_batch(batch["id"])
+        spot = done["index_spot"]
+        self.assertEqual(spot["status"], "complete")
+        self.assertEqual(spot["security_id"], "13")
+        self.assertGreater(spot["rows"], 1)
+        self.assertTrue((service.DATA / spot["file"]).is_file())
+        self.assertIn("not a dividend-reinvested", spot["warning"])
+
     def test_membership_matrix_uses_pinned_intervals_not_later_catalog(self):
         self._sync()
         batch = dw.create_batch("nifty50_pit", [], [],
