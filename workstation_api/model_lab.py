@@ -99,6 +99,9 @@ def _historical_input(dataset_id: str, required: int, assets: int) -> tuple[pd.D
                     key=lambda name:(-int(returns[name].notna().sum()),name))
     if len(eligible)<2:
         raise ValueError(f"Not enough securities with {required} observed common daily/monthly returns")
+    if len(eligible) < assets:
+        raise ValueError(f"Need {assets} securities with at least {required} returns; "
+                         f"found {len(eligible)}. Choose fewer assets or extend the market history.")
     names=eligible[:assets]
     aligned=returns[names].dropna()
     if len(aligned)<required:
@@ -174,7 +177,10 @@ def run_model(model_id: str, dataset_id: str | None = None,
     warnings=response["limitations"]
     seed=int(params.get("seed",2026))
     if spec["mode"]=="historical":
-        data,meta=_historical_input(dataset_id or "", spec["min_observations"],int(params.get("assets",8)))
+        minimum = spec["min_observations"]
+        if model_id == "rolling_vol":
+            minimum = max(minimum, int(params["train_window"]) + 30)
+        data,meta=_historical_input(dataset_id or "", minimum,int(params.get("assets",8)))
         response["source"]=meta
         obs=len(data)
         annual=meta["periods_per_year"]
