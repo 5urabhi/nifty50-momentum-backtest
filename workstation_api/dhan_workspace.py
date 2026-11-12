@@ -21,7 +21,7 @@ import uuid
 import numpy as np
 import pandas as pd
 
-from index_research.dhan_data import Instrument, download_candles
+from index_research.dhan_data import Instrument, date_windows, download_candles
 from . import index_spot, pit_index, service
 
 KEY = re.compile(r"^(NSE_EQ|BSE_EQ):([0-9]{1,12})$")
@@ -30,7 +30,6 @@ SAFE_SYMBOL = re.compile(r"^[A-Za-z0-9&_.-]{1,80}$")
 ACTIVE_BATCHES: set[str] = set()
 ACTIVE_LOCK = threading.Lock()
 MAX_INSTRUMENTS = 6000
-MAX_BATCH_INTRADAY = 100
 
 
 def _now() -> str:
@@ -266,10 +265,11 @@ def create_batch(selection: str, ids: list[str], tickers: list[str],
     if len(instruments) > 100 and not acknowledged_bulk:
         raise ValueError("Acknowledge the scope of downloads for more than 100 instruments")
     if interval is not None:
-        if len(instruments) > MAX_BATCH_INTRADAY:
-            raise ValueError("Bulk intraday is limited to 100 instruments. Use daily candles for exchange-wide requests.")
-        if (stop - start).days > 366 * 5:
-            raise ValueError("Dhan minute candle history cannot exceed the recent five years")
+        # Dhan permits 90 calendar days per intraday API request, not a
+        # maximum of 100 instruments per batch. Larger user-acknowledged
+        # batches are processed sequentially and saved per date window.
+        if start < date.today() - timedelta(days=365 * 5 + 2):
+            raise ValueError("Dhan provides intraday candles for the latest five years; select a newer start date")
     batch_id = "batch_" + uuid.uuid4().hex[:16]
     folder = _batches() / batch_id
     folder.mkdir(parents=True, exist_ok=False)
