@@ -133,13 +133,28 @@ def _checked_history(body: bytes) -> tuple[pd.DataFrame, list[dict]]:
     for name in MODES.values():
         if len(checked.loc[checked["index_name"] == name]) < 15:
             raise ValueError("Index source is unexpectedly sparse: " + name)
-    # NIFTY 50 should have fifty constituents in published reconstruction
-    # at the first, a historical, and the last sample date.
-    for d in ("2014-01-01", "2020-01-01", "2025-01-01"):
-        if len(_asof(checked, "Nifty 50", d)) != 50:
-            raise ValueError("Nifty 50 index history failed snapshot size check at " + d)
-    # Official bank additions increase its cardinality to fourteen from the
-    # effective date; this is a regression gate for the sourced correction.
+    # Validate the ENTIRE event timeline rather than a handful of snapshots.
+    # Membership is piecewise constant between effective-date boundaries, so
+    # testing all boundaries catches mid-period missing transitions.
+    for name in MODES.values():
+        sub = checked.loc[checked["index_name"] == name]
+        boundaries = sorted(set(sub["valid_from"]) | set(sub.loc[sub["valid_to"] != "", "valid_to"]))
+        for day in boundaries:
+            actual = len(_asof(checked, name, day))
+            if name == "Nifty 50" and actual != 50:
+                raise ValueError(
+                    f"Nifty 50 index membership cardinality mismatch on {day}: {actual}, expected 50")
+            # Nifty Bank was a 12-security index after the March 2020 change,
+            # becoming 14 on the source-dated 2025-12-31 effective date.
+            # Older snapshots are tagged best-effort and never treated as
+            # externally audited by this structural gate.
+            if name == "Nifty Bank":
+                expected = (14 if day >= CORRECTION_EFFECTIVE else
+                            12 if day >= "2020-03-27" else None)
+                if expected is not None and actual != expected:
+                    raise ValueError(
+                        f"Nifty Bank membership cardinality mismatch on {day}: "
+                        f"{actual}, expected {expected}")
     if not {"UNIONBANK", "YESBANK"}.issubset(_asof(checked, "Nifty Bank", CORRECTION_EFFECTIVE)):
         raise ValueError("Official bank index inclusion correction failed")
     return checked, changes
