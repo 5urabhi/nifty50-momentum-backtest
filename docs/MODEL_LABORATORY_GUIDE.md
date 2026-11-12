@@ -128,7 +128,7 @@ Two selected securities contribute their **observed** annualized marginal volati
 - Theoretical or seeded simulations: no historical dataset is required.
 - Most historical fits: **60+ common observed returns**. PCA uses 30+; EVT uses 180+ plus exceedance constraints. Walk-forward variance evaluation needs its training window **plus at least 12 holdout returns**.
 - Observed return frequency is declared as daily (252/year) or monthly (12/year). The legacy index backtester continues to run on monthly returns; this model lab can use the **daily series** if available.
-- Every numerical response states model, exact validated parameters, evidence type, source dataset, frequency, number of common observations, selected assets and limitations.
+- Every numerical response states model, exact validated parameters, evidence type, source dataset, frequency, number of common observations, selected assets and limitations. A successful model run is also archived under Git-ignored \`results/model_laboratory/\` with a SHA-256 digest of the observed source file, and can be reopened from **Saved model runs**.
 - Input values are constrained server-side; unsupported model IDs, out-of-bound parameters, missing datasets and inadequate samples fail explicitly.
 - Model Lab has **no order-writing routes** and does not request Dhan network data during a model run.
 
@@ -138,6 +138,8 @@ Two selected securities contribute their **observed** annualized marginal volati
 GET  /api/lab/catalog
 GET  /api/lab/readiness?dataset_id=<id>
 POST /api/lab/run
+GET  /api/lab/runs
+GET  /api/lab/runs/{run_id}
 ```
 
 For the valid model ID `gbm`, a local call would look like:
