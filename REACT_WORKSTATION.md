@@ -69,7 +69,8 @@ There is no multi-user authentication, account isolation, or broker order API.
 | Visual validation | Normalized cumulative return and benchmark plot from run CSV | Connected |
 | Quantitative models | Annualized covariance, minimum variance weights and historical tail loss | Connected |
 | Research reports | Generate and download reproducible HTML/PDF drafts and source artifacts | Connected |
-| Advanced math library | Additional existing Python mathematical functions | **Not yet exposed individually in React** |
+| Advanced mathematics | Black–Scholes pricing and Greeks, seeded Python GBM percentile simulation | Connected |
+| Remaining math library | PCA, OU/GARCH, advanced constrained portfolio engines | **Not yet exposed individually in React** |
 
 **Important distinction:** a connected UI does not imply the research
 methodology, data provenance, or outcomes are externally audited. Synthetic
