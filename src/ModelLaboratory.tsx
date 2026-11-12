@@ -15,7 +15,7 @@ type ModelSpec={
 }
 type Datum={id:string;label:string;has_prices:boolean;ready:boolean;source_interval_minutes?:number|null}
 type LabResult={
-  model_id:string;title:string;group:string;mode:string;formula:string;
+  run_id?:string;model_id:string;title:string;group:string;mode:string;formula:string;
   generated_utc:string;params:Record<string,number|string>;source?:{
     dataset_id:string;dataset_label:string;frequency:string;observations:number;
     assets:string[];from_date:string;to_date:string;source_file:string;
@@ -108,6 +108,8 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   const [working,setWorking]=useState(false)
   const [savedRuns,setSavedRuns]=useState<SavedRun[]>([])
   const [configs,setConfigs]=useState<ConfigRecord[]>([])
+  const [notebooks,setNotebooks]=useState<{id:string;title:string}[]>([])
+  const [notebookTarget,setNotebookTarget]=useState('')
   const [configMessage,setConfigMessage]=useState<string|null>(null)
   const [configBusy,setConfigBusy]=useState(false)
   const pendingPreset=useRef<{model_id:string;params:Record<string,number|string>}|null>(null)
@@ -115,6 +117,22 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     '/workspace/records?kind=configuration')
       .then(r=>setConfigs(r.records)).catch(()=>setConfigs([])),[])
   useEffect(()=>{void refreshConfigs()},[refreshConfigs])
+  useEffect(()=>{
+    void getJSON<{records:{id:string;title:string}[]}>('/workspace/records?kind=notebook')
+      .then(r=>setNotebooks(r.records)).catch(()=>setNotebooks([]))
+  },[])
+  const addRunToNotebook=async()=>{
+    if(!result?.run_id||!notebookTarget)return
+    setConfigBusy(true)
+    try{
+      const r=await fetch('/api/workspace/notebooks/'+encodeURIComponent(notebookTarget)+'/attach',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({kind:'run',source_id:result.run_id})})
+      if(!r.ok)throw new Error(await errorText(r))
+      setConfigMessage('Model run attached to the selected report notebook')
+    }catch(e){setConfigMessage(e instanceof Error?e.message:String(e))}
+    finally{setConfigBusy(false)}
+  }
 
   const [dataPlan,setDataPlan]=useState<DataPlan|null>(null)
   const [planError,setPlanError]=useState<string|null>(null)
@@ -507,6 +525,19 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
             </div>}
             <div className="ql-actions"><button type="button" onClick={()=>exportResult(selected.id,result,'json')}><Download size={15}/> Export reproducible JSON</button>
               <button type="button" onClick={()=>exportResult(selected.id,result,'csv')}><Download size={15}/> Export table CSV</button></div>
+            {result.run_id&&<div className="ql-config-library">
+              <div className="ql-panel-title"><BookOpen size={16}/><h3>Add computed result to a research report</h3></div>
+              <div className="ql-actions">
+                <label className="ql-field"><span>Research notebook</span>
+                  <select value={notebookTarget} onChange={e=>setNotebookTarget(e.target.value)}>
+                    <option value="">Choose notebook</option>
+                    {notebooks.map(n=><option value={n.id} key={n.id}>{n.title}</option>)}
+                  </select></label>
+                <button disabled={configBusy||!notebookTarget} onClick={()=>void addRunToNotebook()}>
+                  <Save size={14}/> Add model result to report</button>
+              </div>
+              {configMessage&&<p className="ql-note" role="status">{configMessage}</p>}
+            </div>}
           </>:<div className="ql-empty">Run this model to inspect exact metrics, selected assets and numerical diagnostics.</div>}
         </section>}
         {view==='method'&&<section className="ql-card">
