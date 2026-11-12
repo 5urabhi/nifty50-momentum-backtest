@@ -49,6 +49,9 @@ def _source_dirs():
     yield "synthetic", "Synthetic demonstration", DATA / "synthetic_example", "synthetic"
     yield "research_v1", "Local research data", DATA / "research_v1", "local"
     yield "dhan_monthly", "Dhan monthly close (unadjusted)", DATA / "dhan" / "monthly_research", "dhan"
+    shared = DATA / "dhan" / "monthly_research" / "shared"
+    if (shared / "daily_prices.csv").is_file() and not shared.is_symlink():
+        yield "dhan_shared", "Shared Dhan market history (all index universes)", shared, "dhan"
     for base, prefix, label, kind in (
         (DATA / "workstation_imports", "upload_", "Uploaded", "uploaded"),
         (DATA / "dhan" / "monthly_research", "dhan_", "Dhan prepared", "dhan"),
