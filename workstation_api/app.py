@@ -645,6 +645,16 @@ def workspace_scenario(body: ScenarioRequest):
         bad(exc)
 
 
+@app.get("/api/workspace/studies/{study_id}/returns.csv")
+def workspace_study_returns(study_id: str):
+    try:
+        path = research_insights.study_returns_path(study_id)
+        return FileResponse(path, filename="quantlab_" + study_id + "_returns.csv",
+                            media_type="text/csv")
+    except Exception as exc:
+        bad(exc)
+
+
 @app.get("/api/workspace/reproducibility/{run_id}")
 def workspace_reproducibility(run_id: str, recompute: bool = False):
     try:
