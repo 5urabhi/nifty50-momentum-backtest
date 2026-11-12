@@ -1,0 +1,208 @@
+"""Offline acceptance tests for dated NIFTY 50/BANK NIFTY membership and Dhan mapping.
+
+No GitHub, NSE, Dhan, or brokerage account is accessed by these tests.
+"""
+from __future__ import annotations
+
+from datetime import date
+from pathlib import Path
+import json
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import pandas as pd
+from fastapi.testclient import TestClient
+
+from workstation_api import dhan_workspace as dw, pit_index as pit, service
+from workstation_api.app import app
+
+
+def record(index, symbol, first, last="", source="snapshot_floor",
+           note="", source_url=""):
+    return {
+        "index_name": index, "symbol": symbol, "valid_from": first,
+        "valid_to": last, "source": source, "notes": note,
+        "source_url": source_url,
+    }
+
+
+class DatedIndexMembershipTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix="nifty_pit_test_")
+        self.root = Path(self.tmp.name)
+        self.patch_data = patch.object(service, "DATA", self.root / "data")
+        self.patch_data.start()
+        self.master = service.DATA / "dhan" / "instrument_master.csv"
+        self.master.parent.mkdir(parents=True)
+        self.stocks = ["STK" + str(i).zfill(2) for i in range(50)]
+        self.bank = [
+            "HDFCBANK", "ICICIBANK", "SBIN", "PNB", "AXISBANK",
+            "KOTAKBANK", "FEDERALBNK", "IDFCFIRSTB", "AUBANK",
+            "BANKBARODA", "CANBK", "INDUSINDBK",
+        ]
+        symbols = self.stocks + ["NEWCO"] + self.bank + ["UNIONBANK", "YESBANK"]
+        pd.DataFrame([
+            {
+                "SEM_EXM_EXCH_ID": "NSE", "SEM_SEGMENT": "E",
+                "SEM_SMST_SECURITY_ID": str(i + 100),
+                "SEM_INSTRUMENT_NAME": "EQUITY",
+                "SEM_TRADING_SYMBOL": symbol,
+                "SEM_CUSTOM_SYMBOL": symbol,
+                "SEM_SERIES": "EQ",
+            } for i, symbol in enumerate(symbols)
+        ]).to_csv(self.master, index=False)
+        dw._catalog_cached.cache_clear()
+        self.client = TestClient(app, base_url="http://127.0.0.1:8765")
+        rows = [record("Nifty 50", s, "2014-01-01") for s in self.stocks[1:]]
+        rows += [
+            record("Nifty 50", self.stocks[0], "2014-01-01", "2025-09-30"),
+            record("Nifty 50", "NEWCO", "2025-09-30",
+                   source="press_release", source_url="https://niftyindices.com/example"),
+        ]
+        rows += [record("Nifty Bank", s, "2014-01-01") for s in self.bank]
+        rows += [
+            record("Nifty Bank", "UNIONBANK", "2014-01-01", "2014-03-28"),
+            record("Nifty Bank", "YESBANK", "2014-01-01", "2020-03-27"),
+            record("Nifty Bank", "UNIONBANK", "2026-09-30",
+                   source="snapshot", note="inferred-include: source date guessed"),
+            record("Nifty Bank", "YESBANK", "2026-09-30",
+                   source="snapshot", note="inferred-include: source date guessed"),
+        ]
+        self.csv = pd.DataFrame(rows).to_csv(index=False).encode("utf-8")
+        self.meta = b"# Coverage\n| Dataset | Freshness |\n| Index membership | data through **2026-10-13** |\n"
+        self.sha = "c" * 40
+
+    def tearDown(self):
+        self.client.close()
+        dw._catalog_cached.cache_clear()
+        self.patch_data.stop()
+        self.tmp.cleanup()
+
+    def _fetch_mock(self, url, *_args):
+        if url == pit.SOURCE_API:
+            return json.dumps({"sha": self.sha}).encode("utf-8")
+        if url.endswith(pit.MEMBERS_FILE):
+            return self.csv
+        if url.endswith(pit.COVERAGE_FILE):
+            return self.meta
+        raise AssertionError("Unexpected external request: " + url)
+
+    def _sync(self):
+        with patch.object(pit, "_fetch", side_effect=self._fetch_mock):
+            return pit.sync()
+
+    @staticmethod
+    def _candles(inst, from_date, to_date, **_kwargs):
+        start, stop = pd.Timestamp(from_date), pd.Timestamp(to_date)
+        days = pd.date_range(start, stop - pd.Timedelta(days=1), freq="B")
+        if days.empty:
+            raise ValueError("No candles returned for " + inst.label)
+        return pd.DataFrame({
+            "datetime": days.tz_localize("Asia/Kolkata"),
+            "label": [inst.label] * len(days),
+            "security_id": [inst.security_id] * len(days),
+            "exchange_segment": [inst.exchange_segment] * len(days),
+            "instrument": [inst.instrument] * len(days),
+            "open": [100.0] * len(days),
+            "high": [102.0] * len(days),
+            "low": [99.0] * len(days),
+            "close": [101.0] * len(days),
+            "volume": [1000] * len(days),
+        })
+
+    def test_index_history_sync_has_a_checksum_and_official_date_reconciliation(self):
+        synced = self._sync()
+        self.assertTrue(synced["available"])
+        self.assertEqual(synced["covered_through"], "2026-10-13")
+        self.assertEqual(len(synced["corrections"]), 2)
+        history = self.client.get("/api/indices/preview", params={
+            "index_id": "banknifty_pit", "from_date": "2025-11-01",
+            "to_date": "2026-04-01", "as_of_date": "2025-12-30",
+        })
+        self.assertEqual(history.status_code, 200, history.text)
+        before = history.json()
+        self.assertNotIn("YESBANK", before["asof_members"])
+        self.assertNotIn("UNIONBANK", before["asof_members"])
+        after = self.client.get("/api/indices/preview", params={
+            "index_id": "banknifty_pit", "from_date": "2025-11-01",
+            "to_date": "2026-04-01", "as_of_date": "2025-12-31",
+        }).json()
+        self.assertIn("YESBANK", after["asof_members"])
+        self.assertIn("UNIONBANK", after["asof_members"])
+        self.assertEqual(before["change_count"], 2)
+        self.assertEqual(after["end_count"], 14)
+
+    def test_nifty_membership_replacements_do_not_leak_into_earlier_dates(self):
+        self._sync()
+        pre = pit.query("nifty50_pit", "2024-01-01", "2024-07-01", dw.catalog())
+        self.assertEqual(pre["start_count"], 50)
+        self.assertNotIn("NEWCO", pre["union_members"])
+        later = pit.query("nifty50_pit", "2025-07-01", "2026-04-01", dw.catalog(),
+                          as_of="2025-09-29")
+        self.assertEqual(later["union_count"], 51)
+        self.assertNotIn("NEWCO", later["asof_members"])
+        on_event = pit.query("nifty50_pit", "2025-07-01", "2026-04-01",
+                             dw.catalog(), as_of="2025-09-30")
+        self.assertIn("NEWCO", on_event["asof_members"])
+        self.assertNotIn(self.stocks[0], on_event["asof_members"])
+        self.assertEqual(on_event["end_count"], 50)
+
+    def test_never_extrapolate_after_source_cover_date_or_before_start(self):
+        self._sync()
+        with self.assertRaisesRegex(ValueError, "verified only through"):
+            pit.query("nifty50_pit", "2026-01-01", "2026-11-13", dw.catalog())
+        with self.assertRaisesRegex(ValueError, "begins at"):
+            pit.query("nifty50_pit", "2010-01-01", "2015-01-01", dw.catalog())
+        with self.assertRaisesRegex(ValueError, "As-of date"):
+            pit.query("nifty50_pit", "2025-01-01", "2025-06-01", dw.catalog(),
+                      as_of="2026-01-01")
+
+    def test_missing_current_dhan_id_is_visible_and_requires_explicit_consent(self):
+        self._sync()
+        master = pd.read_csv(self.master)
+        master = master[master["SEM_TRADING_SYMBOL"] != self.stocks[0]]
+        master.to_csv(self.master, index=False)
+        dw._catalog_cached.cache_clear()
+        plan = pit.query("nifty50_pit", "2024-01-01", "2024-06-01", dw.catalog())
+        self.assertEqual(plan["unresolved_count"], 1)
+        self.assertEqual(plan["unresolved"][0]["symbol"], self.stocks[0])
+        with self.assertRaisesRegex(ValueError, "explicitly acknowledge"):
+            dw.create_batch("nifty50_pit", [], [], "2024-01-01", "2024-06-01",
+                            None, False)
+        partial = dw.create_batch("nifty50_pit", [], [],
+                                  "2024-01-01", "2024-06-01", None, False, True)
+        self.assertEqual(partial["total"], 49)
+        self.assertEqual(partial["historical_union_count"], 50)
+        self.assertEqual(len(partial["historical_unresolved"]), 1)
+
+    def test_membership_matrix_uses_pinned_intervals_not_later_catalog(self):
+        self._sync()
+        batch = dw.create_batch("nifty50_pit", [], [],
+                                "2025-07-01", "2026-02-01", None, False)
+        # The historical union includes both the removed and added names.
+        self.assertEqual(batch["total"], 51)
+        with patch.object(dw, "download_candles", side_effect=self._candles):
+            done = dw.run_batch(batch["id"])
+        self.assertEqual(done["counts"]["complete"], 51)
+        output = dw.prepare_batch(batch["id"])
+        self.assertTrue(output["membership_generated"])
+        self.assertFalse(output["ready_for_backtesting"])
+        path = service.DATA / "dhan" / "monthly_research" / batch["id"]
+        prices = pd.read_csv(path / "prices.csv")
+        self.assertTrue((path / "membership.csv").is_file())
+        states = pd.read_csv(path / "membership.csv")
+        self.assertEqual(len(states), 7 * 51)
+        sept = states.loc[(states["date"] == "2025-09-30")]
+        self.assertTrue(bool(sept.loc[sept["ticker"] == "NEWCO", "eligible"].iloc[0]))
+        self.assertFalse(bool(sept.loc[sept["ticker"] == self.stocks[0], "eligible"].iloc[0]))
+        self.assertEqual(len(prices), 7)
+        provenance = json.loads((path / "PIT_MEMBERSHIP_PROVENANCE.json").read_text())
+        self.assertEqual(provenance["source_commit"], self.sha)
+        self.assertEqual(output["missing"], ["benchmark.csv"])
+        with self.assertRaises(ValueError):
+            dw.prepare_batch(batch["id"])
+
+
+if __name__ == "__main__":
+    unittest.main()
