@@ -138,6 +138,35 @@ class ResearchWorkspaceTests(unittest.TestCase):
         self.assertEqual(len(result["folds"]),1)
         self.assertEqual(result["test_observations"],(220-1)-75)  # one price date is lost to return formation
 
+    def test_validation_never_selects_assets_using_future_availability(self):
+        path = self.source_folder / "daily_prices.csv"
+        frame = pd.read_csv(path)
+        # Alphabetically first asset becomes available only AFTER formation.
+        # A look-ahead selector would choose this in preference to A/B/C/D.
+        frame.insert(1, "AAA_FUTURE", np.r_[[np.nan]*95, np.arange(125)+120.])
+        frame.to_csv(path, index=False)
+        result = research_insights.validate_out_of_sample(self.dataset_id,
+                   model="equal", assets=4, train_window=75, test_step=25,
+                   max_weight=.45, mode="single_holdout")
+        self.assertNotIn("AAA_FUTURE", result["source"]["assets"])
+        self.assertEqual(result["source"]["selection_rule"].split(",")[0],
+                         "Eligible from first training window only")
+        self.assertEqual(result["source"]["source_sha256"],
+                         research_insights.file_sha256(path))
+        self.assertEqual(result["source"]["dataset_kind"], "uploaded")
+
+    def test_synthetic_fixture_cannot_masquerade_as_historical_holdout(self):
+        service.create_synthetic()
+        with self.assertRaisesRegex(ValueError,"Synthetic demonstration"):
+            research_insights.validate_out_of_sample("synthetic", model="equal",
+                     assets=3, train_window=50, test_step=20, max_weight=.5)
+        self.assertEqual(research_insights.evidence_class({
+            "mode":"historical", "source":{"dataset_kind":"synthetic"}}),
+            "synthetic_fixture")
+        self.assertEqual(research_insights.evidence_class({
+            "mode":"historical", "source":{"dataset_kind":"uploaded"}}),
+            "historical")
+
     def test_quality_reports_actual_prices_without_forward_fill(self):
         result = research_insights.inspect_quality(self.dataset_id)
         self.assertEqual(result["asset_count"],4)
