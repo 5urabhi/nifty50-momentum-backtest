@@ -369,6 +369,11 @@ function LibraryPanel({items,resources,busy,perform,onChanged,onOpenModels,onOpe
             onClick={()=>perform(()=>api<Item>('/workspace/records',{
               kind:detail.kind,title:detail.title+' (copy)',payload:detail.payload,tags:detail.tags},'POST'),
               ()=>onMessage('Saved item duplicated'))}><Copy size={15}/> Duplicate</button>}</div></div>
+        {detail.kind==='study'&&typeof detail.payload.test_observations==='number'&&
+          <a className="rw-download-link" download
+             href={'/api/workspace/studies/'+detail.id+'/returns.csv'}>
+            <Download size={15}/> Download all holdout returns (CSV)
+          </a>}
         <pre className="rw-json">{JSON.stringify(detail.payload,null,2)}</pre></>:
       <><p>Resource identity: {detail.kind}:{detail.id}</p>
         <p>Archive hides this entry from the active workspace. Trash can only move independently derived datasets or saved results, never canonical Dhan source data. References prevent unsafe deletion.</p>
@@ -1034,6 +1039,9 @@ function JobsPanel({jobs,busy,perform,onPage}:{
         label:k.replaceAll('_',' '),value:typeof v==='number'?fmt(v):String(v)
       }))}/>}
       {plot&&<ResearchPlot plot={plot}/>}
+      {typeof item.result.returns_csv_url==='string'&&
+        <a className="rw-download-link" href={item.result.returns_csv_url as string} download>
+          <Download size={15}/> Download complete holdout-return CSV</a>}
       {typeof item.result.message==='string'&&<p className="rw-success">{item.result.message}</p>}
       {item.result.warning&&<p className="rw-caution">{String(item.result.warning)}</p>}
       </>}
