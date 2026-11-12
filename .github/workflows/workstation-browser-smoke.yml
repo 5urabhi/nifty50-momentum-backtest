@@ -3,7 +3,11 @@ name: QuantLab Ubuntu browser acceptance
 on:
   push:
     branches:
+      - main
       - feature/quantlab-model-laboratory-and-guide-20261113
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
