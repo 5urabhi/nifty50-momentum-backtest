@@ -835,6 +835,20 @@ class ResourceMetadataRequest(BaseModel):
     favorite: bool | None = None
 
 
+class NotebookAttachmentRequest(BaseModel):
+    model_config=ConfigDict(extra="forbid")
+    kind: Literal["chart","run"]
+    source_id: str = Field(min_length=1,max_length=120)
+
+
+@app.post("/api/workspace/notebooks/{notebook_id}/attach")
+def workspace_notebook_attach(notebook_id: str,body:NotebookAttachmentRequest):
+    try:
+        return research_library.attach_notebook_reference(notebook_id,body.kind,body.source_id)
+    except Exception as exc:
+        bad(exc)
+
+
 @app.get("/api/workspace/plot-builder/columns/{dataset_id}")
 def research_plot_builder_columns(dataset_id: str):
     try:
