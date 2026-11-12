@@ -7,10 +7,11 @@ import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
 import ResearchAdvanced from './ResearchAdvanced'
 import ResearchGuided from './ResearchGuided'
 import ResearchCompletion from './ResearchCompletion'
+import ResearchScholar from './ResearchScholar'
 import './research-workspace.css'
 
 type Raw = Record<string,unknown>
-type Page='home'|'library'|'compare'|'plots'|'guided'|'projects'|'automation'|'quality'|'integrity'|'jobs'
+type Page='home'|'library'|'compare'|'plots'|'guided'|'scholar'|'projects'|'automation'|'quality'|'integrity'|'jobs'
 type RecordKind='configuration'|'project'|'notebook'|'chart'|'comparison'|'dashboard'|'note'|'report'|'study'
 type ResourceKind='dataset'|'model_run'|'research_run'
 type Item={id:string;kind:RecordKind;title:string;payload:Raw;tags:string[];
@@ -35,6 +36,7 @@ const PAGES:{id:Page;label:string;sub:string}[]=[
   {id:'compare',label:'Compare & Graph',sub:'Saved model overlays'},
   {id:'plots',label:'Plot Builder',sub:'2D / 3D and statistics'},
   {id:'guided',label:'Guided & Grids',sub:'Goals and optimization'},
+  {id:'scholar',label:'Index Research Studio',sub:'Explainers, attribution & publishing'},
   {id:'projects',label:'Projects & Notes',sub:'Notebooks and reports'},
   {id:'automation',label:'Research Tools',sub:'Sweeps, validation, shocks'},
   {id:'quality',label:'Data Quality',sub:'Coverage and provenance'},
@@ -275,7 +277,8 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
           <button onClick={onOpenDhan}><Database size={20}/><strong>1 · Get data</strong><small>Inspect, extend and reuse local Dhan data.</small><ArrowRight size={15}/></button>
           <button onClick={onOpenModels}><SlidersHorizontal size={20}/><strong>2 · Choose a model</strong><small>Run mathematical, stochastic and portfolio models.</small><ArrowRight size={15}/></button>
           <button onClick={()=>setPage('compare')}><BarChart3 size={20}/><strong>3 · Compare evidence</strong><small>Overlay compatible saved outputs and export graphs.</small><ArrowRight size={15}/></button>
-          <button onClick={()=>setPage('projects')}><BookOpen size={20}/><strong>4 · Publish findings</strong><small>Store notes and create a reproducible report.</small><ArrowRight size={15}/></button>
+          <button onClick={()=>setPage('scholar')}><ShieldCheck size={20}/><strong>4 · Explain the research</strong><small>Inspect every index decision, factor-risk prerequisite and evidence limitation.</small><ArrowRight size={15}/></button>
+          <button onClick={()=>setPage('projects')}><BookOpen size={20}/><strong>5 · Publish findings</strong><small>Store notes and create a reproducible report.</small><ArrowRight size={15}/></button>
         </div>
       </Box>
       <Box title="Recently saved work" side={<button className="rw-link" onClick={()=>setPage('library')}>View library <ArrowRight size={14}/></button>}>
@@ -309,6 +312,9 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
       onOpenModels={onOpenModels} onOpenDhan={onOpenDhan} runs={runs}
       onStartJob={start} onMessage={setMessage} onError={setError}
       onDataChanged={()=>{void reload();onDataChanged()}}/>}
+    {page==='scholar'&&<ResearchScholar datasets={datasets}
+      selectedDataset={selectedDataset} onSelectDataset={onSelectDataset}
+      runs={runs} onStartJob={start}/>}
     {page==='projects'&&<ProjectsPanel records={library} runs={runs} busy={busy}
       perform={perform} onMessage={setMessage} startJob={start}
       onOpenCompare={()=>setPage('compare')}/>}
