@@ -2,7 +2,7 @@ import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import {Archive,ArrowDownToLine,ArrowLeft,ArrowRight,BarChart3,BookOpen,Check,
   CheckCircle2,Database,Download,FileText,Folder,Heart,
   History,Layers3,LoaderCircle,Plus,RefreshCw,RotateCcw,Save,Search,
-  Settings2,ShieldCheck,SlidersHorizontal,Trash2,Undo2,Workflow,X} from 'lucide-react'
+  Settings2,ShieldCheck,SlidersHorizontal,Trash2,Undo2,Upload,Workflow,X} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
 import './research-workspace.css'
 
@@ -202,7 +202,7 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
         onClick={()=>setPage(item.id)}>{item.label}<small>{item.sub}</small></button>)}
     </div>{notice}
     {loading?<div className="rw-working"><LoaderCircle className="ql-spinning"/> Loading research library…</div>:null}
-    {page==='home'&&<div className="rw-two">
+    {page==='home'&&<div className="rw-stack"><div className="rw-two">
       <Box title="Resume research">
         <NumberStats data={[
           {label:'Saved model results',value:runs.filter(x=>x.kind==='model_run').length},
@@ -225,6 +225,10 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
         {!library.length&&<Empty title="No saved work yet">Run a model, then save its configuration, comparison or notes.</Empty>}
         <div className="rw-insight">Research guardrails: synthetic demonstrations, in-sample fitted values and genuinely later holdout outcomes are never treated as equivalent evidence.</div>
       </Box>
+    </div>
+    <DashboardPanel runs={runs} records={library} busy={busy}
+      perform={perform} onMessage={setMessage} onCompare={()=>setPage('compare')}/>
+    <SettingsTransfer onMessage={setMessage}/>
     </div>}
     {page==='library'&&<LibraryPanel items={library} resources={resources} busy={busy}
       perform={perform} onChanged={onDataChanged} onOpenModels={onOpenModels}
@@ -992,4 +996,119 @@ function JobsPanel({jobs,busy,perform,onPage}:{
       </>}
     </Box>}
   </div>
+}
+
+
+function DashboardPanel({runs,records,busy,perform,onMessage,onCompare}:{
+  runs:RunOption[];records:Item[];busy:boolean;
+  perform:<T,>(action:()=>Promise<T>,done?:(r:T)=>void)=>Promise<void>;
+  onMessage:(value:string)=>void;onCompare:()=>void
+}){
+  const [pinned,setPinned]=useState<string[]>(()=>{
+    try{const parsed=JSON.parse(window.localStorage.getItem('ql-rw-pinned-runs')||'[]')
+      return Array.isArray(parsed)?parsed.filter(x=>typeof x==='string').slice(0,6):[]}
+    catch{return []}
+  })
+  const [dashboardTitle,setDashboardTitle]=useState('My QuantLab research dashboard')
+  const [summaries,setSummaries]=useState<Record<string,{title:string;metrics:{label:string;value:unknown;unit:string}[];
+    plots:ResearchPlotData[]}>>({})
+  useEffect(()=>{window.localStorage.setItem('ql-rw-pinned-runs',JSON.stringify(pinned))},[pinned])
+  useEffect(()=>{
+    let active=true
+    const targets=pinned.filter(id=>runs.some(r=>r.id===id&&r.kind==='model_run'))
+    if(!targets.length){setSummaries({});return}
+    void Promise.all(targets.map(id=>api<{title:string;metrics:{label:string;value:unknown;unit:string}[];
+      plots:ResearchPlotData[]}>('/lab/runs/'+id)
+      .then(data=>({id,data})).catch(()=>null))).then(rows=>{
+        if(active)setSummaries(Object.fromEntries(rows.filter((x):x is
+          {id:string;data:{title:string;metrics:{label:string;value:unknown;unit:string}[];
+            plots:ResearchPlotData[]}}=>!!x).map(x=>[x.id,x.data])))
+      })
+    return()=>{active=false}
+  },[pinned.join(','),runs])
+  const toggle=(id:string)=>setPinned(old=>old.includes(id)?
+    old.filter(x=>x!==id):old.length<6?[...old,id]:old)
+  const save=()=>perform(()=>api<Item>('/workspace/records',{
+    kind:'dashboard',title:dashboardTitle,payload:{pinned_runs:pinned},
+    tags:['dashboard']},'POST'),()=>onMessage('Dashboard layout saved'))
+  const restore=(item:Item)=>{
+    const pins=item.payload.pinned_runs
+    if(Array.isArray(pins))setPinned(pins.filter(x=>typeof x==='string').slice(0,6) as string[])
+    setDashboardTitle(item.title);onMessage('Dashboard layout restored')
+  }
+  return <Box title="My custom research dashboard" side={<span className="rw-pill">{pinned.length} pinned models</span>}>
+    <p className="rw-help">Pin up to six immutable saved model results. Your selection autosaves locally; you can also give the dashboard a reusable name.</p>
+    <div className="rw-form-grid">
+      <label className="rw-field"><span>Pin a saved model</span>
+        <select value="" onChange={e=>{if(e.target.value)toggle(e.target.value)}}>
+          <option value="">Choose saved model run…</option>
+          {runs.filter(r=>r.kind==='model_run'&&!pinned.includes(r.id)).map(r=>
+            <option key={r.id} value={r.id}>{r.label}</option>)}
+        </select></label>
+      <Field label="Dashboard title" value={dashboardTitle} onChange={setDashboardTitle}/>
+    </div>
+    <div className="rw-dashboard-grid">{pinned.map(id=>{
+      const result=summaries[id]
+      return <div className="rw-dashboard-card" key={id}>
+        <div className="rw-cell-head"><span>{result?.title||id}</span>
+          <button title="Unpin result" onClick={()=>toggle(id)}><X size={14}/></button></div>
+        {result?<><div className="rw-mini-stats">{result.metrics.slice(0,3).map((m,i)=><div key={i}>
+          <small>{m.label}</small><strong>{String(m.value??'Unavailable')}</strong></div>)}</div>
+          {result.plots[0]&&result.plots[0].kind!=='surface3d'&&
+            <ResearchPlot plot={result.plots[0]}/>}</>:
+          <p className="rw-help">Loading saved computations…</p>}
+      </div>
+    })}</div>
+    {!pinned.length&&<Empty title="No pinned results">Choose saved results to build a personal home dashboard.</Empty>}
+    <div className="rw-button-group">
+      <button className="rw-primary" disabled={busy||!pinned.length} onClick={save}><Save size={14}/> Save dashboard</button>
+      <button onClick={onCompare}><BarChart3 size={14}/> Open comparison studio</button>
+    </div>
+    {records.filter(x=>x.kind==='dashboard'&&!x.trashed).length>0&&<div className="rw-saved-dashboards">
+      <h4>Saved dashboards</h4>
+      {records.filter(x=>x.kind==='dashboard'&&!x.trashed).map(item=>
+        <button className="rw-row" key={item.id} onClick={()=>restore(item)}>
+          <span><strong>{item.title}</strong><small>{item.updated_utc.slice(0,16)}</small></span>
+          <RotateCcw size={14}/></button>)}
+    </div>}
+  </Box>
+}
+
+function SettingsTransfer({onMessage}:{onMessage:(message:string)=>void}){
+  const exportSettings=()=>{
+    const entries:Record<string,string>={}
+    for(let i=0;i<window.localStorage.length;i++){
+      const key=window.localStorage.key(i)
+      if(key&&key.startsWith('ql-')&&!key.toUpperCase().includes('TOKEN')){
+        const value=window.localStorage.getItem(key)
+        if(value!==null&&value.length<150000)entries[key]=value
+      }
+    }
+    safeDownload('quantlab_preferences.json',JSON.stringify({
+      version:1,source:'QuantLab local UI preferences',entries},null,2),'application/json')
+    onMessage('Preferences exported without broker credentials')
+  }
+  const importSettings=async(file:File)=>{
+    if(file.size>250000){onMessage('Preferences file is too large');return}
+    try{
+      const decoded=JSON.parse(await file.text()) as {version:number;entries:Record<string,string>}
+      if(decoded.version!==1||!decoded.entries||typeof decoded.entries!=='object')
+        throw new Error('Unsupported QuantLab preferences format')
+      for(const [key,value] of Object.entries(decoded.entries)){
+        if(!key.startsWith('ql-')||key.toUpperCase().includes('TOKEN')||
+           typeof value!=='string'||value.length>150000)continue
+        window.localStorage.setItem(key,value)
+      }
+      onMessage('Preferences imported. Reload the workstation to apply them.')
+    }catch(e){onMessage(e instanceof Error?e.message:String(e))}
+  }
+  return <Box title="Research workspace settings">
+    <p className="rw-help">Export and import layout preferences, model setup drafts, dashboard pins and chart settings on this browser. Actual observations and model-run artifacts remain local Python files.</p>
+    <div className="rw-button-group"><button onClick={exportSettings}>
+      <Download size={15}/> Export preferences JSON</button>
+      <label className="rw-file-button"><Upload size={15}/> Import preferences JSON
+        <input hidden type="file" accept=".json,application/json" onChange={e=>{
+          const file=e.target.files?.[0];if(file)void importSettings(file);e.target.value=''}}/></label>
+    </div>
+  </Box>
 }
