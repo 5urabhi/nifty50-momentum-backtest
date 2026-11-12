@@ -3,7 +3,7 @@ import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight,
   CircleAlert, Clock3, Database, FileSpreadsheet, History, Layers3,
   LoaderCircle, LockKeyhole, Pause, Play, RefreshCw, Search,
-  ShieldCheck, SlidersHorizontal, Trash2, UploadCloud, X
+  ShieldCheck, UploadCloud, X
 } from 'lucide-react'
 import './dhan-workspace.css'
 
@@ -32,10 +32,13 @@ type DhanStatus = {token_configured:boolean;instrument_master_available:boolean;
 
 const fmt=(n:number)=>n.toLocaleString()
 const statusText=(s:string)=>s.replaceAll('_',' ')
-const today=()=>new Date().toLocaleDateString('en-CA')
+const today=()=>dateValue(new Date())
+function dateValue(d:Date){
+  return new Date(d.getTime()-d.getTimezoneOffset()*60_000).toISOString().slice(0,10)
+}
 function yearAgo(){
   const d=new Date();d.setFullYear(d.getFullYear()-1)
-  return d.toLocaleDateString('en-CA')
+  return dateValue(d)
 }
 async function api<T>(path:string,options?:RequestInit):Promise<T>{
   let response:Response
@@ -57,12 +60,12 @@ function Section({title,aside,children}:{title:string;aside?:React.ReactNode;chi
 }
 function interpretMode(mode:SelectionMode){
   return {selected:'Handpicked stocks',all_nse:'All NSE cash equities (EQ series)',
-    all_bse:'All BSE cash equities (EQ series)',watchlist:'My ticker list'}[mode]
+    all_bse:'All BSE cash equities',watchlist:'My ticker list'}[mode]
 }
 const options:Array<{mode:SelectionMode;title:string;description:string;icon:typeof Database}>=[
   {mode:'selected',title:'Choose stocks',description:'Search and add any combination of securities',icon:Search},
   {mode:'all_nse',title:'All NSE stocks',description:'Every current NSE EQ-series equity in the Dhan catalog',icon:Layers3},
-  {mode:'all_bse',title:'All BSE stocks',description:'Every current BSE EQ-series equity in the Dhan catalog',icon:Database},
+  {mode:'all_bse',title:'All BSE stocks',description:'Current BSE cash-market equities in the Dhan catalog',icon:Database},
   {mode:'watchlist',title:'Paste a ticker list',description:'Import symbols from CSV or paste them directly',icon:FileSpreadsheet},
 ]
 
@@ -298,7 +301,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
           </label><p className="dh-hint">No guessed symbol matches: ambiguous or unknown names are rejected with an explanation.</p>
         </div>:<>
           {mode!=='selected'&&<div className="dh-all-notice"><Layers3 size={20}/><div><strong>{mode==='all_nse'?'NSE':'BSE'} equity universe is selected</strong>
-            <p>{fmt(selectionCount)} currently listed EQ-series equity instruments from Dhan's master. The search table is for inspection only—no need to select each stock.</p></div></div>}
+            <p>{fmt(selectionCount)} currently listed cash-market equity instruments from Dhan's master. The search table is for inspection only—no need to select each stock.</p></div></div>}
           <div className="dh-searchbar"><Search size={17}/><input aria-label="Search ticker or company" value={query} onChange={e=>{setQuery(e.target.value);setPage(1)}} placeholder="Search ticker, company, Security ID or ISIN…"/>
             {query&&<button aria-label="Clear search" onClick={()=>{setQuery('');setPage(1)}}><X size={15}/></button>}
             <select aria-label="Exchange" value={exchange} onChange={e=>{setExchange(e.target.value as 'NSE'|'BSE');setPage(1)}}><option value="NSE">NSE</option><option value="BSE">BSE</option></select></div>
