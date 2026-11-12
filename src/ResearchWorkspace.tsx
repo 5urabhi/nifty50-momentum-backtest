@@ -358,3 +358,287 @@ function LibraryPanel({items,resources,busy,perform,onChanged,onOpenModels,onOpe
     </Box>}
   </div>
 }
+
+function ComparePanel({runs,items,busy,perform,onMessage}:{
+  runs:RunOption[];items:Item[];busy:boolean;
+  perform:<T,>(action:()=>Promise<T>,done?:(result:T)=>void)=>Promise<void>;
+  onMessage:(text:string)=>void
+}){
+  const [selection,setSelection]=useState<string[]>([])
+  const [normalization,setNormalization]=useState('none')
+  const [alignment,setAlignment]=useState('intersection')
+  const [title,setTitle]=useState(loadDraft('ql-rw-chart-title','Saved model comparison'))
+  const [annotation,setAnnotation]=useState(loadDraft('ql-rw-chart-note',''))
+  const [plot,setPlot]=useState<ResearchPlotData|null>(null)
+  const [kind,setKind]=useState('line2d')
+  const [from,setFrom]=useState('0')
+  const [to,setTo]=useState('100')
+  const [comparison,setComparison]=useState<Raw|null>(null)
+  const [saved,setSaved]=useState('')
+  const [savedTemplate,setSavedTemplate]=useState('')
+  const [overlay,setOverlay]=useState<'overlay'|'split'>('overlay')
+  const history=useRef<{title:string;annotation:string;kind:string}[]>([])
+  useEffect(()=>{window.localStorage.setItem('ql-rw-chart-title',title)},[title])
+  useEffect(()=>{window.localStorage.setItem('ql-rw-chart-note',annotation)},[annotation])
+  const edit=(next:{title?:string;annotation?:string;kind?:string})=>{
+    history.current.push({title,annotation,kind})
+    setTitle(next.title??title);setAnnotation(next.annotation??annotation);setKind(next.kind??kind)
+  }
+  const undo=()=>{
+    const last=history.current.pop()
+    if(last){setTitle(last.title);setAnnotation(last.annotation);setKind(last.kind)}
+  }
+  const toggle=(key:string)=>{
+    setSelection(s=>s.includes(key)?s.filter(v=>v!==key):s.length>=8?s:[...s,key])
+    setPlot(null);setComparison(null)
+  }
+  const chosen=selection.map(key=>runs.find(run=>run.key===key)).filter(
+    (x):x is RunOption=>!!x)
+  const selections=chosen.map(run=>({kind:run.kind,run_id:run.id,plot_index:0}))
+  const build=()=>perform(()=>api<Raw>('/workspace/compare',{
+    title,selections,normalize:normalization,alignment},'POST'),
+    res=>{setPlot(res.plot as ResearchPlotData);setComparison(res);onMessage('Compatible saved results aligned. Inspect axes before reporting.')})
+  const saveComparison=()=>perform(()=>api<Item>('/workspace/records',{
+    kind:'comparison',title,payload:{selections,normalize:normalization,alignment,
+      annotation,created_chart:comparison?.plot||null},tags:['comparison']},'POST'),
+    savedItem=>{setSaved(savedItem.id);onMessage('Comparison workspace saved')})
+  const saveChart=()=>perform(()=>api<Item>('/workspace/records',{
+    kind:'chart',title,payload:{source_comparison:saved||null,plot:displayPlot,
+      annotation,layout:{kind,from,to,overlay}},tags:['chart']},'POST'),
+    res=>{setSavedTemplate(res.id);onMessage('Graph layout saved')})
+  const loadComparison=(item:Item)=>{
+    const configs=item.payload.selections
+    if(!Array.isArray(configs))return
+    const values=(configs as {kind:string;run_id:string}[]).map(x=>x.kind+':'+x.run_id)
+    setSelection(values);setTitle(item.title)
+    setNormalization(String(item.payload.normalize||'none'))
+    setAlignment(String(item.payload.alignment||'intersection'))
+    setAnnotation(String(item.payload.annotation||''));setPlot(null);setComparison(null)
+  }
+  const displayPlot=useMemo(()=>{
+    if(!plot)return null
+    const size=plot.x?.length||0
+    const lo=Math.max(0,Math.floor(size*Number(from||0)/100))
+    const hi=Math.min(size,Math.ceil(size*Number(to||100)/100))
+    return {...plot,title,kind:kind==='bar2d'?'bar2d':'line2d',
+      x:plot.x?.slice(lo,hi),
+      traces:plot.traces?.map(trace=>({...trace,y:trace.y.slice(lo,hi)}))}
+  },[plot,title,kind,from,to])
+  const exportSVG=()=>{
+    const graph=document.querySelector('.rw-graph-preview .ql-svg-chart, .rw-graph-preview .ql-surface svg') as SVGElement|null
+    if(!graph){onMessage('SVG export is available for a rendered graph.');return}
+    const serialized=new XMLSerializer().serializeToString(graph)
+    safeDownload('quantlab_comparison.svg',serialized,'image/svg+xml')
+  }
+  const exportCSV=()=>{
+    if(!displayPlot?.x?.length)return
+    const traces=displayPlot.traces||[]
+    const escape=(s:unknown)=>'"'+String(s??'').replaceAll('"','""')+'"'
+    const lines=[['x',...traces.map(t=>t.name)].map(escape).join(','),
+      ...displayPlot.x.map((x,i)=>[x,...traces.map(t=>t.y[i])].map(escape).join(','))]
+    safeDownload('quantlab_comparison.csv',lines.join('\n'),'text/csv')
+  }
+  return <div className="rw-stack">
+    <div className="rw-two">
+      <Box title="Choose saved model and index results">
+        <p className="rw-help">Select 2–8 completed saved runs. QuantLab checks compatible axes and evidence types before overlaying outputs.</p>
+        <div className="rw-run-list">{runs.map(r=><label key={r.key} className="rw-check-row">
+          <input type="checkbox" checked={selection.includes(r.key)} onChange={()=>toggle(r.key)}/>
+          <span><strong>{r.label}</strong><small>{r.kind} · {r.model||'index experiment'}</small></span></label>)}
+          {!runs.length&&<Empty title="No saved results">First run a mathematical model or index experiment.</Empty>}
+        </div>
+        <div className="rw-form-grid">
+          <Select label="Normalization" value={normalization} onChange={setNormalization}
+            options={[{value:'none',label:'Original units'},{value:'base100',label:'Base-100 (positive level series)'},
+              {value:'zscore',label:'Z-score (standardized)'}]}/>
+          <Select label="Alignment" value={alignment} onChange={setAlignment}
+            options={[{value:'intersection',label:'Common X observations only'},{value:'union',label:'Union (missing values stay blank)'}]}/>
+        </div>
+        <button className="rw-primary" disabled={busy||selection.length<2} onClick={build}>
+          <BarChart3 size={15}/> Compare selected runs</button>
+      </Box>
+      <Box title="Comparison and Graph Studio">
+        <Field label="Figure title" value={title} onChange={v=>edit({title:v})}/>
+        <Field label="Research annotation" value={annotation}
+          onChange={v=>edit({annotation:v})} placeholder="What did this comparison show?"/>
+        <div className="rw-form-grid"><Select label="Visualization" value={kind}
+          onChange={v=>edit({kind:v})} options={[{value:'line2d',label:'Line / ordered series'},
+            {value:'bar2d',label:'Grouped bars'}]}/>
+          <Select label="Layout" value={overlay} onChange={v=>setOverlay(v as 'overlay'|'split')}
+            options={[{value:'overlay',label:'Same graph'},{value:'split',label:'Separate curves'}]}/></div>
+        <div className="rw-form-grid">
+          <Field label="Show from (%)" type="number" value={from} onChange={setFrom}/>
+          <Field label="Show through (%)" type="number" value={to} onChange={setTo}/>
+        </div>
+        <div className="rw-button-group">
+          <button onClick={undo} disabled={!history.current.length}><Undo2 size={14}/> Undo edit</button>
+          <button onClick={saveComparison} disabled={!comparison||busy}><Save size={14}/> Save comparison</button>
+          <button onClick={saveChart} disabled={!displayPlot||busy}><Save size={14}/> Save graph</button>
+        </div>
+        <div className="rw-button-group"><button disabled={!displayPlot} onClick={exportCSV}>
+          <Download size={14}/> CSV</button>
+          <button disabled={!displayPlot} onClick={exportSVG}><Download size={14}/> SVG</button>
+          <button disabled={!displayPlot} onClick={()=>displayPlot&&safeDownload(
+            'quantlab_comparison.json',JSON.stringify({plot:displayPlot,annotation},null,2),'application/json')}>
+            <Download size={14}/> JSON</button></div>
+        {(saved||savedTemplate)&&<p className="rw-success">Saved {savedTemplate||saved} in the research library.</p>}
+      </Box>
+    </div>
+    {!!displayPlot&&<div className="rw-graph-preview">
+      {overlay==='overlay'?<ResearchPlot plot={displayPlot}/>:<div className="rw-grid-plots">
+        {(displayPlot.traces||[]).map((trace,i)=><ResearchPlot key={i}
+          plot={{...displayPlot,title:trace.name,traces:[trace]}}/>)}</div>}
+      {annotation&&<p className="rw-note">Research note: {annotation}</p>}
+      <p className="rw-caution">These are saved numerical outputs, not proof of independent out-of-sample predictive skill. Rebase and z-score transformations change plotted units.</p>
+    </div>}
+    <Box title="Restore a saved comparison">
+      {items.filter(x=>x.kind==='comparison'&&!x.trashed).map(item=>
+        <button className="rw-row" key={item.id} onClick={()=>loadComparison(item)}>
+          <span><strong>{item.title}</strong><small>{item.updated_utc.slice(0,16)}</small></span>
+          <RotateCcw size={15}/></button>)}
+      {!items.some(x=>x.kind==='comparison'&&!x.trashed)&&
+        <Empty title="No saved comparison layouts">Build a compatible overlay to save it here.</Empty>}
+    </Box>
+  </div>
+}
+
+function ProjectsPanel({records,runs,busy,perform,onMessage,startJob}:{
+  records:Item[];runs:RunOption[];busy:boolean;
+  perform:<T,>(action:()=>Promise<T>,done?:(r:T)=>void)=>Promise<void>;
+  onMessage:(text:string)=>void;
+  startJob:(job:{job_id:string;status:string},caption:string)=>void
+}){
+  const projects=records.filter(r=>r.kind==='project'&&!r.trashed)
+  const notebooks=records.filter(r=>r.kind==='notebook'&&!r.trashed)
+  const [name,setName]=useState('')
+  const [projectId,setProjectId]=useState('')
+  const [notebookId,setNotebookId]=useState('')
+  const [cells,setCells]=useState<NotebookCell[]>([])
+  const [dirty,setDirty]=useState(false)
+  const [saving,setSaving]=useState(false)
+  const [notebookTitle,setNotebookTitle]=useState('')
+  const [noteText,setNoteText]=useState('')
+  const initialized=useRef(false)
+  const selectedNotebook=notebooks.find(n=>n.id===notebookId)
+  const projectNotebooks=notebooks.filter(n=>String(n.payload.project_id||'')===projectId)
+  const pickNotebook=(item:Item)=>{
+    setNotebookId(item.id);setProjectId(String(item.payload.project_id||projectId))
+    setNotebookTitle(item.title)
+    setCells(Array.isArray(item.payload.cells)?item.payload.cells as NotebookCell[]:[])
+    setDirty(false);initialized.current=true
+  }
+  useEffect(()=>{
+    if(selectedNotebook||initialized.current)return
+    if(notebooks.length)pickNotebook(notebooks[0])
+  },[notebooks,selectedNotebook])
+  useEffect(()=>{
+    if(!dirty||!notebookId)return
+    const timer=window.setTimeout(()=>{
+      setSaving(true)
+      void api<Item>('/workspace/records/'+notebookId,
+        {title:notebookTitle,payload:{project_id:projectId,cells}},'PATCH')
+        .then(()=>{setDirty(false);onMessage('Notebook autosaved')})
+        .catch(()=>onMessage('Autosave failed: use Save now to retry'))
+        .finally(()=>setSaving(false))
+    },1200)
+    return()=>window.clearTimeout(timer)
+  },[cells,dirty,notebookId,notebookTitle,projectId,onMessage])
+  const createProject=()=>perform(()=>api<Item>('/workspace/records',
+    {kind:'project',title:name||'Untitled research project',
+      payload:{goal:'',description:'',status:'active'},tags:['research']},'POST'),
+    item=>{setProjectId(item.id);setName('');onMessage('Research project created')})
+  const createNotebook=()=>perform(()=>api<Item>('/workspace/records',
+    {kind:'notebook',title:name||'Research notebook',
+      payload:{project_id:projectId,cells:[]},tags:['notebook']},'POST'),
+    item=>{pickNotebook(item);setName('');onMessage('Notebook created')})
+  const alter=(newCells:NotebookCell[])=>{setCells(newCells);setDirty(true)}
+  const addCell=(type:NotebookCell['type'])=>{
+    const initial:NotebookCell={id:'cell_'+Date.now().toString(36),type,
+      content:type==='markdown'?'Research observation…':'',
+      run_id:type==='run'?runs.find(r=>r.kind==='model_run')?.id:undefined}
+    alter([...cells,initial])
+  }
+  const updateCell=(index:number,patch:Partial<NotebookCell>)=>alter(cells.map((c,i)=>
+    i===index?{...c,...patch}:c))
+  const save=()=>{if(!notebookId)return;perform(()=>api<Item>('/workspace/records/'+notebookId,
+      {title:notebookTitle,payload:{project_id:projectId,cells}},'PATCH'),()=>{
+        setDirty(false);onMessage('Notebook saved')})}
+  const exportNotebook=()=>safeDownload((notebookTitle||'research_notebook')+'.json',
+    JSON.stringify({title:notebookTitle,project_id:projectId,cells},null,2),'application/json')
+  return <div className="rw-stack">
+    <div className="rw-two">
+      <Box title="Research projects">
+        <p className="rw-help">Group related studies, model references, figures and reports. Organizing a project never creates duplicate market-price data.</p>
+        <div className="rw-inline-actions"><input value={name} onChange={e=>setName(e.target.value)}
+          placeholder="Project or notebook title"/>
+          <button disabled={busy} onClick={createProject}><Plus size={14}/> Project</button>
+          <button disabled={busy} onClick={createNotebook}><Plus size={14}/> Notebook</button></div>
+        {projects.map(p=><button key={p.id} className={'rw-row '+(p.id===projectId?'active':'')}
+          onClick={()=>{setProjectId(p.id);setNotebookId('');initialized.current=true}}>
+          <Folder size={17}/><span><strong>{p.title}</strong><small>{p.id}</small></span></button>)}
+        {!projects.length&&<Empty title="No projects yet">Create a project for a research question or thesis chapter.</Empty>}
+      </Box>
+      <Box title="Project notebooks">
+        {(projectId?projectNotebooks:notebooks).map(item=><button className={'rw-row '+(notebookId===item.id?'active':'')}
+          key={item.id} onClick={()=>pickNotebook(item)}>
+          <BookOpen size={17}/><span><strong>{item.title}</strong>
+            <small>{Array.isArray(item.payload.cells)?item.payload.cells.length:0} notebook cells</small></span>
+        </button>)}
+        {!(projectId?projectNotebooks:notebooks).length&&
+          <Empty title="No notebook selected">Create one or choose another project.</Empty>}
+        <p className="rw-help">Notebook cells are stored as data and run references. No executable Python or arbitrary HTML is accepted.</p>
+      </Box>
+    </div>
+    {notebookId&&selectedNotebook&&<Box title="Research notebook editor" side={
+      <span className="rw-pill">{saving?'Saving…':dirty?'Unsaved edits':'Saved'}</span>}>
+      <Field label="Notebook name" value={notebookTitle} onChange={v=>{setNotebookTitle(v);setDirty(true)}}/>
+      <div className="rw-button-group">
+        <button onClick={()=>addCell('markdown')}><Plus size={14}/> Text / equations</button>
+        <button onClick={()=>addCell('run')} disabled={!runs.some(r=>r.kind==='model_run')}>
+          <Plus size={14}/> Saved model run</button>
+        <button onClick={()=>addCell('chart')}><Plus size={14}/> Figure notes</button>
+        <button onClick={()=>addCell('table')}><Plus size={14}/> Findings table</button>
+      </div>
+      <div className="rw-cell-stack">{cells.map((cell,i)=><div key={cell.id} className="rw-cell">
+        <div className="rw-cell-head"><span>{String(i+1).padStart(2,'0')} / {cell.type}</span>
+          <div className="rw-row-actions">
+            <button aria-label="Move cell up" disabled={i===0} onClick={()=>{const next=[...cells];
+              [next[i-1],next[i]]=[next[i],next[i-1]];alter(next)}}><ArrowLeft size={15}/></button>
+            <button aria-label="Move cell down" disabled={i===cells.length-1} onClick={()=>{const next=[...cells];
+              [next[i+1],next[i]]=[next[i],next[i+1]];alter(next)}}><ArrowRight size={15}/></button>
+            <button aria-label="Delete cell" onClick={()=>alter(cells.filter((_,n)=>i!==n))}><Trash2 size={15}/></button>
+          </div></div>
+        {cell.type==='run'?<select value={cell.run_id||''}
+          onChange={e=>updateCell(i,{run_id:e.target.value})}>
+          <option value="">Select a saved model run</option>
+          {runs.filter(r=>r.kind==='model_run').map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
+        </select>:<textarea rows={cell.type==='markdown'?5:3} value={cell.content||''}
+          onChange={e=>updateCell(i,{content:e.target.value})}
+          placeholder="Add an observation, mathematical assumption, or explanation"/>}
+      </div>)}
+        {!cells.length&&<Empty title="Your notebook is blank">Add an interpretation, saved run or figure note.</Empty>}
+      </div>
+      <div className="rw-button-group">
+        <button className="rw-primary" onClick={save} disabled={busy||saving}>
+          <Save size={15}/> Save notebook</button>
+        <button onClick={exportNotebook}><Download size={15}/> Export source JSON</button>
+        <button disabled={busy||saving||dirty} onClick={()=>perform(
+          ()=>api<{job_id:string;status:string}>('/workspace/reports',
+            {notebook_id:notebookId,format:'html'},'POST'),
+          j=>startJob(j,'Research report'))}>
+          <FileText size={15}/> Generate HTML & Markdown report</button>
+      </div>
+      {dirty&&<p className="rw-help">Save pending changes before generating a report. Reports freeze the saved notebook version.</p>}
+    </Box>}
+    <Box title="Generated research reports">
+      {records.filter(x=>x.kind==='report'&&!x.trashed).map(item=><div className="rw-list-item" key={item.id}>
+        <div><strong>{item.title}</strong><small>Generated {String(item.payload.generated_utc||'').slice(0,16)}</small></div>
+        <div className="rw-row-actions">
+          <a href={'/api/workspace/reports/'+item.id+'/html'} download><ArrowDownToLine size={15}/> HTML</a>
+          <a href={'/api/workspace/reports/'+item.id+'/markdown'} download><ArrowDownToLine size={15}/> MD</a>
+        </div></div>)}
+      {!records.some(x=>x.kind==='report'&&!x.trashed)&&
+        <Empty title="No research reports yet">Create one from a saved research notebook.</Empty>}
+    </Box>
+  </div>
+}
