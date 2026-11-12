@@ -314,7 +314,7 @@ def _fetch_history(row: dict, start: str, stop: str, interval: int | None) -> di
         actual = hashlib.sha256(target.read_bytes()).hexdigest()
         if previous.get("sha256") != actual or previous.get("instrument_id") != row["id"]:
             raise ValueError("Cached OHLCV SHA-256 or instrument identity mismatch")
-        existing = pd.read_csv(target, low_memory=False)
+        existing = pd.read_csv(target, dtype={"security_id": str}, low_memory=False)
         if "datetime" not in existing.columns or existing["datetime"].duplicated().any():
             raise ValueError("Cached OHLCV structure invalid")
     missing = _uncovered(date.fromisoformat(start), date.fromisoformat(stop),
@@ -340,6 +340,17 @@ def _fetch_history(row: dict, start: str, stop: str, interval: int | None) -> di
         return {"status": "no_data", "rows": len(existing) if existing is not None else 0,
                 "rows_added": 0}
     incoming = pd.concat(chunks, ignore_index=True)
+    # Persist timestamps in one canonical representation. A reloaded CSV has
+    # string timestamps, while new Dhan frames use timezone-aware datetimes;
+    # mixing the two causes TypeError when sorting incremental updates.
+    def normalize(frame: pd.DataFrame) -> pd.DataFrame:
+        copy = frame.copy()
+        copy["datetime"] = (pd.to_datetime(copy["datetime"], utc=True, errors="raise")
+                            .dt.tz_convert("Asia/Kolkata")
+                            .dt.strftime("%Y-%m-%dT%H:%M:%S%z"))
+        return copy
+    incoming = normalize(incoming)
+    existing = normalize(existing) if existing is not None else None
     combined = pd.concat([existing, incoming], ignore_index=True) if existing is not None else incoming
     combined = combined.sort_values("datetime").drop_duplicates("datetime", keep="last")
     if combined.empty or combined["datetime"].isna().any():
