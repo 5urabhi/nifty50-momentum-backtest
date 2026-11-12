@@ -25,6 +25,7 @@ type JobStatus = {id:string;status:string;error?:string}
 type Props = {
   mode:PITMode;fromDate:string;toDate:string
   onToDate:(s:string)=>void;onPlan:(plan:MembershipPlan|null)=>void
+  onPreview:(plan:MembershipPlan|null)=>void
   onSyncBusy:(busy:boolean)=>void
 }
 async function get<T>(path:string, init?:RequestInit):Promise<T>{
@@ -57,7 +58,7 @@ function exportCsv(name:string, rows:string[][]){
   window.setTimeout(()=>URL.revokeObjectURL(url),1000)
 }
 
-export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSyncBusy}:Props){
+export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onPreview,onSyncBusy}:Props){
   const [status,setStatus]=useState<MembershipStatus|null>(null)
   const [asOf,setAsOf]=useState(fromDate)
   const [plan,setPlan]=useState<MembershipPlan|null>(null)
@@ -84,17 +85,17 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
   const endOutsideCoverage=Boolean(status?.available&&supportedEnd&&toDate>supportedEnd)
   useEffect(()=>{
     if(!status?.available||!supportedEnd){
-      setPlan(null);onPlan(null)
+      setPlan(null);onPlan(null);onPreview(null)
       return
     }
     const previewEnd=toDate<supportedEnd?toDate:supportedEnd
     if(fromDate>=previewEnd){
-      setPlan(null);onPlan(null);setIssue('')
+      setPlan(null);onPlan(null);onPreview(null);setIssue('')
       return
     }
     const previewAsOf=asOf<fromDate?fromDate:asOf>=previewEnd?previous(previewEnd):asOf
     const controller=new AbortController()
-    setPlan(null);onPlan(null)
+    setPlan(null);onPlan(null);onPreview(null)
     setLoading(true);setIssue('')
     const params=new URLSearchParams({
       index_id:mode,from_date:fromDate,to_date:previewEnd,as_of_date:previewAsOf,
@@ -102,13 +103,14 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
     void get<MembershipPlan>('/indices/preview?'+params, {signal:controller.signal}).then(p=>{
       if(!controller.signal.aborted){
         setPlan(p)
+        onPreview(p)
         onPlan(toDate>previewEnd?null:p)
       }
     }).catch(e=>{
-      if(!controller.signal.aborted){setPlan(null);onPlan(null);setIssue(e instanceof Error?e.message:String(e))}
+      if(!controller.signal.aborted){setPlan(null);onPlan(null);onPreview(null);setIssue(e instanceof Error?e.message:String(e))}
     }).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
     return()=>controller.abort()
-  },[mode,fromDate,toDate,asOf,status?.available,status?.covered_through,status?.source_commit,onPlan,supportedEnd])
+  },[mode,fromDate,toDate,asOf,status?.available,status?.covered_through,status?.source_commit,onPlan,onPreview,supportedEnd])
   useEffect(()=>{
     if(!syncId)return
     onSyncBusy(true)
