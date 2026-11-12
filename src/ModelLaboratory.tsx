@@ -29,12 +29,18 @@ type SavedRun={id:string;model_id:string;group:string;title:string;mode:string;
 type Readiness={dataset_id:string;frequency?:string;observed_dates?:number;
   eligible_assets_60?:number;eligible_assets_180?:number;has_prices:boolean;
   sample_start?:string;sample_end?:string;benchmark_kind?:string;warning?:string}
+type DataPlan={model_id:string;mode:string;status:string;runnable:boolean;min_returns:number;target_returns:number;
+  buffer_returns:number;common_returns?:number;assets_requested:number;assets_found?:number;
+  missing_minimum?:number;missing_to_target?:number;can_download?:boolean;download_explanation?:string;
+  suggested_start?:string;suggested_end_exclusive?:string;message:string}
+type ExtensionJob={id:string;status:string;kind:string;error?:string;result?:{dataset_id?:string;status:string;message:string;after?:DataPlan}}
 type Props={
   section:'mathematics'|'models';
   datasets:Datum[];
   selectedDataset:string;
   onSelectDataset:(id:string)=>void;
-  onOpenGuide:()=>void
+  onOpenGuide:()=>void;
+  onDataChanged?:()=>void
 }
 type ResultView='configure'|'figures'|'numbers'|'method'
 const SECTIONS=['Stochastic Processes','Volatility & Econometrics','Derivatives & Options',
@@ -83,7 +89,7 @@ function exportResult(modelId:string,result:LabResult,format:'json'|'csv'){
   document.body.appendChild(link);link.click();link.remove()
   URL.revokeObjectURL(url)
 }
-export default function ModelLaboratory({section,datasets,selectedDataset,onSelectDataset,onOpenGuide}:Props){
+export default function ModelLaboratory({section,datasets,selectedDataset,onSelectDataset,onOpenGuide,onDataChanged}:Props){
   const [catalog,setCatalog]=useState<ModelSpec[]>([])
   const [catalogError,setCatalogError]=useState<string|null>(null)
   const [group,setGroup]=useState(section==='mathematics'?SECTIONS[0]:SECTIONS[3])
@@ -96,6 +102,12 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   const [error,setError]=useState<string|null>(null)
   const [working,setWorking]=useState(false)
   const [savedRuns,setSavedRuns]=useState<SavedRun[]>([])
+  const [dataPlan,setDataPlan]=useState<DataPlan|null>(null)
+  const [planError,setPlanError]=useState<string|null>(null)
+  const [planLoading,setPlanLoading]=useState(false)
+  const [extensionJob,setExtensionJob]=useState<ExtensionJob|null>(null)
+  const [extensionMessage,setExtensionMessage]=useState<string|null>(null)
+  const [extensionError,setExtensionError]=useState<string|null>(null)
   const refreshSaved=useCallback(()=>getJSON<{runs:SavedRun[]}>('/lab/runs')
     .then(data=>setSavedRuns(data.runs)).catch(()=>setSavedRuns([])),[])
   useEffect(()=>{void refreshSaved()},[refreshSaved])
@@ -142,9 +154,60 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   }
   const observedNeeded=selected?.mode==='historical'
   const min=selected?.min_observations||0
-  const insufficient=observedNeeded&&(
-    !selectedDataset||readiness?.has_prices===false||
-    (readiness?.observed_dates!==undefined&&readiness.observed_dates<=min)
+  const requestedAssets=Number(params.assets??8)
+  const requestedWindow=Number(params.train_window??60)
+  useEffect(()=>{
+    setDataPlan(null);setPlanError(null)
+    if(!selected||selected.mode!=='historical'||!selectedDataset)return
+    let active=true
+    setPlanLoading(true)
+    const query=new URLSearchParams({model_id:selected.id,dataset_id:selectedDataset,
+      assets:String(requestedAssets),train_window:String(requestedWindow)})
+    getJSON<DataPlan>('/lab/data-requirements?'+query.toString())
+      .then(plan=>{if(active)setDataPlan(plan)})
+      .catch(e=>{if(active)setPlanError(e instanceof Error?e.message:String(e))})
+      .finally(()=>{if(active)setPlanLoading(false)})
+    return()=>{active=false}
+  },[selected?.id,selected?.mode,selectedDataset,requestedAssets,requestedWindow,extensionJob?.status])
+  useEffect(()=>{
+    if(!extensionJob||!['queued','running'].includes(extensionJob.status))return
+    let active=true
+    const timer=window.setTimeout(()=>{
+      void getJSON<ExtensionJob>('/jobs/'+encodeURIComponent(extensionJob.id))
+        .then(next=>{
+          if(!active)return
+          setExtensionJob(next)
+          if(next.status==='complete'){
+            const response=next.result
+            setExtensionMessage(response?.message??'Shared history preparation completed.')
+            if(response?.dataset_id){
+              onDataChanged?.()
+              onSelectDataset(response.dataset_id)
+            }
+          }
+          if(next.status==='error')setExtensionError(next.error||'Historical download failed.')
+        })
+        .catch(e=>{if(active)setExtensionError(e instanceof Error?e.message:String(e))})
+    },1250)
+    return()=>{active=false;window.clearTimeout(timer)}
+  },[extensionJob,onSelectDataset,onDataChanged])
+  const extendHistory=async()=>{
+    if(!selected||!selectedDataset||!dataPlan?.can_download||extensionJob)return
+    setExtensionError(null);setExtensionMessage(null)
+    const request={model_id:selected.id,dataset_id:selectedDataset,params,confirm_download:true}
+    try{
+      const reply=await fetch('/api/lab/data-requirements/extend',{
+        method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(request)})
+      if(!reply.ok)throw new Error(await errorText(reply))
+      const job=await reply.json() as {job_id:string;status:string}
+      setExtensionJob({id:job.job_id,kind:'lab_shared_data_extension',status:job.status})
+    }catch(e){setExtensionError(e instanceof Error?e.message:String(e))}
+  }
+  const insufficient=!!observedNeeded&&(
+    !selectedDataset||planLoading||!!planError||
+    (dataPlan? !dataPlan.runnable :
+      readiness?.has_prices===false||(readiness?.observed_dates!==undefined&&readiness.observed_dates<=min))
   )
   const run=async()=>{
     if(!selected||working)return
@@ -251,6 +314,36 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
             <div><strong>{readiness.observed_dates??0}</strong><small>Observed price dates</small></div>
             <div><strong>{readiness.eligible_assets_60??0}</strong><small>Assets with 60+ returns</small></div>
             <div><strong>{readiness.eligible_assets_180??0}</strong><small>Assets with 180+ returns</small></div>
+          </div>}
+          {observedNeeded&&selectedDataset&&<div className="ql-coverage-panel" role="region" aria-label="Model data requirements">
+            <div className="ql-panel-title"><Database size={17}/><h3>Data requirements & shared history</h3></div>
+            {planLoading?<p className="ql-muted"><LoaderCircle size={14} className="ql-spinning"/> Checking aligned observations…</p>:
+            dataPlan?<><div className="ql-coverage-stats">
+              <div><small>Observed common returns</small><strong>{dataPlan.common_returns??0}</strong></div>
+              <div><small>Model minimum</small><strong>{dataPlan.min_returns}</strong></div>
+              <div><small>Preferred +20% target</small><strong>{dataPlan.target_returns}</strong></div>
+              <div><small>Still needed for target</small><strong>{dataPlan.missing_to_target??0}</strong></div>
+            </div>
+              <p className={dataPlan.runnable?'ql-alert good':'ql-alert warning'}>
+                {dataPlan.runnable?<CheckCircle2 size={16}/>:<CircleAlert size={16}/>}
+                {dataPlan.message}{dataPlan.status==='ready_minimum'?' The model can run, but the preferred research buffer is not yet met.':''}
+              </p>
+              {dataPlan.can_download&&<div className="ql-download-offer">
+                <p><strong>Use shared market history</strong> · Reuse cached NIFTY / BANK NIFTY securities first.
+                  Request missing Dhan daily windows from {dataPlan.suggested_start} to {dataPlan.suggested_end_exclusive} (end exclusive).
+                  Existing observations will be appended, not replaced. The exact number of market sessions cannot be guaranteed.</p>
+                <button type="button" disabled={!!extensionJob&&['queued','running'].includes(extensionJob.status)}
+                  onClick={()=>void extendHistory()}>
+                  <Download size={15}/> {extensionJob&&['queued','running'].includes(extensionJob.status)?
+                    'Downloading / preparing…':'Yes — download & prepare missing data'}
+                </button>
+              </div>}
+              {!dataPlan.can_download&&dataPlan.download_explanation&&dataPlan.status!=='ready_with_buffer'&&
+                <p className="ql-muted">{dataPlan.download_explanation}</p>}
+            </>:<p className="ql-muted">No model coverage result yet.</p>}
+            {planError&&<p className="ql-alert bad">{planError}</p>}
+            {extensionMessage&&<p className="ql-alert good" role="status"><CheckCircle2 size={16}/>{extensionMessage}</p>}
+            {extensionError&&<p className="ql-alert bad" role="alert">{extensionError}</p>}
           </div>}
           <div className="ql-param-grid">{selected.parameters.map(spec=><label className="ql-field" key={spec.key}>
             <span>{spec.key.replaceAll('_',' ')}</span>
