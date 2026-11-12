@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import {Archive,ArrowDownToLine,ArrowLeft,ArrowRight,BarChart3,BookOpen,Check,
-  CheckCircle2,Database,Download,FileText,Folder,Heart,
+  CheckCircle2,Copy,Database,Download,FileText,Folder,Heart,
   History,Layers3,LoaderCircle,Plus,RefreshCw,RotateCcw,Save,Search,
   Settings2,ShieldCheck,SlidersHorizontal,Trash2,Undo2,Upload,Workflow,X} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
@@ -271,6 +271,7 @@ function LibraryPanel({items,resources,busy,perform,onChanged,onOpenModels,onOpe
   const [showArchived,setShowArchived]=useState(false)
   const [detail,setDetail]=useState<Item|Resource|null>(null)
   const [newTitle,setNewTitle]=useState('')
+  const [newTags,setNewTags]=useState('')
   const visibleResources=resources.filter(x=>(filter==='all'||x.kind===filter)&&
     (mode==='trash'?x.trashed:!x.trashed)&&(showArchived||mode==='trash'||!x.archived)&&
     (x.title+' '+x.summary).toLowerCase().includes(search.toLowerCase()))
@@ -302,13 +303,15 @@ function LibraryPanel({items,resources,busy,perform,onChanged,onOpenModels,onOpe
       <button onClick={onOpenModels}><Plus size={14}/> Run model</button></div>}>
       <div className="rw-toolbar">
         <div className="rw-segments">{(['resources','saved','trash'] as const).map(v=>
-          <button key={v} className={mode===v?'active':''} onClick={()=>{setMode(v);setFilter('all');setDetail(null)}}>
+          <button key={v} className={mode===v?'active':''} onClick={()=>{setMode(v);setFilter('all');setDetail(null);setSelected([])}}>
             {v==='resources'?'Datasets & results':v==='saved'?'Saved work':'Trash'}</button>)}</div>
         <input className="rw-search-field" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Filter by name or tag"/>
         <select value={filter} onChange={e=>setFilter(e.target.value)}>
           <option value="all">All kinds</option>
           {(mode==='resources'?['dataset','model_run','research_run']:
-            ['configuration','chart','comparison','project','notebook','report','note','study','dashboard'])
+            mode==='trash'?['dataset','model_run','research_run','configuration','chart',
+              'comparison','project','notebook','report','note','study','dashboard']:
+              ['configuration','chart','comparison','project','notebook','report','note','study','dashboard'])
             .map(v=><option key={v} value={v}>{v.replaceAll('_',' ')}</option>)}
         </select>
         <label className="rw-inline"><input type="checkbox" checked={showArchived}
@@ -341,7 +344,7 @@ function LibraryPanel({items,resources,busy,perform,onChanged,onOpenModels,onOpe
             onChange={e=>setSelected(s=>e.target.checked?[...s,item.id]:s.filter(v=>v!==item.id))}/>
           <div><strong>{item.title}</strong><small>{item.kind} · {item.updated_utc.slice(0,16)} · {item.tags.join(', ')||'No tags'}</small></div>
           <div className="rw-row-actions">
-            <button title="Inspect" onClick={()=>{setDetail(item);setNewTitle(item.title)}}><BookOpen size={15}/></button>
+            <button title="Inspect" onClick={()=>{setDetail(item);setNewTitle(item.title);setNewTags(item.tags.join(', '))}}><BookOpen size={15}/></button>
             {mode==='trash'?<button onClick={()=>recordOperation(item,'restore')}><RotateCcw size={15}/></button>:
             <><button title="Favorite" onClick={()=>recordOperation(item,item.favorite?'unfavorite':'favorite')}>
               <Heart size={15} fill={item.favorite?'currentColor':'none'}/></button>
@@ -354,11 +357,18 @@ function LibraryPanel({items,resources,busy,perform,onChanged,onOpenModels,onOpe
     {detail&&<Box title={'Inspect '+detail.title} side={<button className="rw-link" onClick={()=>setDetail(null)}><X size={15}/> Close</button>}>
       {'payload' in detail?<><div className="rw-form-grid">
         <Field label="Title" value={newTitle} onChange={setNewTitle}/>
-        <div className="rw-inline-actions"><button disabled={busy} onClick={()=>perform(
-          ()=>api<Item>('/workspace/records/'+detail.id,{title:newTitle},'PATCH'),
-          updated=>{setDetail(updated);onMessage('Title updated')})}><Save size={15}/> Save title</button>
+        <Field label="Tags (comma-separated)" value={newTags} onChange={setNewTags}/>
+        <div className="rw-inline-actions"><button disabled={busy||detail.trashed} onClick={()=>perform(
+          ()=>api<Item>('/workspace/records/'+detail.id,{
+            title:newTitle,tags:newTags.split(',').map(x=>x.trim()).filter(Boolean)},'PATCH'),
+          updated=>{setDetail(updated);onMessage('Title and tags updated')})}>
+          <Save size={15}/> Save details</button>
           <button onClick={()=>safeDownload(detail.id+'.json',JSON.stringify(detail,null,2),'application/json')}>
-            <Download size={15}/> Export JSON</button></div></div>
+            <Download size={15}/> Export JSON</button>
+          {detail.kind!=='report'&&!detail.trashed&&<button disabled={busy}
+            onClick={()=>perform(()=>api<Item>('/workspace/records',{
+              kind:detail.kind,title:detail.title+' (copy)',payload:detail.payload,tags:detail.tags},'POST'),
+              ()=>onMessage('Saved item duplicated'))}><Copy size={15}/> Duplicate</button>}</div></div>
         <pre className="rw-json">{JSON.stringify(detail.payload,null,2)}</pre></>:
       <><p>Resource identity: {detail.kind}:{detail.id}</p>
         <p>Archive hides this entry from the active workspace. Trash can only move independently derived datasets or saved results, never canonical Dhan source data. References prevent unsafe deletion.</p>
