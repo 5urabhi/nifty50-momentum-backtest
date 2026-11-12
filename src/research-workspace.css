@@ -143,3 +143,23 @@
 .rw-toolbar>select{max-width:unset;width:100%}
 .rw-box{padding:13px}}
 @media(prefers-reduced-motion:reduce){.rw-root *{scroll-behavior:auto!important}}
+
+.rw-project-detail{margin-top:14px;padding-top:12px;border-top:1px solid var(--rw-stroke)}
+.rw-report-editor{padding:15px;background:var(--rw-bg);border:1px solid var(--rw-stroke);
+ margin-top:14px;border-radius:9px}
+.rw-report-editor textarea{font:11px/1.6 ui-monospace,Consolas,monospace;resize:vertical}
+.rw-dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:17px 0}
+.rw-dashboard-card{min-width:0;background:var(--rw-bg);border:1px solid var(--rw-stroke);
+ border-radius:10px;padding:13px;overflow:hidden}
+.rw-dashboard-card .ql-chart-card{border:0;padding:5px;background:transparent}
+.rw-dashboard-card .ql-chart-card h4{display:none}
+.rw-dashboard-card .ql-svg-chart{min-height:145px}
+.rw-dashboard-card .ql-legend{font-size:8px}
+.rw-mini-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0}
+.rw-mini-stats small{color:var(--rw-muted);font-size:9px;display:block;white-space:normal}
+.rw-mini-stats strong{color:var(--rw-accent);font-size:13px;word-break:break-word}
+.rw-saved-dashboards{margin-top:15px;border-top:1px solid var(--rw-stroke);padding-top:12px}
+.rw-file-button{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;
+ border:1px solid var(--rw-stroke);background:var(--rw-soft);border-radius:8px;font-weight:650}
+.rw-file-button:hover{border-color:var(--rw-accent)}
+@media(max-width:850px){.rw-dashboard-grid{grid-template-columns:1fr}}
