@@ -20,14 +20,14 @@ type CatalogPage = {
 type BatchSummary = {
   id:string;status:string;created_utc:string;updated_utc?:string;selection:SelectionMode;
   interval:number|null;from_date:string;to_date:string;total:number;processed:number;
-  counts:Record<string,number>;current_symbol:string|null;prepared_dataset_id?:string|null;
+  counts:Record<string,number>;current_symbol:string|null;current_window?:string|null;prepared_dataset_id?:string|null;
   errors:number;warning:string
   historical_index_name?:string|null;historical_union_count?:number
   historical_unresolved?:Array<{symbol:string;reason:string}>
   index_spot?:{status:string;rows?:number;file?:string;error?:string;warning?:string;identity_source?:string;reference?:string}
 }
 type BatchDetails = BatchSummary & {
-  items:Array<CatalogItem & {status:string;rows:number;rows_added:number;error?:string|null}>
+  items:Array<CatalogItem & {status:string;rows:number;rows_added:number;windows_completed?:number;windows_total?:number;error?:string|null}>
   page:number;per_page:number;filtered_total:number
 }
 type Job = {job_id:string;batch?:BatchSummary}
@@ -395,7 +395,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         <div className="dh-batch-title"><div><strong>Batch {details.id.slice(-8)}</strong><span> · {interpretMode(details.selection)} · {fmt(details.total)} instruments</span></div>
           <Pill tone={details.status==='completed'?'good':currentActive?'blue':'warning'}>{statusText(details.status)}</Pill></div>
         <div className="dh-meter"><span style={{width:progress+'%'}}/></div>
-        <div className="dh-progress-label"><span>{progress}% processed {details.current_symbol?'· Now: '+details.current_symbol:''}</span>
+        <div className="dh-progress-label"><span>{progress}% processed {details.current_symbol?'· Now: '+details.current_symbol:''}{details.current_window?' · Window '+details.current_window:''}</span>
           <span>{fmt(details.processed)} / {fmt(details.total)}</span></div>
         <div className="dh-progress-cards">{[
           ['Downloaded',details.counts.complete||0],['Cached',details.counts.cached||0],
@@ -420,7 +420,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         <div className="dh-result-table"><table><thead><tr><th>Symbol</th><th>Security ID</th><th>Status</th><th>Rows</th><th>Details</th></tr></thead><tbody>
           {details.items.map(item=><tr key={item.id}><td><strong>{item.symbol}</strong><small>{item.exchange_segment}</small></td><td>{item.security_id}</td>
             <td><Pill tone={['complete','cached'].includes(item.status)?'good':item.status==='failed'?'warning':'muted'}>{statusText(item.status)}</Pill></td>
-            <td>{fmt(item.rows||0)}</td><td>{item.error?<span className="dh-error-note" title={item.error}>{item.error}</span>:
+            <td>{fmt(item.rows||0)}{item.windows_total? <small>{item.windows_completed||0}/{item.windows_total} date windows</small>:null}</td><td>{item.error?<span className="dh-error-note" title={item.error}>{item.error}</span>:
               ['complete','cached'].includes(item.status)?<button className="dh-view" onClick={()=>previewRow(item)}>Preview candles</button>:'—'}</td></tr>)}
         </tbody></table></div>
         <div className="dh-pages"><button disabled={detailPage<=1} onClick={()=>setDetailPage(v=>v-1)}><ChevronLeft size={15}/> Previous</button>
