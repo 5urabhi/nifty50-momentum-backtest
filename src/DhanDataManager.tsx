@@ -24,7 +24,7 @@ type BatchSummary = {
   errors:number;warning:string
   historical_index_name?:string|null;historical_union_count?:number
   historical_unresolved?:Array<{symbol:string;reason:string}>
-  index_spot?:{status:string;rows?:number;file?:string;error?:string;warning?:string}
+  index_spot?:{status:string;rows?:number;file?:string;error?:string;warning?:string;identity_source?:string;reference?:string}
 }
 type BatchDetails = BatchSummary & {
   items:Array<CatalogItem & {status:string;rows:number;rows_added:number;error?:string|null}>
@@ -408,7 +408,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
             <button className="dh-small-btn primary" disabled={working||Boolean(task)||currentActive} onClick={prepare}><FileSpreadsheet size={16}/> Prepare monthly price matrix</button>}
           {details.prepared_dataset_id&&<Pill tone="good">Prepared dataset: {details.prepared_dataset_id}</Pill>}
           {details.historical_index_name&&<div className="dh-pit-in-batch"><strong>{details.historical_index_name} · dated membership</strong><span>Universe: {details.historical_union_count} unique symbols · {details.historical_unresolved?.length||0} have no Dhan ID. Preparing daily candles writes membership.csv from saved effective-date intervals; a compatible benchmark remains required.</span>
-          {details.index_spot&&<span>Index spot OHLCV: {details.index_spot.status} · {details.index_spot.rows||0} rows{details.index_spot.file?" · saved to data/"+details.index_spot.file:""}{details.index_spot.error?" · "+details.index_spot.error:""}. Spot prices are not dividend-adjusted TRI.</span>}</div>}
+          {details.index_spot&&<span>Index spot OHLCV: {details.index_spot.status} · {details.index_spot.rows||0} rows{details.index_spot.file?" · saved to data/"+details.index_spot.file:""}{details.index_spot.error?" · "+details.index_spot.error:""}. Spot prices are not dividend-adjusted TRI.
+          {details.index_spot.identity_source&&<> · ID source: {details.index_spot.identity_source==="verified_unique_dhan_scrip_master_match"?"Current Dhan instrument master":"Published Dhan IDX_I reference"}{details.index_spot.reference&&<> (<a href={details.index_spot.reference} target="_blank" rel="noreferrer">source ↗</a>)</>}</>}</span>}</div>}
         </div>
         <div className="dh-detail-toolbar"><span>Per-stock results</span>
           <select aria-label="Filter download result status" value={statusFilter} onChange={e=>{setStatusFilter(e.target.value);setDetailPage(1)}}>
