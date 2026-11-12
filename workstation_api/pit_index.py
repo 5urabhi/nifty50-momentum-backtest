@@ -305,15 +305,19 @@ def query(mode: str, start: str, stop: str, instruments: list[dict] | None = Non
     # Dhan has a CURRENT cash-equity master, not a delisted-instrument archive.
     # Resolve only exact unambiguous security identifiers. Never guess renames.
     by_name: dict[str, list[dict]] = {}
+    has_canonical_tickers = any(row.get("trading_symbol_verified") for row in instruments or [])
     for row in instruments or []:
-        if row.get("exchange_segment") == "NSE_EQ" and row.get("regular_eq"):
+        if (row.get("exchange_segment") == "NSE_EQ" and row.get("regular_eq")
+                and row.get("trading_symbol_verified")):
             by_name.setdefault(str(row["symbol"]).casefold(), []).append(row)
     resolved, missing = [], []
     for symbol in symbols:
         candidates = by_name.get(symbol.casefold(), [])
         if len(candidates) != 1:
             missing.append({"symbol": symbol, "reason":
-                            "missing_current_dhan_id" if not candidates else "ambiguous_current_dhan_id"})
+                            ("refresh_compact_dhan_scrip_master" if not has_canonical_tickers else
+                             "missing_current_dhan_id" if not candidates else
+                             "ambiguous_current_dhan_id")})
             continue
         row = dict(candidates[0])
         row["pit_symbol"] = symbol
@@ -329,8 +333,12 @@ def query(mode: str, start: str, stop: str, instruments: list[dict] | None = Non
     if first.year < 2018:
         warning.append("Pre-2018 memberships have documented reconstruction gaps.")
     if missing:
-        warning.append("The current Dhan master lacks " + str(len(missing)) +
-                       " historical symbols. A full survivorship-free price panel cannot be built.")
+        if not has_canonical_tickers:
+            warning.append("Dhan instrument master lacks verified exchange trading symbols. "
+                           "Refresh the instrument catalog to download Dhan's compact CSV before building any PIT batch.")
+        else:
+            warning.append("The current Dhan master cannot resolve " + str(len(missing)) +
+                           " historical symbols. A full survivorship-free price panel cannot be built.")
     return {
         "index_id": mode, "index_name": index_name,
         "from_date": start, "to_date": stop,
