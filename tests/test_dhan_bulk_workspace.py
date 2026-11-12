@@ -78,7 +78,7 @@ class BulkDhanWorkstationTests(unittest.TestCase):
         })
 
     def test_minute_candles_form_observed_daily_ohlcv_without_lookahead(self):
-        selection = dw.catalog()[0]
+        selection = next(row for row in dw.catalog() if row["symbol"] == "RELIANCE" and row["exchange_segment"] == "NSE_EQ")
         inst = selection["id"]
         self.assertTrue(inst.startswith("NSE_EQ:"))
         batch = dw.create_batch("selected", [inst], [],
