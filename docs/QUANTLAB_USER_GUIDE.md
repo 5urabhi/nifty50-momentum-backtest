@@ -1,5 +1,7 @@
 # QuantLab — User Guide
 
+**New:** The Research Workspace now manages saved model presets, datasets, results, 2D/3D comparisons, notebooks, reports and chronological validation. See [Research Workspace manual](RESEARCH_WORKSPACE_GUIDE.md) for the full instructions.
+
 **Multi-Factor Equity Index Construction, Stochastic Modeling & Quantitative Risk Research**
 
 > This is the canonical guide for the **local React/Vite + Python/FastAPI workstation**. It is **not** a public trading application, brokerage order router, or independently audited investment strategy.
