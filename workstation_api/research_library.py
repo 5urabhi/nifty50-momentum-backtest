@@ -549,8 +549,27 @@ def global_search(phrase: str) -> list[dict]:
     results = [{"kind": a["kind"], "id": a["id"], "title": a["title"],
                 "location": "research_library"} for a in list_items(query=phrase, limit=75)]
     for item in resource_listing():
-        if needle in (item["title"] + " " + item["summary"]).casefold():
+        if needle in (item["title"] + " " + item["summary"]+" "+
+                      " ".join(item.get("tags",[]))).casefold():
             results.append({**item, "location": "resource_library"})
+    from . import model_registry
+    for spec in model_registry.MODELS:
+        match=" ".join([spec["title"],spec["group"],spec["description"],spec["formula"],spec["id"]])
+        if needle in match.casefold():
+            results.append({"kind":"registered_model","id":spec["id"],
+                            "title":spec["title"],"location":"model_catalog",
+                            "description":spec["description"][:160]})
+    manual_names={
+        "user-guide":"User guide and data workflow",
+        "model-catalog":"Model mathematics and algorithm catalog",
+        "workspace":"Research Workspace manual",
+        "reproducibility":"Research methodology and reproducibility",
+        "metrics":"Risk, statistical and performance formula reference",
+    }
+    for key,title in manual_names.items():
+        if needle in (key+" "+title).casefold():
+            results.append({"kind":"documentation","id":key,"title":title,
+                            "location":"documentation"})
     return results[:100]
 
 
