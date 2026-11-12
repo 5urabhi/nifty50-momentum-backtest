@@ -245,7 +245,7 @@ def _window(start: str, stop: str, meta: dict) -> tuple[date, date]:
     if from_date < date.fromisoformat(meta["first_date"]):
         raise ValueError("Historical index history begins at " + meta["first_date"])
     if to_date > date.fromisoformat(meta["covered_through"]) + timedelta(days=1):
-        raise ValueError("Membership is verified only through " + meta["covered_through"]
+        raise ValueError("Membership source documents coverage only through " + meta["covered_through"]
                          + ". Shorten the end date or sync a newer historical source.")
     return from_date, to_date
 
