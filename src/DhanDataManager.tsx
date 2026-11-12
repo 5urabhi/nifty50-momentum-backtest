@@ -228,10 +228,9 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const dateDays=(Date.parse(toDate)-Date.parse(fromDate))/86400000
   const daily=interval==='daily'
   const estimatedRequests=downloadCount*Math.ceil(Math.max(0,dateDays)/(daily?365:90))
-  const tooManyIntraday=!daily&&downloadCount>100
   const invalidDates=!Number.isFinite(dateDays)||dateDays<=0
   const startDisabled=!connection?.token_configured||!connection?.instrument_master_available||
-    downloadCount===0||working||Boolean(task)||pitSyncBusy||invalidDates||tooManyIntraday||
+    downloadCount===0||working||Boolean(task)||pitSyncBusy||invalidDates||
     (downloadCount>100&&!acknowledged)||
     (pitMode&&(!pitPlan||(pitPlan.unresolved_count>0&&!acknowledgedGaps)))
   const startBatch=()=>void run(()=>post<Job>('/dhan/batches',{
@@ -363,8 +362,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
             </select></label></div>
           <div className="dh-estimate"><div><span>Estimated API calls</span><strong>{Number.isFinite(estimatedRequests)?'≈ '+fmt(estimatedRequests):'—'}</strong></div>
             <small>Rough minimum before retries; actual calls depend on date windows and cached coverage. Dhan applies its own limits.</small></div>
-          {pitMode&&!daily&&<div className="dh-pit-alert"><Info size={16}/><div><strong>Intraday downloads need more requests</strong><p>For historical index membership and backtests, download daily candles first. Use 1-minute data in a separate shorter-range job after checking Dhan access and completeness.</p><button className="dh-small-btn" type="button" onClick={()=>setInterval("daily")}>Switch to daily candles</button></div></div>}
-          {tooManyIntraday&&<p className="dh-error-note">Intraday batches are limited to 100 instruments. Use daily candles for full-market downloads.</p>}
+          {!daily&&<div className="dh-pit-coverage"><span><Check size={13}/> No arbitrary instrument cap on minute history</span><span><Clock3 size={13}/> 90-day Dhan API windows, automatically chained</span><span><Database size={13}/> Each completed window saved for resume</span></div>}
+          {pitMode&&!daily&&<div className="dh-pit-alert"><Info size={16}/><div><strong>Full-year 1-minute downloads are supported</strong><p>The workstation splits the selected dates into Dhan's 90-day request windows and preserves each finished chunk, even if a later request fails. Large universes take more API calls and storage; your Dhan subscription, 5-year history coverage and rate limits still apply.</p><button className="dh-small-btn" type="button" onClick={()=>setInterval('daily')}>Use daily for faster index research</button></div></div>}
           {invalidDates&&<p className="dh-error-note">The end date must be later than the start date.</p>}
           {downloadCount>100&&<label className="dh-confirm"><input type="checkbox" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)}/>
             <span>I understand this will request historical data for {fmt(downloadCount)} instruments. This may be a long-running operation and use my Dhan API allowance.</span></label>}
