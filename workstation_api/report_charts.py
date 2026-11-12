@@ -52,6 +52,10 @@ def _series(plot: dict):
 
 def svg(plot: dict) -> str:
     """Safe static vector chart, suitable for embedding into an HTML report."""
+    if plot.get("kind") == "scatter2d":
+        return _svg_scatter(plot)
+    if plot.get("kind") == "heatmap2d":
+        return _svg_heatmap(plot)
     data = _series(plot)
     if data is None:
         return "<p>Saved figure is a 3D surface or unsupported plot; inspect in QuantLab.</p>"
@@ -112,6 +116,10 @@ def svg(plot: dict) -> str:
 
 def pdf_drawing(plot: dict):
     """Return a selectable vector drawing for supported saved 2D plots."""
+    if plot.get("kind") == "scatter2d":
+        return _pdf_scatter(plot)
+    if plot.get("kind") == "heatmap2d":
+        return _pdf_heatmap(plot)
     data = _series(plot)
     if data is None:
         return None
@@ -160,3 +168,132 @@ def pdf_drawing(plot: dict):
     drawing.add(String(right,9,str(xs[-1])[:18],fontName="Helvetica",fontSize=8,
                        textAnchor="end"))
     return drawing
+
+
+def _scatter_data(plot: dict):
+    xs, ys = plot.get("x"), plot.get("y")
+    if (not isinstance(xs, list) or not isinstance(ys,list)
+            or not 2<=len(xs)<=600 or len(xs)!=len(ys)
+            or any(not _finite(v) for v in xs+ys)):
+        return None
+    lowx, highx, lowy, highy = min(xs), max(xs), min(ys), max(ys)
+    if highx==lowx: highx=lowx+1
+    if highy==lowy: highy=lowy+1
+    return xs,ys,lowx,highx,lowy,highy
+
+
+def _heatmap_data(plot: dict):
+    labels=plot.get("labels")
+    values=plot.get("values")
+    row_labels=plot.get("row_labels",labels)
+    if (not isinstance(labels,list) or not isinstance(row_labels,list)
+            or not 1<=len(labels)<=25 or not 1<=len(row_labels)<=25
+            or not isinstance(values,list) or len(values)!=len(row_labels)
+            or any(not isinstance(row,list) or len(row)!=len(labels) or
+                   any(not _finite(v) for v in row) for row in values)):
+        return None
+    flat=[float(v) for row in values for v in row]
+    low,high=min(flat),max(flat)
+    return labels,row_labels,values,low,high
+
+
+def _color_for(value, low, high, sequential):
+    import colorsys
+    z=max(0.,min(1.,((value-low)/max(1e-12,high-low)) if sequential
+                    else (value+1)/2))
+    r,g,b=colorsys.hls_to_rgb(.56-.13*z,.49,.47)
+    return "#%02x%02x%02x"%(int(r*255),int(g*255),int(b*255))
+
+
+def _svg_scatter(plot):
+    data=_scatter_data(plot)
+    if data is None:
+        return "<p>Saved scatter points are unavailable or invalid.</p>"
+    xs,ys,lowx,highx,lowy,highy=data
+    parts=['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 325" role="img" '
+           'aria-label="'+html.escape(str(plot.get("title","Saved scatter"))[:140],quote=True)+'">',
+           '<rect width="840" height="325" fill="#f8fbfc"/>']
+    for x,y in zip(xs,ys):
+        px=65+730*(x-lowx)/(highx-lowx)
+        py=270-230*(y-lowy)/(highy-lowy)
+        parts.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="2.6" fill="#139e80" fill-opacity=".6">'
+                     f'<title>{float(x):.5g}, {float(y):.5g}</title></circle>')
+    parts+=['<line x1="65" y1="270" x2="796" y2="270" stroke="#44656b"/>',
+            '<line x1="65" y1="40" x2="65" y2="270" stroke="#44656b"/>',
+            '<text x="430" y="304" text-anchor="middle" font-size="12">'+
+            html.escape(str(plot.get("x_label","X"))[:60])+'</text>',
+            '<text x="25" y="150" text-anchor="middle" transform="rotate(-90,25,150)" font-size="12">'+
+            html.escape(str(plot.get("y_label","Y"))[:60])+'</text>','</svg>']
+    return "".join(parts)
+
+
+def _svg_heatmap(plot):
+    data=_heatmap_data(plot)
+    if data is None:
+        return "<p>Saved heatmap matrix is unavailable or invalid.</p>"
+    labels, row_labels, values, low, high=data
+    columns=len(labels); rows=len(row_labels)
+    cell=min(42,max(13,int(650/max(columns,rows))))
+    width=145+cell*columns
+    height=85+cell*rows
+    parts=[f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" '
+           'aria-label="'+html.escape(str(plot.get("title","Saved heatmap"))[:140],quote=True)+'">',
+           f'<rect width="{width}" height="{height}" fill="#f8fbfc"/>']
+    sequential=plot.get("scale")=="sequential"
+    for i,label in enumerate(labels):
+        parts.append(f'<text x="{122+i*cell+cell/2}" y="43" text-anchor="start" font-size="9" '
+                     f'transform="rotate(-37,{122+i*cell+cell/2},43)">'+
+                     html.escape(str(label)[:13])+'</text>')
+    for row_index,row in enumerate(values):
+        parts.append(f'<text x="115" y="{59+row_index*cell+cell/2}" '
+                     'text-anchor="end" font-size="9">'+
+                     html.escape(str(row_labels[row_index])[:15])+'</text>')
+        for j,value in enumerate(row):
+            color=_color_for(value,low,high,sequential)
+            parts.append(f'<rect x="{122+j*cell}" y="{54+row_index*cell}" '
+                         f'width="{cell-2}" height="{cell-2}" rx="2" fill="{color}">'
+                         f'<title>{float(value):.6g}</title></rect>')
+    parts.append('</svg>')
+    return "".join(parts)
+
+
+def _pdf_scatter(plot):
+    data=_scatter_data(plot)
+    if data is None:return None
+    from reportlab.graphics.shapes import Drawing, Circle, Rect, Line, String
+    from reportlab.lib.colors import HexColor
+    xs,ys,lowx,highx,lowy,highy=data
+    canvas=Drawing(480,252)
+    canvas.add(Rect(0,0,480,252,fillColor=HexColor("#f8fbfc"),strokeColor=None))
+    canvas.add(Line(39,24,454,24,strokeColor=HexColor("#44656b")))
+    canvas.add(Line(39,24,39,222,strokeColor=HexColor("#44656b")))
+    for x,y in zip(xs,ys):
+        canvas.add(Circle(39+415*(x-lowx)/(highx-lowx),
+                          24+198*(y-lowy)/(highy-lowy),1.8,
+                          strokeColor=None,fillColor=HexColor("#139e80")))
+    canvas.add(String(240,7,str(plot.get("x_label","X"))[:52],
+                      fontSize=9,textAnchor="middle"))
+    canvas.add(String(42,234,str(plot.get("y_label","Y"))[:52],fontSize=9))
+    return canvas
+
+
+def _pdf_heatmap(plot):
+    data=_heatmap_data(plot)
+    if data is None:return None
+    from reportlab.graphics.shapes import Drawing, Rect, String
+    from reportlab.lib.colors import HexColor
+    labels,row_labels,values,low,high=data
+    count=max(len(labels),len(row_labels))
+    cell=max(9,min(20,200/count))
+    canvas=Drawing(480,252)
+    canvas.add(Rect(0,0,480,252,strokeColor=None,fillColor=HexColor("#f8fbfc")))
+    sequential=plot.get("scale")=="sequential"
+    for j,label in enumerate(labels):
+        canvas.add(String(55+j*cell,230,str(label)[:7],fontSize=7))
+    for i,row in enumerate(values):
+        y=208-(i+1)*cell
+        canvas.add(String(5,y+4,str(row_labels[i])[:8],fontSize=7))
+        for j,value in enumerate(row):
+            canvas.add(Rect(55+j*cell,y,cell-1,cell-1,strokeColor=None,
+                            fillColor=HexColor(_color_for(value,low,high,sequential))))
+    return canvas
