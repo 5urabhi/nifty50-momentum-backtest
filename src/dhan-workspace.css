@@ -27,7 +27,7 @@
 .dh-stage>span{height:33px;width:33px;display:grid;place-items:center;border:1px solid #377062;background:#163a38;color:#93efcc;border-radius:10px;font:700 13px 'Space Grotesk',sans-serif}
 .dh-stage h3{font:600 17px 'Space Grotesk',sans-serif;letter-spacing:-.025em;margin:1px 0 5px}
 .dh-stage p{font-size:10px;color:#8399ad;margin:0}
-.dh-mode-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+.dh-mode-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
 .dh-mode{position:relative;text-align:left;min-height:118px;padding:16px 16px 14px;border:1px solid #2a3d50;border-radius:10px;background:#111e2c;color:#d3e4ec;display:flex;flex-direction:column;gap:8px}
 .dh-mode:hover{border-color:#5ba997;background:#162e35}
 .dh-mode.active{border-color:#66dfbd;background:linear-gradient(130deg,#163b3e,#142933);box-shadow:inset 0 0 0 1px #3e8a75}
