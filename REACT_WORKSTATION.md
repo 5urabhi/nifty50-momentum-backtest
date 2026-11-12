@@ -1,3 +1,38 @@
+## Model Laboratory and Guided Documentation (Feature Branch)
+
+QuantLab's **Advanced Mathematics** and **Quantitative Models** now open a
+shared six-family workbench with **26 registered runnable algorithms**.
+Families have separate parameters, 2D/3D graph gallery, exact diagnostics,
+mathematical assumptions and source provenance. The workstation draws
+interactive SVG charts and draggable/keyboard-rotatable 3D surfaces from
+numerical Python outputs, without remotely hosted chart libraries.
+
+The workbench labels output as **theoretical**, **seeded synthetic**, or
+**observed historical**. Historical models prefer local `daily_prices.csv`;
+the API rejects inadequate common observations instead of synthesizing
+missing market data. Model runs never call Dhan or place orders.
+
+A new **User Guide & Documentation** sidebar section provides searchable
+onboarding, navigation shortcuts, glossary, warning explanations, and links
+to allowlisted repository Markdown served by FastAPI.
+
+Canonical references:
+
+- `docs/QUANTLAB_USER_GUIDE.md` — end-to-end local workstation manual
+- `docs/MODEL_LABORATORY_GUIDE.md` — 26 algorithms, equations, assumptions, API
+- `docs/QUANTLAB_REPRODUCIBILITY.md` — evidence/validation gates and resume wording
+
+Local API: `GET /api/lab/catalog`, `GET /api/lab/readiness?dataset_id=...`,
+`POST /api/lab/run`. Documentation: `GET /api/guide/user-guide`,
+`/api/guide/model-catalog`, `/api/guide/reproducibility`. FastAPI interactive
+schema remains at `http://127.0.0.1:8765/api/docs`.
+
+Do **not** interpret these computations as audited trading results. Real-data
+models are descriptive unless a named strict walk-forward calculation is
+used; synthetic paths and theoretical surfaces do not establish predictive
+performance. Supervised ML/RL agent training and live order execution are
+not represented as completed features.
+
 # QuantLab — React/Vite quantitative research workstation
 
 **Primary application:** React 18 + TypeScript + Vite at **http://127.0.0.1:5173**.
