@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useState} from 'react'
-import {Activity, AlertTriangle, ArrowDownToLine, CalendarDays,
+import {AlertTriangle, ArrowDownToLine, CalendarDays,
   Check, ChevronDown, Clock3, Database, FileClock, Info, LoaderCircle,
-  RefreshCw, ShieldAlert, ShieldCheck, X} from 'lucide-react'
+  RefreshCw, ShieldCheck} from 'lucide-react'
 
 export type PITMode = 'nifty50_pit' | 'banknifty_pit'
 export type MembershipPlan = {
