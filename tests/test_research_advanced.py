@@ -260,10 +260,19 @@ class AdvancedResearchTests(unittest.TestCase):
         notebook=research_library.create("notebook","Research notes",{
             "project_id":project["id"],
             "cells":[{"id":"c1","type":"chart","chart_id":chart["id"],"content":"Observed trend"}]})
+        research_library.create("note","Private credentials must be filtered",{
+            "project_id":project["id"],"dhan_access_token":"SECRET-SHOULD-NOT-LEAVE",
+            "broker_password":"ANOTHER-SECRET",
+            "body":"DHAN_ACCESS_TOKEN = FORBIDDEN-STRING",
+        })
         file=project_bundles.bundle_path(project["id"])
         with ZipFile(file) as archive:
             self.assertEqual(set(archive.namelist()),{"manifest.json","records.json"})
-            self.assertNotIn(b"DHAN_ACCESS_TOKEN",archive.read("records.json"))
+            data=archive.read("records.json")
+            self.assertNotIn(b"SECRET-SHOULD-NOT-LEAVE",data)
+            self.assertNotIn(b"ANOTHER-SECRET",data)
+            self.assertNotIn(b"FORBIDDEN-STRING",data)
+            self.assertIn(b"REDACTED",data)
         imported=project_bundles.import_bundle(file.read_bytes())
         self.assertNotEqual(imported["project_id"],project["id"])
         self.assertTrue(research_library.get(imported["project_id"])["title"].endswith("(imported)"))
