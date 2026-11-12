@@ -41,6 +41,11 @@ function following(day:string){
   d.setUTCDate(d.getUTCDate()+1)
   return d.toISOString().slice(0,10)
 }
+function previous(day:string){
+  const d=new Date(day+'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate()-1)
+  return d.toISOString().slice(0,10)
+}
 const readable=(day:string)=>new Date(day+'T12:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
 
 export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSyncBusy}:Props){
@@ -140,7 +145,7 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
       <div className="dh-pit-asof">
         <div><div><CalendarDays size={16}/><strong>Who was in {name} on this date?</strong></div>
           <small>Membership follows exact inclusion and exclusion effective dates.</small></div>
-        <label><span>As of</span><input type="date" value={asOf} min={fromDate} max={following(plan.covered_through)}
+        <label><span>As of</span><input type="date" value={asOf} min={fromDate} max={previous(toDate) < plan.covered_through ? previous(toDate) : plan.covered_through}
           onChange={e=>setAsOf(e.target.value)} aria-label="Historical index membership as-of date"/></label>
       </div>
       <div className="dh-pit-chip-head"><strong>{plan.asof_members.length} constituents on {readable(plan.asof_date)}</strong>
