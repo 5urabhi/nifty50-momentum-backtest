@@ -1,3 +1,12 @@
+> **Looking for the React/Vite QuantLab research workstation?** This repository includes
+> legacy notebook research alongside the modern local React + FastAPI UI.
+> Start with [the workstation user guide](docs/QUANTLAB_USER_GUIDE.md),
+> [the 26-model mathematical catalog](docs/MODEL_LABORATORY_GUIDE.md),
+> and [reproducibility checklist](docs/QUANTLAB_REPRODUCIBILITY.md).
+> Launch with `bash run.sh` on branch `feature/quantlab-model-laboratory-and-guide-20261113`
+> and open `http://127.0.0.1:5173`. In-app help is under **User Guide & Documentation**.
+> Brokerage orders are disabled. Outputs must not be misrepresented as audited historical returns.
+
 > **Current application — React/Vite QuantLab workstation (November 12, 2026):**
 > The previous Streamlit dashboard has been replaced as the **default** interface
 > by a private local React/Vite workstation backed by FastAPI/Python. Start with
