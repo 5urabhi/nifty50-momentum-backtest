@@ -615,12 +615,15 @@ def save_result(result: dict) -> dict:
     return snapshot
 
 
-def list_saved_models(include_archived: bool = False, limit: int = 30) -> list[dict]:
+def list_saved_models(include_archived: bool = False, limit: int = 30,
+                      offset: int = 0) -> list[dict]:
     root=_run_root()
     if not root.is_dir() or root.is_symlink():
         return []
+    if not 1<=limit<=1000 or not 0<=offset<=100000:
+        raise ValueError("Invalid saved-model paging")
     rows=[]
-    for p in sorted(root.glob("*.json"),reverse=True)[:max(60,limit*2)]:
+    for p in sorted(root.glob("*.json"),reverse=True):
         if p.is_symlink() or not RUN_ID.fullmatch(p.stem):
             continue
         try:
@@ -639,7 +642,7 @@ def list_saved_models(include_archived: bool = False, limit: int = 30) -> list[d
         from . import research_library
         states = research_library.resource_state_map()
         rows = [r for r in rows if not states.get("model_run:"+r["id"],{}).get("archived",False)]
-    return rows[:limit]
+    return rows[offset:offset+limit]
 
 
 def read_saved_model(run_id: str) -> dict:
