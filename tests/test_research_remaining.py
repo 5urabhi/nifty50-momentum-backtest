@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from fastapi.testclient import TestClient
 
-from workstation_api import (dhan_live_verification, research_integrity,
+from workstation_api import (dhan_live_verification, report_charts, research_integrity,
                              research_learning, research_insights, service)
 from workstation_api.app import app
 
@@ -196,6 +196,20 @@ class RemainingResearchTests(unittest.TestCase):
                 self.assertTrue((data["decision_date"]<data["entry_date"]).all())
                 self.assertTrue((data["entry_date"]<data["date"]).all())
                 self.assertTrue((data["strategy"]>=-1).all())
+
+    def test_saved_chart_highlight_and_annotations_export_safely(self):
+        plot={"kind":"line2d","title":"Selected macro event period",
+              "x":["2026-03-02","2026-03-03","2026-03-04","2026-03-05"],
+              "traces":[{"name":"Measured return","y":[1.0,1.3,.9,1.5]}],
+              "regions":[{"start":"2026-03-02","end":"2026-03-04",
+                          "label":"Train period <no HTML>"}],
+              "annotations":[{"x":"2026-03-03","label":"Notice <no script>"}]}
+        html=report_charts.svg(plot)
+        self.assertIn("Train period &lt;no HTML&gt;",html)
+        self.assertIn("Notice &lt;no script&gt;",html)
+        self.assertIn('fill="#9dd5f6"',html)
+        self.assertNotIn("<no HTML>",html)
+        self.assertIsNotNone(report_charts.pdf_drawing(plot))
 
     def test_learning_large_holdout_preview_is_bounded(self):
         # The complete CSV must exist even when the chart contains ≤600 points.
