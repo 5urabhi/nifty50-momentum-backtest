@@ -40,8 +40,56 @@ const GLOSSARY=[
  ['Out-of-sample','Dates not used in model fitting or tuning; necessary for credible predictive claims.'],
  ['CVaR','Conditional Value at Risk optimization based on supplied scenario losses.'],
 ]
+const METRICS:{name:string;formula:string;meaning:string;caveat:string}[]=[
+ {name:'Expected Shortfall (ES / CVaR)',formula:'ES(alpha) = E[loss | loss >= VaR(alpha)]',
+  meaning:'Average tail loss beyond a specified quantile of observed losses.',
+  caveat:'Highly sensitive to sample length, tail count, changing regimes and unadjusted prices.'},
+ {name:'Value at Risk (VaR)',formula:'VaR(alpha) = quantile_alpha(-return)',
+  meaning:'Loss threshold exceeded in approximately 1-alpha of observations.',
+  caveat:'A 95% VaR does not bound the worst 5% of losses.'},
+ {name:'Maximum drawdown',formula:'min_t(wealth_t / max_{s<=t}(wealth_s) - 1)',
+  meaning:'Largest observed peak-to-trough portfolio decline.',
+  caveat:'Path-based statistic; does not predict future or intraday drawdown.'},
+ {name:'Annualized volatility',formula:'sqrt(K) x sample_std(return)',
+  meaning:'Sample return dispersion scaled by the assumed number of periods per year.',
+  caveat:'Square-root-of-time scaling may fail with volatility clustering.'},
+ {name:'Sharpe ratio',formula:'sqrt(K) x mean(excess_return) / std(excess_return)',
+  meaning:'Historical return per unit of total return variability.',
+  caveat:'Use aligned risk-free rates and periods. A high in-sample Sharpe is not proof of alpha.'},
+ {name:'Sortino ratio',formula:'sqrt(K) x mean(return - target) / downside_deviation',
+  meaning:'Downside volatility-adjusted average return relative to a target.',
+  caveat:'Depends strongly on target and the number of below-target observations.'},
+ {name:'Tracking error',formula:'sqrt(K) x std(strategy_return - benchmark_return)',
+  meaning:'Active return dispersion relative to the reference index.',
+  caveat:'Requires a compatible benchmark; price-index and TRI returns are not interchangeable.'},
+ {name:'Information ratio',formula:'sqrt(K) x mean(active_return) / std(active_return)',
+  meaning:'Historical active return per unit of tracking error.',
+  caveat:'Backtested selection and costs must be audited; requires valid holdout evidence.'},
+ {name:'Risk parity contribution',formula:'RC_i = weight_i x (covariance_matrix x weights)_i',
+  meaning:'Each holding’s contribution to portfolio variance.',
+  caveat:'Dependent on fitted covariance, not a causal measure.'},
+ {name:'Herfindahl concentration',formula:'HHI = sum_i(weight_i ^ 2); effective N = 1 / HHI',
+  meaning:'Simple allocation concentration measure.',
+  caveat:'Does not detect hidden correlation or leverage without exposure normalization.'},
+ {name:'Newey–West HAC',formula:'Var(mean) = (gamma_0 + 2 sum_k kernel(k) gamma_k) / n',
+  meaning:'Serial-dependence and heteroskedasticity-aware asymptotic mean uncertainty.',
+  caveat:'Lag choice and pretesting affect inference; cannot correct test selection.'},
+ {name:'Holm-adjusted significance',formula:'p_adj(sorted k) = max_prior((m-k+1) x p_sorted_k)',
+  meaning:'Familywise multiplicity adjustment across observed tests.',
+  caveat:'Only valid if individual p-values and selection protocol are defensible.'},
+ {name:'Block-bootstrap confidence interval',formula:'CI = percentile_2.5,97.5 of block-resampled mean',
+  meaning:'Exploratory uncertainty interval retaining some short-range dependence.',
+  caveat:'Choice of block length and stationarity assumptions remain important.'},
+ {name:'Out-of-sample R²',formula:'R²_OOS = 1 - MSE(model, later data) / MSE(train-mean baseline)',
+  meaning:'Predictive error improvement relative to a benchmark fitted only on training data.',
+  caveat:'Negative values indicate worse performance than the benchmark.'},
+ {name:'Factor-proxy beta',formula:'OLS target_return = alpha + sum(beta_i x proxy_return_i) + error',
+  meaning:'Statistical loading on observed return-series proxies.',
+  caveat:'Not formal index/style attribution without well-defined published factor vintages.'},
+]
 export default function ResearchGuide({onNavigate}:Props){
   const [query,setQuery]=useState('')
+  const [selectedMetric,setSelectedMetric]=useState(METRICS[0].name)
   const filtered=TOPICS.filter(item=>(item.title+' '+item.text).toLowerCase().includes(query.toLowerCase()))
   return <div className="qg-guide">
     <section className="qg-hero"><div><div className="ql-kicker">USER MANUAL / VERSIONED RESEARCH WORKFLOWS</div>
@@ -51,6 +99,8 @@ export default function ResearchGuide({onNavigate}:Props){
         <a href="/api/guide/user-guide" target="_blank" rel="noreferrer"><BookOpen size={15}/> Full user guide <ArrowRight size={13}/></a>
         <a href="/api/guide/model-catalog" target="_blank" rel="noreferrer"><Layers size={15}/> Model mathematics catalog <ArrowRight size={13}/></a>
         <a href="/api/guide/workspace" target="_blank" rel="noreferrer"><BookOpen size={15}/> Research Workspace manual <ArrowRight size={13}/></a>
+        <a href="/api/guide/metrics" target="_blank" rel="noreferrer">
+          <BookOpen size={15}/> Complete metric formula reference <ArrowRight size={13}/></a>
         <a href="/api/guide/reproducibility" target="_blank" rel="noreferrer"><GitBranch size={15}/> Research & reproducibility <ArrowRight size={13}/></a>
         <a href="/api/docs" target="_blank" rel="noreferrer"><Database size={15}/> Interactive API docs <ArrowRight size={13}/></a>
       </div></div><div className="qg-hero-icon"><FlaskConical size={42}/></div></section>
@@ -60,6 +110,23 @@ export default function ResearchGuide({onNavigate}:Props){
         <div className="qg-number">{step.n}</div><div><h4>{step.title}</h4><p>{step.text}</p>
           <button type="button" onClick={()=>onNavigate(step.route)}>{step.cta}<ArrowRight size={13}/></button>
         </div></article>)}</div>
+    </section>
+    <section className="qg-panel qg-metric-guide">
+      <div className="qg-head"><BookOpen size={18}/><h3>Metric Guide · Click a formula to understand it</h3></div>
+      <p>Select any quantitative metric for its definition, formula, interpretation and limitations. The complete formula guide is downloadable above.</p>
+      <div className="qg-metric-layout">
+        <div className="qg-metric-list">{METRICS.map(item=><button type="button"
+          key={item.name} className={selectedMetric===item.name?'active':''}
+          onClick={()=>setSelectedMetric(item.name)}>{item.name}</button>)}</div>
+        <article className="qg-metric-detail">{METRICS.filter(x=>x.name===selectedMetric).map(metric=>
+          <div key={metric.name}><h4>{metric.name}</h4>
+            <h5>Definition and formula</h5><code>{metric.formula}</code>
+            <h5>Interpretation</h5><p>{metric.meaning}</p>
+            <h5>Assumptions and failure modes</h5><p>{metric.caveat}</p>
+            <button type="button" onClick={()=>onNavigate('mathematics')}>
+              Open the related model catalog <ArrowRight size={14}/></button>
+          </div>)}</article>
+      </div>
     </section>
     <div className="qg-two">
       <section className="qg-panel">
