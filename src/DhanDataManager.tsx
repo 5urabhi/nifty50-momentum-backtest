@@ -346,7 +346,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         <div className="dh-settings">
           <div className="dh-picked-head"><span>Selected universe</span><strong>{interpretMode(mode)}</strong></div>
           <div className="dh-selection-count"><strong>{fmt(pitPlan?downloadCount:pitPreview?.resolved_count||downloadCount)}</strong><span>{pitMode?(pitPlan?'Dhan-mapped historical stocks':'Covered-period preview · not downloadable yet'): 'instruments'}</span></div>
-          {pitMode&&pitPreview&&!pitPlan&&<p className="dh-error-note">The full selected range extends beyond documented index membership. The preview covers {pitPreview.from_date} to {pitPreview.to_date} (exclusive). Click the supported end-date button or update the membership source before downloading.</p>
+          {pitMode&&pitPreview&&!pitPlan&&<p className="dh-error-note">The full selected range extends beyond documented index membership. The preview covers {pitPreview.from_date} to {pitPreview.to_date} (exclusive). Click the supported end-date button or update the membership source before downloading.</p>}
           {pitMode&&pitPlan&&<p className="dh-hint">{fmt(pitPlan.union_count)} distinct index constituents during this period; {fmt(pitPlan.resolved_count)} have unambiguous current Dhan IDs. The downloaded set is their historical union, not today’s constituents.</p>}
           {mode==='selected'&&<div className="dh-selected-pills">
             {Object.values(selected).slice(0,18).map(item=><button key={item.id} onClick={()=>toggleStock(item)} title={'Remove '+item.symbol}>{item.symbol}<X size={12}/></button>)}
