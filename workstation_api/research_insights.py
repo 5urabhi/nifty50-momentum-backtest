@@ -195,10 +195,52 @@ def inspect_quality(dataset_id: str, *, max_assets: int = 60) -> dict:
                        "A structural data audit is not an independent total-return certification."}
 
 
-def _selected_returns(dataset_id: str, assets: int, minimum: int) -> tuple[pd.DataFrame, dict]:
+def _selected_returns(dataset_id: str, assets: int, train_window: int) -> tuple[pd.DataFrame, dict]:
+    """Freeze asset eligibility using only the first training window.
+
+    The ordinary exploratory model lab chooses its most complete histories
+    over the whole observed sample. That is unsuitable for an OOS study:
+    selecting assets using future availability leaks information. Here the
+    universe is fixed using training-prefix data alone.
+    """
     if not 2 <= assets <= 18:
         raise ValueError("Select 2-18 assets")
-    return model_lab._historical_input(dataset_id, minimum, assets)
+    folder, record = service.dataset_path(dataset_id)
+    source_file = "daily_prices.csv" if record.get("has_daily_prices") else "prices.csv"
+    if not record.get("has_prices"):
+        raise ValueError("Selected dataset has no observed price matrix")
+    prices = read_matrix(folder / source_file, positive=True)
+    returns = prices.pct_change(fill_method=None).replace([np.inf, -np.inf], np.nan)
+    first_training = returns.iloc[1:train_window+1]
+    if len(first_training) < train_window:
+        raise ValueError("Not enough observed dates for an untouched test window")
+    eligible = []
+    for name in sorted(first_training.columns):
+        history = first_training[name].dropna()
+        if (len(history) == train_window and
+                float(history.std(ddof=1)) > 1e-10):
+            eligible.append(name)
+    if len(eligible) < assets:
+        raise ValueError(f"Need {assets} assets with complete training-prefix returns; "
+                         f"found {len(eligible)}. No future data can be used to select assets.")
+    selected = eligible[:assets]
+    aligned = returns[selected].dropna()
+    if len(aligned) < train_window + 12:
+        raise ValueError("Need at least 12 subsequent aligned returns for out-of-sample validation")
+    frequency = "daily" if source_file == "daily_prices.csv" else "monthly"
+    return aligned, {
+        "dataset_id": dataset_id, "dataset_label": record["label"],
+        "source_file": source_file, "frequency": frequency,
+        "periods_per_year": 252 if frequency == "daily" else 12,
+        "observations": len(aligned),
+        "from_date": aligned.index.min().date().isoformat(),
+        "to_date": aligned.index.max().date().isoformat(),
+        "assets": selected,
+        "selection_rule": "Eligible from first training window only, sorted by symbol; "
+                          "held fixed through all out-of-sample folds",
+        "benchmark_kind": record.get("benchmark_kind"),
+        "missing_prices_forward_filled": False,
+    }
 
 
 def _weights(method: str, train: pd.DataFrame, cap: float, annual: int) -> pd.Series:
@@ -276,7 +318,7 @@ def validate_out_of_sample(dataset_id: str, *, model: str = "min_variance",
         raise ValueError("Choose walk-forward or single frozen holdout")
     if not 30 <= train_window <= 1500 or not 1 <= test_step <= 252:
         raise ValueError("Invalid training or testing sample length")
-    data, meta = _selected_returns(dataset_id, assets, train_window + max(12,test_step))
+    data, meta = _selected_returns(dataset_id, assets, train_window)
     count = len(data)
     if train_window + 12 > count:
         raise ValueError("Insufficient observations for chronological holdout")
