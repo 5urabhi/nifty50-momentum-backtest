@@ -1,3 +1,10 @@
+> **Primary workstation (November 2026):** The research workstation now uses
+> **React/Vite** for the interface and **FastAPI/Python** for validated research
+> calculations, data imports, backtests and run exports. Streamlit is a preserved
+> legacy fallback, not the primary UI. Run `bash run.sh` and open
+> **http://127.0.0.1:5173**. For full details, read
+> [REACT_WORKSTATION.md](REACT_WORKSTATION.md).
+>
 > **Current workflow (updated):** This is a PERSONAL research tool, not a client-facing product.
 > `bash run.sh` starts **Streamlit at localhost:8501**, where you can run
 > factor experiments and explore models. `bash run.sh evaluate` generates
