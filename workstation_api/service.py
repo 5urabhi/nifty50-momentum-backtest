@@ -58,7 +58,8 @@ def _source_dirs():
     ):
         if base.is_dir():
             for path in sorted(base.iterdir()):
-                if path.is_dir() and not path.is_symlink() and SAFE_ID.fullmatch(path.name):
+                if (path.is_dir() and not path.is_symlink() and SAFE_ID.fullmatch(path.name)
+                        and not (prefix == "dhan_" and path.name == "shared")):
                     yield prefix + path.name, label + " · " + path.name, path, kind
 
 
