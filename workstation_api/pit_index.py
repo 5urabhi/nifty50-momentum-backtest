@@ -250,7 +250,8 @@ def _window(start: str, stop: str, meta: dict) -> tuple[date, date]:
     return from_date, to_date
 
 
-def query(mode: str, start: str, stop: str, instruments: list[dict] | None = None) -> dict:
+def query(mode: str, start: str, stop: str, instruments: list[dict] | None = None,
+          as_of: str | None = None) -> dict:
     if mode not in MODES:
         raise ValueError("Unknown historical index")
     frame, meta = _load_local()
@@ -263,6 +264,10 @@ def query(mode: str, start: str, stop: str, instruments: list[dict] | None = Non
         raise ValueError("No documented index membership for this historical interval")
     start_set = _asof(frame, index_name, start)
     end_set = _asof(frame, index_name, (last - timedelta(days=1)).isoformat())
+    selected_day = date.fromisoformat(as_of) if as_of else first
+    if selected_day < first or selected_day >= last:
+        raise ValueError("As-of date must be within the selected historical window")
+    asof_set = _asof(frame, index_name, selected_day.isoformat())
     if not start_set or not end_set:
         raise ValueError("Membership missing at one or both requested boundary dates")
     symbols = sorted(set(subset["symbol"]))
@@ -296,7 +301,7 @@ def query(mode: str, start: str, stop: str, instruments: list[dict] | None = Non
         windows = selected_frame.loc[selected_frame["symbol"] == symbol]
         row["pit_fetch_from"] = max(first, date.fromisoformat(windows["valid_from"].min())).isoformat()
         ends = [date.fromisoformat(x) for x in windows["valid_to"] if x]
-        row["pit_fetch_to"] = min(last, max(ends) if ends else last).isoformat()
+        row["pit_fetch_to"] = min(last, last if any(x == "" for x in windows["valid_to"]) else max(ends)).isoformat()
         resolved.append(row)
     warning = [
         "Membership is a third-party reconstruction of public NSE circulars, not exchange certification.",
@@ -311,6 +316,7 @@ def query(mode: str, start: str, stop: str, instruments: list[dict] | None = Non
         "index_id": mode, "index_name": index_name,
         "from_date": start, "to_date": stop,
         "start_members": sorted(start_set), "end_members": sorted(end_set),
+        "asof_date": selected_day.isoformat(), "asof_members": sorted(asof_set),
         "union_members": symbols, "union_count": len(symbols),
         "start_count": len(start_set), "end_count": len(end_set),
         "changes": events, "change_count": len(events),
