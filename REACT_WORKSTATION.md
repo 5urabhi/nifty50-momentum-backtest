@@ -148,12 +148,21 @@ The observed session calendar itself is inferred from Dhan candle timestamps,
 not independently verified against the official NSE holiday calendar.
 
 Choose the inclusive start date, exclusive end date and candle resolution
-(daily/1/5/15/60-minute). Batches above 100 instruments require a clear
-acknowledgement; intraday batches are limited to 100 instruments. The
-workstation shows approximate API calls, progress, successful/cached/failed/
-no-data counts, optional cancellation after the current request, and
-**Resume/retry**. A restarted workstation retains manifests and previously
-completed candles.
+(daily/1/5/15/25/60-minute through the Dhan API). There is **no arbitrary
+100-instrument limit on intraday downloads**. Batches above 100 instruments
+require an explicit scope acknowledgement, not a rejection. The Dhan V2
+historical API documents up to five years of minute candles for active
+instruments, and **a maximum of 90 calendar days per intraday request**.
+The workstation automatically divides longer date periods into sequential
+90-day windows. It writes and checksums each successfully retrieved window
+before requesting the next one. When paused or interrupted halfway through
+a stock, **Resume/retry** skips successfully cached date windows.
+The workstation displays per-stock date-window progress, approximate calls,
+and completed/cached/failed/no-data counts. Dhan's account entitlements,
+API-rate limits (consult current official limits), supported instrument
+history and local disk capacity remain real external constraints.
+The app keeps sequential calls at a conservative pace and retries eligible
+temporary HTTP errors using bounded backoff. It does not bypass vendor limits.
 
 Persistent paths:
 
@@ -177,9 +186,9 @@ Persistent paths:
 
 Only candles in missing requested date windows are fetched. Previously saved
 covered ranges are reused after validating the file digest and instrument
-identity, and new candles are merged chronologically. A failed instrument
-doesn't discard successfully fetched instruments. Failed/empty names are
-explicitly reported instead of silently represented as zero prices.
+identity, and new candles are merged chronologically. A failed instrument does not discard previously saved completed date windows
+for the **same** instrument or successfully fetched instruments. Failed/empty
+names are explicitly reported instead of silently represented as zero prices.
 
 The Python Dhan adapter only calls historical-data endpoints. Its existing
 read-only single-instrument route is retained for backward compatibility
