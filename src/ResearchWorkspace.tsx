@@ -774,6 +774,30 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompa
         onMessage('Notebook saved')
       })
   }
+  const importPortable=async(file:File)=>{
+    if(file.size>8*1024*1024){onMessage('Portable bundle exceeds 8 MB');return}
+    await perform(async()=>{
+      const form=new FormData();form.append('file',file)
+      const response=await fetch('/api/workspace/projects/import-bundle',{method:'POST',body:form})
+      if(!response.ok){const err=await response.json().catch(()=>({detail:'Invalid research bundle'}))
+        throw new Error(String(err.detail||'Import failed'))}
+      return response.json() as Promise<{project_id:string;imported_records:number}>
+    },x=>{setProjectId(x.project_id);setNotebookId('');initialized.current=true;
+      onMessage(x.imported_records+' research records imported. Market data and credentials were excluded.')})
+  }
+  const rerunCell=(index:number,run_id:string)=>{
+    if(!run_id||!window.confirm('Rerun the saved configuration using the current local dataset? The existing result is retained as an earlier version.'))return
+    void perform(async()=>{
+      const old=await api<{model_id:string;source?:{dataset_id?:string};params:Raw}>('/lab/runs/'+encodeURIComponent(run_id))
+      return api<{run_id:string}>('/lab/run',{model_id:old.model_id,
+        dataset_id:old.source?.dataset_id||null,params:old.params},'POST')
+    },x=>{
+      const existing=cells[index]
+      updateCell(index,{run_id:x.run_id,
+        previous_run_ids:[...new Set([...(existing.previous_run_ids||[]),run_id])]})
+      onMessage('Model rerun saved. The notebook retains the earlier version for comparison.')
+    })
+  }
   const exportNotebook=()=>safeDownload((notebookTitle||'research_notebook')+'.json',
     JSON.stringify({title:notebookTitle,project_id:projectId,cells},null,2),'application/json')
   return <div className="rw-stack">
@@ -788,11 +812,20 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompa
           onClick={()=>{setProjectId(p.id);setNotebookId('');initialized.current=true}}>
           <Folder size={17}/><span><strong>{p.title}</strong><small>{p.id}</small></span></button>)}
         {!projects.length&&<Empty title="No projects yet">Create a project for a research question or thesis chapter.</Empty>}
+        <label className="rw-file-button"><Upload size={15}/> Import portable project ZIP
+          <input hidden type="file" accept=".zip" onChange={e=>{
+            const file=e.target.files?.[0];if(file)void importPortable(file);e.target.value=''}}/>
+        </label>
         {project&&<div className="rw-project-detail">
           <Field label="Research question / goal" value={goal} onChange={setGoal}/>
           <label className="rw-field"><span>Hypothesis and scope</span>
             <textarea rows={4} value={description} onChange={e=>setDescription(e.target.value)}/></label>
           <button disabled={busy} onClick={saveProject}><Save size={14}/> Save project details</button>
+          <div className="rw-button-group">
+            <a className="rw-download-link" href={'/api/workspace/projects/'+project.id+'/bundle.zip'} download>
+              <Download size={15}/> Export portable project ZIP</a>
+          </div>
+          <p className="rw-help">Portable project bundles contain settings, figures and metrics-only run summaries. Licensed OHLCV and tokens are excluded; imported runs need reconnection to observed datasets.</p>
         </div>}
       </Box>
       <Box title="Project notebooks">
@@ -829,11 +862,22 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompa
               [next[i+1],next[i]]=[next[i],next[i+1]];alter(next)}}><ArrowRight size={15}/></button>
             <button aria-label="Delete cell" onClick={()=>alter(cells.filter((_,n)=>i!==n))}><Trash2 size={15}/></button>
           </div></div>
-        {cell.type==='run'?<select value={cell.run_id||''}
-          onChange={e=>updateCell(i,{run_id:e.target.value})}>
-          <option value="">Select a saved model run</option>
-          {runs.filter(r=>r.kind==='model_run').map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
-        </select>:cell.type==='chart'?<NotebookChartCell cell={cell} charts={charts}
+        {cell.type==='run'?<div className="rw-stack">
+          <select value={cell.run_id||''} onChange={e=>updateCell(i,{run_id:e.target.value})}>
+            <option value="">Select a saved model run</option>
+            {runs.filter(r=>r.kind==='model_run').map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
+          </select>
+          <div className="rw-button-group">
+            <button disabled={busy||!cell.run_id} onClick={()=>rerunCell(i,cell.run_id||'')}>
+              <RefreshCw size={14}/> Rerun saved model configuration</button>
+          </div>
+          {!!cell.previous_run_ids?.length&&<div className="rw-run-versions">
+            <strong>Preserved earlier run versions:</strong>
+            {cell.previous_run_ids.map(id=><button key={id} onClick={()=>updateCell(i,{run_id:id})}>
+              {id} · Reopen</button>)}
+          </div>}
+          <p className="rw-help">Rerunning uses the saved parameters and an available local source. The earlier result is never overwritten.</p>
+        </div>:cell.type==='chart'?<NotebookChartCell cell={cell} charts={charts}
           onChange={patch=>updateCell(i,patch)}/>:
           <textarea rows={cell.type==='markdown'?5:3} value={cell.content||''}
           onChange={e=>updateCell(i,{content:e.target.value})}
