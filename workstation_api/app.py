@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_lab, model_registry, pit_index, service
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -340,6 +340,64 @@ def research_model_run(body: LabRunRequest):
         # Numerical nonconvergence is a user-actionable calculation failure,
         # not an opaque 500 or an invented model result.
         raise HTTPException(400, str(exc)) from exc
+
+
+
+class LabDataRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model_id: str = Field(pattern=r"^[a-z_]+$", min_length=2, max_length=45)
+    dataset_id: str = Field(min_length=1, max_length=120)
+    params: dict[str, float | int | str] = Field(default_factory=dict)
+    confirm_download: bool = False
+
+
+@app.get("/api/lab/data-requirements")
+def research_lab_requirements(model_id: str, dataset_id: str = "",
+                              assets: int = 8, train_window: int = 60):
+    try:
+        if model_id not in model_registry.CATALOG:
+            raise ValueError("Unknown registered model")
+        spec = model_registry.CATALOG[model_id]
+        # Only the two readiness-relevant values enter this read-only query.
+        params = {}
+        if any(p["key"] == "assets" for p in spec["parameters"]):
+            params["assets"] = assets
+        if model_id == "rolling_vol":
+            params["train_window"] = train_window
+        return model_data_manager.inspect(model_id, dataset_id or None, params)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/lab/data-requirements/extend")
+def extend_research_lab_data(body: LabDataRequest):
+    if not body.confirm_download:
+        raise HTTPException(400, "Explicit download confirmation is required")
+    try:
+        plan = model_data_manager.inspect(body.model_id, body.dataset_id, body.params)
+        if not plan.get("can_download"):
+            raise ValueError(plan.get("download_explanation") or "No download needed or unavailable")
+        return {**_spawn("lab_shared_data_extension", model_data_manager.execute,
+                         body.model_id, body.dataset_id, body.params),
+                "planned": plan, "destination_dataset_id": shared_market_data.SHARED_ID}
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/lab/data-requirements/reuse-cached")
+def reuse_research_lab_cache():
+    """User-confirmed offline migration from existing Dhan cache only."""
+    def migrate():
+        count = 0
+        results = []
+        for row in dhan_workspace.catalog():
+            reused = shared_market_data.reuse_cached(row)
+            count += reused["rows_appended"]
+            if reused["rows_appended"]:
+                results.append(row["id"])
+        summary = shared_market_data.publish_views()
+        return {**summary, "rows_appended": count, "instruments_updated": results}
+    return _spawn("lab_shared_cache_migration", migrate)
 
 
 @app.get("/api/lab/runs")
