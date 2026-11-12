@@ -23,7 +23,7 @@ type Job={id:string;kind:string;status:string;result?:Raw;error?:string;
   created_utc?:string}
 type ModelSpec={id:string;title:string;group:string;mode:string;parameters:{
   key:string;default:number|string;type:string;min?:number;max?:number}[]}
-type NotebookCell={id:string;type:'markdown'|'run'|'chart'|'table';content?:string;run_id?:string}
+type NotebookCell={id:string;type:'markdown'|'run'|'chart'|'table';content?:string;run_id?:string;chart_id?:string}
 type Props={datasets:Datum[];selectedDataset:string;onSelectDataset:(id:string)=>void;
   onOpenDhan:()=>void;onOpenModels:()=>void;onDataChanged:()=>void}
 const PAGES:{id:Page;label:string;sub:string}[]=[
@@ -236,7 +236,8 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
     {page==='compare'&&<ComparePanel runs={runs} items={library} busy={busy}
       perform={perform} onMessage={setMessage}/>}
     {page==='projects'&&<ProjectsPanel records={library} runs={runs} busy={busy}
-      perform={perform} onMessage={setMessage} startJob={start}/>}
+      perform={perform} onMessage={setMessage} startJob={start}
+      onOpenCompare={()=>setPage('compare')}/>}
     {page==='automation'&&<AutomationPanel datasets={datasets} selectedDataset={selectedDataset}
       onSelectDataset={onSelectDataset} models={models} runs={runs} busy={busy}
       perform={perform} startJob={start}/>}
@@ -572,14 +573,36 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
   </div>
 }
 
-function ProjectsPanel({records,runs,busy,perform,onMessage,startJob}:{
+function NotebookChartCell({cell,charts,onChange}:{
+  cell:NotebookCell;charts:Item[];onChange:(next:Partial<NotebookCell>)=>void
+}){
+  const item=charts.find(c=>c.id===cell.chart_id)
+  const first=item?.payload.plot
+  const all=item?.payload.plots
+  const plot=(first||(Array.isArray(all)?all[0]:null)) as ResearchPlotData|null
+  return <div className="rw-notebook-chart">
+    <Select label="Archived graph snapshot" value={cell.chart_id||''}
+      onChange={value=>onChange({chart_id:value})}
+      options={[{value:'',label:'Choose saved graph'},...charts.map(x=>({
+        value:x.id,label:x.title}))]}/>
+    {!!plot&&<ResearchPlot plot={plot}/>}
+    {item&&<p className="rw-help">Figure reference: {item.id}. The report freezes the selected saved chart values.</p>}
+    <label className="rw-field"><span>Figure caption / interpretation</span>
+      <textarea rows={3} value={cell.content||''}
+        onChange={e=>onChange({content:e.target.value})}/></label>
+  </div>
+}
+
+function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompare}:{
   records:Item[];runs:RunOption[];busy:boolean;
   perform:<T,>(action:()=>Promise<T>,done?:(r:T)=>void)=>Promise<void>;
   onMessage:(text:string)=>void;
-  startJob:(job:{job_id:string;status:string},caption:string)=>void
+  startJob:(job:{job_id:string;status:string},caption:string)=>void;
+  onOpenCompare:()=>void
 }){
   const projects=records.filter(r=>r.kind==='project'&&!r.trashed)
   const notebooks=records.filter(r=>r.kind==='notebook'&&!r.trashed)
+  const charts=records.filter(r=>r.kind==='chart'&&!r.trashed)
   const [name,setName]=useState('')
   const [projectId,setProjectId]=useState('')
   const [notebookId,setNotebookId]=useState('')
@@ -647,7 +670,8 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob}:{
   const addCell=(type:NotebookCell['type'])=>{
     const initial:NotebookCell={id:'cell_'+Date.now().toString(36),type,
       content:type==='markdown'?'Research observation…':'',
-      run_id:type==='run'?runs.find(r=>r.kind==='model_run')?.id:undefined}
+      run_id:type==='run'?runs.find(r=>r.kind==='model_run')?.id:undefined,
+      chart_id:type==='chart'?charts[0]?.id:undefined}
     alter([...cells,initial])
   }
   const updateCell=(index:number,patch:Partial<NotebookCell>)=>alter(cells.map((c,i)=>
@@ -694,7 +718,9 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob}:{
         <button onClick={()=>addCell('markdown')}><Plus size={14}/> Text / equations</button>
         <button onClick={()=>addCell('run')} disabled={!runs.some(r=>r.kind==='model_run')}>
           <Plus size={14}/> Saved model run</button>
-        <button onClick={()=>addCell('chart')}><Plus size={14}/> Figure notes</button>
+        <button onClick={()=>addCell('chart')} disabled={!charts.length}><Plus size={14}/> Saved chart figure</button>
+        {!charts.length&&<button onClick={onOpenCompare}>
+          <BarChart3 size={14}/> Create chart first</button>
         <button onClick={()=>addCell('table')}><Plus size={14}/> Findings table</button>
       </div>
       <div className="rw-cell-stack">{cells.map((cell,i)=><div key={cell.id} className="rw-cell">
@@ -710,7 +736,9 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob}:{
           onChange={e=>updateCell(i,{run_id:e.target.value})}>
           <option value="">Select a saved model run</option>
           {runs.filter(r=>r.kind==='model_run').map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
-        </select>:<textarea rows={cell.type==='markdown'?5:3} value={cell.content||''}
+        </select>:cell.type==='chart'?<NotebookChartCell cell={cell} charts={charts}
+          onChange={patch=>updateCell(i,patch)}/>:
+          <textarea rows={cell.type==='markdown'?5:3} value={cell.content||''}
           onChange={e=>updateCell(i,{content:e.target.value})}
           placeholder="Add an observation, mathematical assumption, or explanation"/>}
       </div>)}
@@ -724,7 +752,7 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob}:{
           ()=>api<{job_id:string;status:string}>('/workspace/reports',
             {notebook_id:notebookId,format:'html'},'POST'),
           j=>startJob(j,'Research report'))}>
-          <FileText size={15}/> Generate HTML & Markdown report</button>
+          <FileText size={15}/> Generate PDF, HTML & Markdown report</button>
       </div>
       {dirty&&<p className="rw-help">Save pending changes before generating a report. Reports freeze the saved notebook version.</p>}
     </Box>}
