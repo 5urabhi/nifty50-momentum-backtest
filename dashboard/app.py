@@ -22,34 +22,34 @@ st.write("All modules are connected through the left navigation and the active e
 stages=st.tabs(["① Data", "② Run Experiments", "③ Explore Models", "④ Validate", "⑤ Reports"])
 with stages[0]:
     st.subheader("Collect and inspect Dhan market history")
-    st.page_link("dashboard/pages/12_Dhan_Data_Setup.py",label="Open Dhan Historical Data Manager",icon="📥")
-    st.page_link("dashboard/pages/13_Empirical_Readiness.py",label="Check historical evidence readiness",icon="🧾")
+    st.page_link("pages/12_Dhan_Data_Setup.py",label="Open Dhan Historical Data Manager",icon="📥")
+    st.page_link("pages/13_Empirical_Readiness.py",label="Check historical evidence readiness",icon="🧾")
     st.caption("Master → symbol search → verified security ID mapping → download → charts → monthly inputs. No terminal downloader required.")
 with stages[1]:
     st.subheader("Construct and run your index strategy")
-    st.page_link("dashboard/pages/1_Index_Research.py",label="Open Index Research",icon="📈")
-    st.page_link("dashboard/pages/6_Factor_Laboratory.py",label="Factor Laboratory",icon="🧮")
-    st.page_link("dashboard/pages/7_Index_Comparisons.py",label="Index Comparisons",icon="⚖️")
+    st.page_link("pages/1_Index_Research.py",label="Open Index Research",icon="📈")
+    st.page_link("pages/6_Factor_Laboratory.py",label="Factor Laboratory",icon="🧮")
+    st.page_link("pages/7_Index_Comparisons.py",label="Index Comparisons",icon="⚖️")
     st.caption("Choose a local dataset or labeled synthetic fixture, configure models, and run. Outputs are shared across analysis pages.")
 with stages[2]:
     st.subheader("Run mathematical and statistical models")
     for link,label,icon in [
-        ("dashboard/pages/3_Advanced_Mathematics.py","Portfolio optimization · statistical inference","📐"),
-        ("dashboard/pages/5_Quantitative_Models.py","Stochastic processes · options","🔬"),
-        ("dashboard/pages/2_Model_Comparison.py","PCA, GARCH and model comparison","📊")]:
+        ("pages/3_Advanced_Mathematics.py","Portfolio optimization · statistical inference","📐"),
+        ("pages/5_Quantitative_Models.py","Stochastic processes · options","🔬"),
+        ("pages/2_Model_Comparison.py","PCA, GARCH and model comparison","📊")]:
         st.page_link(link,label=label,icon=icon)
 with stages[3]:
     st.subheader("Check robustness and model assumptions")
     for link,label,icon in [
-        ("dashboard/pages/4_Rolling_Validation.py","Out-of-sample model diagnostics","⏱️"),
-        ("dashboard/pages/10_Visual_Validation.py","2D / 3D mathematical validation","🌀"),
-        ("dashboard/pages/9_Risk_Attribution.py","Portfolio risk attribution","🎯"),
-        ("dashboard/pages/9_Robustness.py","Robustness and audit","🛡️")]:
+        ("pages/4_Rolling_Validation.py","Out-of-sample model diagnostics","⏱️"),
+        ("pages/10_Visual_Validation.py","2D / 3D mathematical validation","🌀"),
+        ("pages/9_Risk_Attribution.py","Portfolio risk attribution","🎯"),
+        ("pages/9_Robustness.py","Robustness and audit","🛡️")]:
         st.page_link(link,label=label,icon=icon)
 with stages[4]:
     st.subheader("Review evidence and export your research")
-    st.page_link("dashboard/pages/8_Research_Report.py",label="Research Report and downloads",icon="📑")
-    st.page_link("dashboard/pages/11_Run_History.py",label="View previous saved experiments",icon="🗂️")
+    st.page_link("pages/8_Research_Report.py",label="Research Report and downloads",icon="📑")
+    st.page_link("pages/11_Run_History.py",label="View previous saved experiments",icon="🗂️")
     st.markdown("For full local test reports, run `bash run.sh evaluate` in another terminal. The generated reports are saved under `results/`.")
     st.warning("Synthetic and unverified market results are NOT résumé-ready performance claims.")
 
