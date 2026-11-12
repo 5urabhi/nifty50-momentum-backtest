@@ -34,7 +34,9 @@ type DataPlan={model_id:string;mode:string;status:string;runnable:boolean;min_re
   missing_minimum?:number;missing_to_target?:number;can_download?:boolean;download_explanation?:string;
   suggested_start?:string;suggested_end_exclusive?:string;message:string;
   estimated_calendar_weekdays?:number;estimated_max_instrument_day_requests?:number;
-  request_scope_note?:string}
+  request_scope_note?:string;cached_instrument_calendar_days?:number;
+  missing_instrument_calendar_days?:number;missing_uncovered_windows?:number;
+  estimated_vendor_daily_requests?:number}
 type ExtensionJob={id:string;status:string;kind:string;error?:string;result?:{dataset_id?:string;status:string;message:string;after?:DataPlan}}
 type ConfigRecord={id:string;title:string;payload:{model_id?:string;dataset_id?:string;params?:Record<string,number|string>};
   favorite:boolean;tags:string[]}
@@ -440,6 +442,12 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
                     <strong>{dataPlan.estimated_calendar_weekdays??'N/A'}</strong></div>
                   <div><small>Max instrument-weekday combinations</small>
                     <strong>{dataPlan.estimated_max_instrument_day_requests??'N/A'}</strong></div>
+                  <div><small>Instrument-calendar days already cached</small>
+                    <strong>{dataPlan.cached_instrument_calendar_days??'N/A'}</strong></div>
+                  <div><small>Uncovered date windows</small>
+                    <strong>{dataPlan.missing_uncovered_windows??'N/A'}</strong></div>
+                  <div><small>Estimated NEW Dhan daily requests</small>
+                    <strong>{dataPlan.estimated_vendor_daily_requests??'N/A'}</strong></div>
                 </div>
                 <p className="ql-note">{dataPlan.request_scope_note}</p>
                 <button type="button" disabled={!!extensionJob&&['queued','running'].includes(extensionJob.status)}
