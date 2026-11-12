@@ -381,7 +381,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
           {syntheticHistory&&<p className="ql-alert warning" role="status">
             <CircleAlert size={15}/> SYNTHETIC FIXTURE · These demo prices are generated, not
             historical market observations. Model fits are for interface/testing use only.
-          </p>
+          </p>}
           {readinessError&&<p className="ql-alert bad">{readinessError}</p>}
           {observedNeeded&&readiness&&<div className="ql-readiness">
             <div><strong>{readiness.observed_dates??0}</strong><small>Observed price dates</small></div>
