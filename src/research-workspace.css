@@ -195,3 +195,11 @@
 .rw-run-versions button{font-size:10px}
 .ra-result .ql-chart-card{margin:0 0 15px}
 @media(max-width:880px){.ra-guided-cards{grid-template-columns:1fr}}
+
+.rw-job-progress{margin:15px 0;padding:13px;border-radius:9px;border:1px solid var(--rw-stroke);
+ background:var(--rw-bg)}
+.rw-job-progress>div{display:flex;justify-content:space-between;gap:12px;
+ margin-bottom:8px;color:var(--rw-text)}
+.rw-job-progress progress{width:100%;height:11px;accent-color:var(--rw-accent)}
+.rw-job-progress progress::-webkit-progress-bar{background:#30495a;border-radius:7px}
+.rw-job-progress progress::-webkit-progress-value{background:#55d6b8;border-radius:7px}
