@@ -124,3 +124,12 @@
 @media(max-width:1080px){.ql-content-grid{grid-template-columns:1fr}.ql-model-list{max-height:270px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.ql-family-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.ql-intro{flex-direction:column;align-items:flex-start;padding:18px}.ql-family-tabs{grid-template-columns:1fr}.ql-model-list{grid-template-columns:1fr}.ql-param-grid,.ql-metrics{grid-template-columns:1fr}.ql-readiness{grid-template-columns:repeat(3,1fr)}.ql-inner-tabs button{flex:1 1 45%;justify-content:center}.ql-plot-foot{gap:8px}.ql-card{padding:15px}}
 @media(prefers-reduced-motion:reduce){.ql-spinning{animation:none}}
+
+.ql-saved-runs{border-top:1px solid #314758;margin-top:16px;padding-top:16px}
+.ql-saved-runs .ql-panel-title{margin-bottom:11px}
+.ql-saved-runs>button{display:flex;flex-direction:column;align-items:flex-start;gap:5px;width:100%;
+ background:#112b39;border:1px solid #2b4a5b;border-radius:7px;margin:6px 0;padding:10px 11px;
+ text-align:left;color:#d6edec}
+.ql-saved-runs>button:hover{border-color:#57bdab;background:#1a4046}
+.ql-saved-runs>button strong{font-size:10px;font-weight:750}
+.ql-saved-runs>button small{font-size:9px;color:#97adba}
