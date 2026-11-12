@@ -47,6 +47,16 @@ RUNNER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="research")
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = Lock()
 JOB_FUTURES: dict[str, object] = {}
+JOB_RETRY_SPECS: dict[str, tuple] = {}
+
+
+def _persist_job(snapshot: dict):
+    try:
+        research_library.store_job(snapshot)
+    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        LOG.warning("Job summary persistence failed for %s: %s", snapshot.get("id"),
+                    type(exc).__name__)
+
 MAX_UPLOAD = 30 * 1024 * 1024
 
 # Enforce local-only Host and Origin, including against DNS-rebinding. Vite
@@ -91,11 +101,20 @@ def _spawn(kind: str, action, *args, **kwargs):
         for old in list(JOBS)[:-50]:
             if JOBS[old]["status"] not in {"queued", "running"}:
                 JOBS.pop(old, None)
+                JOB_FUTURES.pop(old, None)
+                JOB_RETRY_SPECS.pop(old, None)
+        if kind in {"workspace_parameter_sweep", "workspace_validation",
+                    "workspace_report"}:
+            JOB_RETRY_SPECS[task_id] = (kind, action, args, kwargs)
+        queued_snapshot = dict(JOBS[task_id])
+    _persist_job(queued_snapshot)
 
     def work():
         LOG.info("QuantLab background job started: kind=%s job_id=%s", kind, task_id)
         with JOBS_LOCK:
             JOBS[task_id]["status"] = "running"
+            starting_snapshot = dict(JOBS[task_id])
+        _persist_job(starting_snapshot)
         try:
             result = action(*args, **kwargs)
         except Exception as exc:
@@ -108,10 +127,14 @@ def _spawn(kind: str, action, *args, **kwargs):
                       kind, task_id, message[:350])
             with JOBS_LOCK:
                 JOBS[task_id].update(status="error", error=message[:350])
+                failure_snapshot = dict(JOBS[task_id])
+            _persist_job(failure_snapshot)
         else:
             LOG.info("QuantLab background job completed: kind=%s job_id=%s", kind, task_id)
             with JOBS_LOCK:
                 JOBS[task_id].update(status="complete", result=result)
+                success_snapshot = dict(JOBS[task_id])
+            _persist_job(success_snapshot)
     future = RUNNER.submit(work)
     with JOBS_LOCK:
         JOB_FUTURES[task_id] = future
@@ -669,7 +692,11 @@ def workspace_report_file(report_id: str, format: Literal["html","markdown","pdf
 @app.get("/api/workspace/jobs")
 def workspace_jobs():
     with JOBS_LOCK:
-        return {"jobs": [dict(row) for row in list(JOBS.values())[-75:][::-1]]}
+        live = [dict(row) for row in list(JOBS.values())[-75:][::-1]]
+    seen = {row["id"] for row in live}
+    historical = [row for row in research_library.list_job_history(100)
+                  if row["id"] not in seen]
+    return {"jobs": (live + historical)[:100]}
 
 
 @app.post("/api/workspace/jobs/{job_id}/cancel")
@@ -685,7 +712,22 @@ def workspace_cancel_job(job_id: str):
         if future is None or not future.cancel():
             raise HTTPException(409, "Job is already starting")
         status["status"] = "cancelled"
-        return dict(status)
+        completed_snapshot = dict(status)
+    _persist_job(completed_snapshot)
+    return completed_snapshot
+
+
+@app.post("/api/workspace/jobs/{job_id}/retry")
+def workspace_retry_job(job_id: str):
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+        spec = JOB_RETRY_SPECS.get(job_id)
+        if not job or job["status"] not in {"error","cancelled"} or not spec:
+            raise HTTPException(409, "Only failed local research/report jobs can be retried "
+                                     "without changing their saved parameters. "
+                                     "After restart, rerun the original configuration.")
+    kind, action, args, kwargs = spec
+    return _spawn(kind, action, *args, **kwargs)
 
 
 @app.get("/api/dhan/credentials/check")
