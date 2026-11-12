@@ -14,6 +14,7 @@ const clamp=(v:number,l:number,h:number)=>Math.min(h,Math.max(l,v))
 const GRID_LEFT=70,GRID_RIGHT=830,GRID_TOP=22,GRID_BOTTOM=280
 function yBounds(plot:ResearchPlotData){
   const ys=(plot.traces||[]).flatMap(t=>t.y).filter(finite)
+  if(plot.kind==='scatter2d'&&plot.y)ys.push(...plot.y.filter(finite))
   if(plot.band){ys.push(...plot.band.lower.filter(finite),...plot.band.upper.filter(finite))}
   if(!ys.length)return [0,1] as const
   let lo=Math.min(...ys),hi=Math.max(...ys)
