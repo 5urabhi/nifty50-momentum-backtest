@@ -23,14 +23,37 @@ ALLOCATION = frozenset({"equal", "inverse_volatility", "min_variance",
                         "risk_parity", "max_diversification"})
 
 
+def file_sha256(path):
+    """Hash large source files without a second full in-memory copy."""
+    checksum = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            checksum.update(chunk)
+    return checksum.hexdigest()
+
+
+def evidence_class(source: dict) -> str:
+    """Do not mistake a synthetic fixture for observed market history."""
+    mode = source.get("mode", "unknown")
+    meta = source.get("source") or {}
+    if (isinstance(meta, dict) and
+            (meta.get("dataset_id") == "synthetic" or
+             meta.get("dataset_kind") == "synthetic")):
+        return "synthetic_fixture"
+    return str(mode)
+
+
 def _source_ref(kind, run_id, plot_index=0) -> dict:
     if kind == "model_run":
         result = model_lab.read_saved_model(run_id)
         plots = result.get("plots", [])
         if not 0 <= plot_index < len(plots):
             raise ValueError("Saved model run has no plot at this index")
+        source_info = result.get("source")
         return {"plot": plots[plot_index], "title": result["title"],
-                "mode": result["mode"], "source": result.get("source"),
+                "mode": result["mode"], "source": source_info,
+                "evidence_class": evidence_class({"mode": result["mode"],
+                    "source": source_info}),
                 "run_id": run_id, "kind": kind,
                 "metrics": result.get("metrics", []),
                 "source_sha256": result.get("source_sha256")}
@@ -61,6 +84,8 @@ def _source_ref(kind, run_id, plot_index=0) -> dict:
                          "Trading month", "Wealth index (base 100)"),
                 "title": name, "mode": "historical",
                 "source": result.get("source", {}), "run_id": run_id,
+                "evidence_class": evidence_class({"mode": "historical",
+                    "source": result.get("source", {})}),
                 "kind": kind, "metrics": [], "source_sha256": None}
     raise ValueError("Unsupported comparison source")
 
@@ -90,7 +115,7 @@ def compare(selections: list[dict], *, normalize: str = "none",
                 "warning": "Separate figures may have different mathematical units, evidence "
                            "types and model horizons. Side-by-side viewing is not a direct metric comparison."}
     plots = [a["plot"] for a in sources]
-    modes = {a["mode"] for a in sources}
+    modes = {a["evidence_class"] for a in sources}
     if len(modes) != 1:
         raise ValueError("Do not overlay theoretical, synthetic and observed-market results")
     x_labels = {p.get("x_label") for p in plots}
@@ -190,7 +215,7 @@ def inspect_quality(dataset_id: str, *, max_assets: int = 60) -> dict:
             "latest_observed_date": raw_dates.max().date().isoformat()
                 if raw_dates.notna().any() else None,
             "invalid_dates": invalid_dates, "assets": inspected,
-            "sha256": hashlib.sha256(file.read_bytes()).hexdigest(),
+            "sha256": file_sha256(file),
             "warning": "Large daily moves may be genuine or unadjusted corporate actions. "
                        "A structural data audit is not an independent total-return certification."}
 
@@ -207,9 +232,13 @@ def _selected_returns(dataset_id: str, assets: int, train_window: int) -> tuple[
         raise ValueError("Select 2-18 assets")
     folder, record = service.dataset_path(dataset_id)
     source_file = "daily_prices.csv" if record.get("has_daily_prices") else "prices.csv"
+    if record.get("kind") == "synthetic":
+        raise ValueError("Synthetic demonstration data cannot be used for historical "
+                         "out-of-sample validation. Select observed market data.")
     if not record.get("has_prices"):
         raise ValueError("Selected dataset has no observed price matrix")
-    prices = read_matrix(folder / source_file, positive=True)
+    source_path = folder / source_file
+    prices = read_matrix(source_path, positive=True)
     returns = prices.pct_change(fill_method=None).replace([np.inf, -np.inf], np.nan)
     first_training = returns.iloc[1:train_window+1]
     if len(first_training) < train_window:
@@ -230,7 +259,9 @@ def _selected_returns(dataset_id: str, assets: int, train_window: int) -> tuple[
     frequency = "daily" if source_file == "daily_prices.csv" else "monthly"
     return aligned, {
         "dataset_id": dataset_id, "dataset_label": record["label"],
-        "source_file": source_file, "frequency": frequency,
+        "dataset_kind": record["kind"],
+        "source_file": source_file, "source_sha256": file_sha256(source_path),
+        "frequency": frequency,
         "periods_per_year": 252 if frequency == "daily" else 12,
         "observations": len(aligned),
         "from_date": aligned.index.min().date().isoformat(),
@@ -421,6 +452,9 @@ def scenario(run_id: str, shocks: dict[str, float]) -> dict:
     source = run.get("source")
     if not source or not source.get("assets"):
         raise ValueError("Choose a saved empirical portfolio model with observed assets")
+    _, source_record = service.dataset_path(source["dataset_id"])
+    if source_record.get("kind") == "synthetic":
+        raise ValueError("Cannot label shocks on synthetic fixture history as observed-market stress")
     names = source["assets"]
     if not isinstance(shocks, dict) or not shocks or any(
             key not in names or not isinstance(value, (int,float)) or isinstance(value,bool)
