@@ -345,11 +345,13 @@ def _bootstrap(values: pd.Series, annual: int, *, seed: int = 2026) -> dict:
 def validate_out_of_sample(dataset_id: str, *, model: str = "min_variance",
                            assets: int = 8, train_window: int = 180,
                            test_step: int = 20, max_weight: float = .3,
-                           mode: str = "walk_forward", seed: int = 2026) -> dict:
+                           mode: str = "walk_forward", seed: int = 2026,
+                           progress=None) -> dict:
     if mode not in {"walk_forward", "single_holdout"}:
         raise ValueError("Choose walk-forward or single frozen holdout")
     if not 30 <= train_window <= 1500 or not 1 <= test_step <= 252:
         raise ValueError("Invalid training or testing sample length")
+    if progress: progress(2,"Selecting assets using training-period evidence only")
     data, meta = _selected_returns(dataset_id, assets, train_window)
     count = len(data)
     if train_window + 12 > count:
@@ -359,6 +361,8 @@ def validate_out_of_sample(dataset_id: str, *, model: str = "min_variance",
     # Training window always ends strictly before the first evaluated return.
     i = train_window
     while i < count:
+        if progress: progress(6+int(78*min(1,(i-train_window)/max(1,count-train_window))),
+                              "Fitting fold "+str(len(folds)+1)+" and evaluating later observations")
         end = count if mode == "single_holdout" else min(count, i + test_step)
         training = data.iloc[i-train_window:i]
         testing = data.iloc[i:end]
@@ -402,6 +406,7 @@ def validate_out_of_sample(dataset_id: str, *, model: str = "min_variance",
                          {"name": "Equal-weight benchmark",
                           "y": [equal[i] for i in preview_indices]}],
                         "Observed trading period", "Wealth index (base 100)")
+    if progress: progress(87,"Computing holdout metrics and uncertainty")
     report = {"mode": mode, "model": model, "source": meta, "train_window": train_window,
               "test_step": test_step, "max_weight": max_weight,
               "folds": folds, "test_observations": len(results),
@@ -418,6 +423,7 @@ def validate_out_of_sample(dataset_id: str, *, model: str = "min_variance",
                                          "metrics","baseline_metrics","uncertainty",
                                          "folds","plot","warning",
                                          "test_observations","figure_observations")})
+    if progress: progress(94,"Writing all observed holdout returns to immutable CSV")
     target = study_returns_root() / (record["id"] + ".csv")
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -427,6 +433,7 @@ def validate_out_of_sample(dataset_id: str, *, model: str = "min_variance",
         research_library.action(record["id"], "trash")
         target.unlink(missing_ok=True)
         raise
+    if progress: progress(100,"Historical validation study archived")
     return {**report, "study_id": record["id"],
             "returns_csv_url": "/api/workspace/studies/" + record["id"] + "/returns.csv"}
 
@@ -446,7 +453,8 @@ def study_returns_path(study_id: str) -> Path:
 
 
 def sweep(model_id: str, dataset_id: str | None, params: dict,
-          parameter: str, values: list[float | int], *, metric_label: str = "") -> dict:
+          parameter: str, values: list[float | int], *, metric_label: str = "",
+          progress=None) -> dict:
     spec = model_registry.CATALOG.get(model_id)
     if spec is None or not isinstance(values, list) or not 2 <= len(values) <= MAX_SWEEP:
         raise ValueError("Choose 2-16 valid parameter values for a registered model")
@@ -465,7 +473,10 @@ def sweep(model_id: str, dataset_id: str | None, params: dict,
         current[parameter] = value
         validated_grid.append(model_registry.validate_parameters(model_id, current))
     results = []
-    for value, validated in zip(values, validated_grid):
+    if progress: progress(2,"Validated all parameter bounds")
+    for index,(value, validated) in enumerate(zip(values, validated_grid)):
+        if progress: progress(5+int(83*index/len(values)),
+                              "Computing parameter "+str(index+1)+" / "+str(len(values)))
         result = model_lab.run_model(model_id, dataset_id, validated)
         archived = model_lab.save_result(result)
         entries = {x["label"]: x["value"] for x in result["metrics"]
@@ -484,7 +495,9 @@ def sweep(model_id: str, dataset_id: str | None, params: dict,
               "metric_label": selected, "runs": results, "plot": plot,
               "note": "A parameter sweep evaluates observed in-sample fits or theoretical "
                       "outputs; best-looking variants are not validated on untouched holdouts."}
+    if progress: progress(93,"Saving response curve and run lineage")
     record = research_library.create("study", "Parameter sweep: " + spec["title"], report)
+    if progress: progress(100,"Parameter sensitivity study saved")
     return {**report, "study_id": record["id"]}
 
 
