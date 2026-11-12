@@ -474,7 +474,7 @@ def prepare_batch(batch_id: str) -> dict:
     })
     data["prepared_dataset_id"] = "dhan_" + batch_id
     _save_batch(data)
-    return {"dataset_id": data["prepared_dataset_id"], "file": str((output / "prices.csv").relative_to(service.ROOT)),
+    return {"dataset_id": data["prepared_dataset_id"], "file": str(Path("data") / "dhan" / "monthly_research" / batch_id / "prices.csv"),
             "securities": len(mappings), "months": len(prices),
             "ready_for_backtesting": False,
             "missing": ["membership.csv", "benchmark.csv"],
