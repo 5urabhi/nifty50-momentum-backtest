@@ -334,7 +334,23 @@ def research_model_readiness(dataset_id: str):
 @app.post("/api/lab/run")
 def research_model_run(body: LabRunRequest):
     try:
-        return model_lab.run_model(body.model_id, body.dataset_id, body.params)
+        result = model_lab.run_model(body.model_id, body.dataset_id, body.params)
+        return model_lab.save_result(result)
+    except (ValueError, FileNotFoundError, KeyError, RuntimeError, FloatingPointError) as exc:
+        # Numerical nonconvergence is a user-actionable calculation failure,
+        # not an opaque 500 or an invented model result.
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/lab/runs")
+def research_model_runs():
+    return {"runs": model_lab.list_saved_models()}
+
+
+@app.get("/api/lab/runs/{run_id}")
+def research_model_run_details(run_id: str):
+    try:
+        return model_lab.read_saved_model(run_id)
     except Exception as exc:
         bad(exc)
 
