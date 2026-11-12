@@ -97,7 +97,7 @@ try {
       assert.ok((await header.innerText()).length>2,'Destination must have a visible title: '+section)
     }
     await nav('Compare & Visualize').click()
-    await page.getByRole('heading',{name:'Research Workspace'}).waitFor()
+    await page.locator('.rw-top h2').waitFor()
     assert.equal(await researchTab('Plot Builder').count(),1)
   })
   await step('observed-column plot builder: browser to API to mathematical chart',async()=>{
@@ -200,7 +200,7 @@ try {
     await page.setViewportSize({width:390,height:844})
     await page.getByRole('button',{name:'Open navigation'}).click()
     await nav('Compare & Visualize').click()
-    await page.getByRole('heading',{name:'Research Workspace'}).waitFor()
+    await page.locator('.rw-top h2').waitFor()
     await screenshot('10-mobile-workspace')
   })
   await step('no unhandled browser exceptions or HTTP 5xx',async()=>{
