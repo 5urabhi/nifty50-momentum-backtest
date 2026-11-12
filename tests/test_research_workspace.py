@@ -231,6 +231,27 @@ class ResearchWorkspaceTests(unittest.TestCase):
             research_library.resource_action("dataset",self.dataset_id,"trash",confirm=True)
         self.assertTrue(self.source_folder.exists())
 
+    def test_notebook_chart_figure_preserved_in_html_and_pdf(self):
+        model = self._saved()
+        plot = model["plots"][0]
+        chart = research_library.create("chart","Saved simulation fan",
+                  {"plot":plot,"annotation":"Mathematical distribution"})
+        notebook = research_library.create("notebook","Stochastic figure study",{
+            "cells":[{"type":"chart","chart_id":chart["id"],
+                      "content":"Figure derived from saved model parameters"}]})
+        report = research_library.render_notebook_report(notebook["id"])
+        self.assertEqual(report["figures"],1)
+        html = research_library.report_path(report["id"],"html").read_text()
+        self.assertIn("<svg",html)
+        self.assertIn("Saved simulation fan",html)
+        self.assertIn("Figure derived",html)
+        self.assertTrue(research_library.report_path(report["id"],"pdf").read_bytes().startswith(b"%PDF"))
+        research_library.action(chart["id"],"trash")
+        edited = research_library.edit_report(report["id"],
+                    "# Rewritten interpretation\nThe source chart remains in the appendix.")
+        self.assertTrue(edited["payload"]["manually_edited"])
+        self.assertIn("<svg",research_library.report_path(report["id"],"html").read_text())
+
     def test_workspace_api_create_edit_search_and_archive(self):
         created = self.client.post("/api/workspace/records",json={
             "kind":"project","title":"Index Research","payload":{"goal":"factor study"},
