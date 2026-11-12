@@ -143,8 +143,8 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
   }
   const why=()=>{if(!chosenRun)return
     void doWork(()=>ask<Decision>('index-studio/decisions/'+encodeURIComponent(chosenRun)+
-       '?'+new URLSearchParams({...ticker?{ticker}:{},
-           ...decisionDate?{decision_date:decisionDate}:{}})),setDecision)
+       '?'+new URLSearchParams({...(ticker?{ticker}:{}),
+           ...(decisionDate?{decision_date:decisionDate}:{})})),setDecision)
   }
   const calculateRisk=()=>{if(!chosenRun)return
     void doWork(()=>ask<ActiveRisk>('active-risk/'+encodeURIComponent(chosenRun)),setRisk)
@@ -210,7 +210,7 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
             onChange={v=>{setFactors(old=>({...old,[key]:v}));setPlan(null)}}/>)}
         </div>
         <label className="rs-check"><input type="checkbox" checked={sectorCap!==null}
-          onChange={e=>{setSectorCap(e.target.checked?.4:null);setPlan(null)}}/>
+          onChange={e=>{setSectorCap(e.target.checked?0.4:null);setPlan(null)}}/>
           Constrain sector exposure using effective-dated classifications</label>
         {sectorCap!==null&&<NumberField label="Sector cap" value={sectorCap} min={.1} max={1}
           step={.05} onChange={v=>{setSectorCap(v);setPlan(null)}}/>}
