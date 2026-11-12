@@ -131,6 +131,32 @@ class ResearchWorkspaceTests(unittest.TestCase):
         study = research_library.get(result["study_id"])
         self.assertEqual(study["kind"],"study")
 
+    def test_large_holdout_preserves_every_return_with_bounded_graph(self):
+        prices_path = self.source_folder / "daily_prices.csv"
+        rng = np.random.default_rng(7832)
+        dates = pd.bdate_range("2018-01-01", periods=1200)
+        values = 100*np.exp(np.cumsum(rng.normal(.0002,.01,(len(dates),4)),axis=0))
+        pd.DataFrame(values,index=dates,columns=["A","B","C","D"]).to_csv(
+            prices_path,index_label="date")
+        result = research_insights.validate_out_of_sample(self.dataset_id,
+                    model="equal", assets=4, train_window=75, test_step=20,
+                    max_weight=.45, mode="single_holdout")
+        self.assertGreater(result["test_observations"],1000)
+        self.assertLessEqual(result["figure_observations"],601)
+        self.assertEqual(len(result["plot"]["x"]),result["figure_observations"])
+        artifact = research_insights.study_returns_path(result["study_id"])
+        self.assertTrue(artifact.is_file())
+        self.assertEqual(len(pd.read_csv(artifact)), result["test_observations"])
+        response = self.client.get(
+             "/api/workspace/studies/"+result["study_id"]+"/returns.csv")
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertIn(b"date,strategy,equal_weight",response.content)
+        research_library.action(result["study_id"],"trash")
+        with self.assertRaises(FileNotFoundError):
+            research_insights.study_returns_path(result["study_id"])
+        research_library.action(result["study_id"],"purge",confirm=True)
+        self.assertFalse(artifact.exists())
+
     def test_single_chronological_holdout_has_only_one_fold(self):
         result = research_insights.validate_out_of_sample(self.dataset_id,
                    model="equal",assets=4,train_window=75,test_step=20,
