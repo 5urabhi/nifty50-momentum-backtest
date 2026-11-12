@@ -66,7 +66,8 @@ def _source_ref(kind, run_id, plot_index=0) -> dict:
 
 
 def compare(selections: list[dict], *, normalize: str = "none",
-            alignment: str = "intersection", title: str = "Saved model comparison") -> dict:
+            alignment: str = "intersection", title: str = "Saved model comparison",
+            layout: str = "overlay") -> dict:
     if not isinstance(selections, list) or not 2 <= len(selections) <= MAX_COMPARISON:
         raise ValueError("Compare between two and eight saved results")
     if normalize not in {"none", "base100", "zscore"}:
@@ -80,6 +81,14 @@ def compare(selections: list[dict], *, normalize: str = "none",
         sources.append(_source_ref(str(item.get("kind", "model_run")),
                                    str(item.get("run_id", "")),
                                    int(item.get("plot_index", 0))))
+    if layout not in {"overlay", "split"}:
+        raise ValueError("Unknown comparison layout")
+    if layout == "split":
+        return {"title": title, "layout": "split", "plots": [item["plot"] for item in sources],
+                "sources": [{k: a.get(k) for k in ("kind","run_id","title","mode","source_sha256")}
+                            for a in sources],
+                "warning": "Separate figures may have different mathematical units, evidence "
+                           "types and model horizons. Side-by-side viewing is not a direct metric comparison."}
     plots = [a["plot"] for a in sources]
     modes = {a["mode"] for a in sources}
     if len(modes) != 1:
