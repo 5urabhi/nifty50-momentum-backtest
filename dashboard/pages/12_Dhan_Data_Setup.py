@@ -338,5 +338,5 @@ with tabs[5]:
         st.session_state["research_input_dir"] = str(chosen)
         st.success("Research input folder selected for Index Research: " + str(chosen.relative_to(ROOT)))
         st.warning("A prices.csv file alone is NOT a valid experiment dataset. Index Research must still verify membership.csv and benchmark.csv. These are never fabricated.")
-    st.page_link("dashboard/pages/13_Empirical_Readiness.py", label="Continue to empirical evidence review →", icon="🧾")
-    st.page_link("dashboard/pages/1_Index_Research.py", label="Open Index Research →", icon="📈")
+    st.page_link("pages/13_Empirical_Readiness.py", label="Continue to empirical evidence review →", icon="🧾")
+    st.page_link("pages/1_Index_Research.py", label="Open Index Research →", icon="📈")
