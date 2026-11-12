@@ -69,6 +69,20 @@ class DhanAuthTests(TestCase):
         self.assertEqual(result["code"], "data_plan_inactive")
         self.assertFalse(result["ok"])
 
+    def test_terminal_logs_status_without_account_secrets(self):
+        future = datetime.now(ZoneInfo("Asia/Kolkata")) + timedelta(hours=10)
+        profile = {"dhanClientId": "HIDDEN_ACCOUNT", "tokenValidity":
+                   future.strftime("%d/%m/%Y %H:%M"), "dataPlan": "Active"}
+        with patch.dict("os.environ", {"DHAN_ACCESS_TOKEN": "HIDDEN_TOKEN"}):
+            with self.assertLogs("quantlab.dhan.auth", level="INFO") as events:
+                state = dhan_auth.check_profile(
+                    opener=lambda *a, **kw: MockResponse(profile))
+        text = "\\n".join(events.output)
+        self.assertTrue(state["ok"])
+        self.assertIn("code=ready", text)
+        self.assertNotIn("HIDDEN_ACCOUNT", text)
+        self.assertNotIn("HIDDEN_TOKEN", text)
+
     def test_401_is_rejected_without_exposing_vendor_body(self):
         def opener(req, timeout):
             raise HTTPError(req.full_url, 401, "Unauthorized", {}, BytesIO(b"PRIVATE"))
