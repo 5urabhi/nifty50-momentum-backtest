@@ -64,6 +64,12 @@ def _connect():
         original_path TEXT, trash_path TEXT,
         updated_utc TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS job_history (
+        id TEXT PRIMARY KEY, kind TEXT NOT NULL, status TEXT NOT NULL,
+        created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL,
+        error TEXT, result_excerpt TEXT
+      );
+      CREATE INDEX IF NOT EXISTS jobs_updated ON job_history(updated_utc);
     """)
     return conn
 
@@ -561,3 +567,50 @@ def edit_report(report_id: str, content: str) -> dict:
     _write_pdf(report_id, record["title"], content)
     metadata = {**record["payload"], "edited_utc": now(), "manually_edited": True}
     return update(report_id, payload=metadata)
+
+
+def store_job(snapshot: dict) -> None:
+    """Durable summary only; no market-data frames, secrets or large outputs."""
+    job_id = str(snapshot.get("id", ""))
+    if not RUN_ID.fullmatch(job_id):
+        raise ValueError("Invalid job identifier")
+    stamp = now()
+    kind = str(snapshot.get("kind","unknown"))[:90]
+    status = str(snapshot.get("status","unknown"))[:30]
+    error = str(snapshot.get("error",""))[:300] if snapshot.get("error") else None
+    result = snapshot.get("result")
+    excerpt = None
+    if isinstance(result, dict):
+        excerpt = json.dumps({key: result.get(key) for key in (
+            "status","dataset_id","study_id","message","run_id","id")
+            if key in result}, ensure_ascii=False, allow_nan=False)[:2500]
+    elif isinstance(result, str):
+        excerpt = json.dumps({"run_id": result[:90]})
+    with LOCK, _connect() as conn:
+        conn.execute("""
+        INSERT INTO job_history(id,kind,status,created_utc,updated_utc,error,result_excerpt)
+        VALUES(?,?,?,?,?,?,?)
+        ON CONFLICT(id) DO UPDATE SET status=excluded.status,
+         updated_utc=excluded.updated_utc,error=excluded.error,
+         result_excerpt=excluded.result_excerpt
+        """, (job_id,kind,status,snapshot.get("created_utc",stamp),stamp,error,excerpt))
+
+
+def list_job_history(limit: int = 100) -> list[dict]:
+    if not 1 <= limit <= 200:
+        raise ValueError("Invalid job history limit")
+    with _connect() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = list(conn.execute("SELECT * FROM job_history ORDER BY updated_utc DESC LIMIT ?",(limit,)))
+    results = []
+    for row in rows:
+        item = dict(row)
+        result = item.pop("result_excerpt")
+        if result:
+            try: item["result"] = json.loads(result)
+            except ValueError: pass
+        if item["status"] in {"running","queued"}:
+            item["status"] = "interrupted"
+            item["error"] = "The Python process was restarted before this job finished."
+        results.append(item)
+    return results
