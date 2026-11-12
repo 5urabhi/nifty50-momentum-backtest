@@ -12,6 +12,7 @@ from typing import Literal
 from urllib.request import Request as UrlRequest, urlopen
 import os
 import json
+import logging
 import uuid
 
 import pandas as pd
@@ -26,6 +27,7 @@ from index_research.dhan_data import (
 from . import dhan_auth, dhan_workspace, pit_index, service
 
 load_dotenv(service.ROOT / ".env", override=False)
+LOG = logging.getLogger("quantlab.api")
 
 app = FastAPI(title="Local Quantitative Research Workstation", version="0.1.0",
               docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
@@ -79,6 +81,7 @@ def _spawn(kind: str, action, *args):
                 JOBS.pop(old, None)
 
     def work():
+        LOG.info("QuantLab background job started: kind=%s job_id=%s", kind, task_id)
         with JOBS_LOCK:
             JOBS[task_id]["status"] = "running"
         try:
@@ -89,9 +92,12 @@ def _spawn(kind: str, action, *args):
             token = os.getenv("DHAN_ACCESS_TOKEN", "")
             if token:
                 message = message.replace(token, "[REDACTED]")
+            LOG.error("QuantLab background job failed: kind=%s job_id=%s message=%s",
+                      kind, task_id, message[:350])
             with JOBS_LOCK:
                 JOBS[task_id].update(status="error", error=message[:350])
         else:
+            LOG.info("QuantLab background job completed: kind=%s job_id=%s", kind, task_id)
             with JOBS_LOCK:
                 JOBS[task_id].update(status="complete", result=result)
     RUNNER.submit(work)
@@ -281,7 +287,10 @@ def dhan_credentials_check():
 
     Does not expose account information or access-token values.
     """
-    return dhan_auth.check_profile()
+    LOG.info("Dhan credentials verification requested from local UI")
+    result = dhan_auth.check_profile()
+    LOG.info("Dhan credentials verification finished: code=%s ok=%s", result.get("code"), result.get("ok"))
+    return result
 
 
 @app.get("/api/dhan/status")
