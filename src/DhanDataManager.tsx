@@ -363,6 +363,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
             </select></label></div>
           <div className="dh-estimate"><div><span>Estimated API calls</span><strong>{Number.isFinite(estimatedRequests)?'≈ '+fmt(estimatedRequests):'—'}</strong></div>
             <small>Rough minimum before retries; actual calls depend on date windows and cached coverage. Dhan applies its own limits.</small></div>
+          {pitMode&&!daily&&<div className="dh-pit-alert"><Info size={16}/><div><strong>Intraday downloads need more requests</strong><p>For historical index membership and backtests, download daily candles first. Use 1-minute data in a separate shorter-range job after checking Dhan access and completeness.</p><button className="dh-small-btn" type="button" onClick={()=>setInterval("daily")}>Switch to daily candles</button></div></div>}
           {tooManyIntraday&&<p className="dh-error-note">Intraday batches are limited to 100 instruments. Use daily candles for full-market downloads.</p>}
           {invalidDates&&<p className="dh-error-note">The end date must be later than the start date.</p>}
           {downloadCount>100&&<label className="dh-confirm"><input type="checkbox" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)}/>
