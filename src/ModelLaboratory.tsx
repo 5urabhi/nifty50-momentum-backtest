@@ -32,7 +32,9 @@ type Readiness={dataset_id:string;frequency?:string;observed_dates?:number;
 type DataPlan={model_id:string;mode:string;status:string;runnable:boolean;min_returns:number;target_returns:number;
   buffer_returns:number;common_returns?:number;assets_requested:number;assets_found?:number;
   missing_minimum?:number;missing_to_target?:number;can_download?:boolean;download_explanation?:string;
-  suggested_start?:string;suggested_end_exclusive?:string;message:string}
+  suggested_start?:string;suggested_end_exclusive?:string;message:string;
+  estimated_calendar_weekdays?:number;estimated_max_instrument_day_requests?:number;
+  request_scope_note?:string}
 type ExtensionJob={id:string;status:string;kind:string;error?:string;result?:{dataset_id?:string;status:string;message:string;after?:DataPlan}}
 type ConfigRecord={id:string;title:string;payload:{model_id?:string;dataset_id?:string;params?:Record<string,number|string>};
   favorite:boolean;tags:string[]}
@@ -405,6 +407,13 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
                 <p><strong>Use shared market history</strong> · Reuse cached NIFTY / BANK NIFTY securities first.
                   Request missing Dhan daily windows from {dataPlan.suggested_start} to {dataPlan.suggested_end_exclusive} (end exclusive).
                   Existing observations will be appended, not replaced. The exact number of market sessions cannot be guaranteed.</p>
+                <div className="ql-coverage-stats">
+                  <div><small>Calendar weekdays in candidate window</small>
+                    <strong>{dataPlan.estimated_calendar_weekdays??'N/A'}</strong></div>
+                  <div><small>Max instrument-weekday combinations</small>
+                    <strong>{dataPlan.estimated_max_instrument_day_requests??'N/A'}</strong></div>
+                </div>
+                <p className="ql-note">{dataPlan.request_scope_note}</p>
                 <button type="button" disabled={!!extensionJob&&['queued','running'].includes(extensionJob.status)}
                   onClick={()=>void extendHistory()}>
                   <Download size={15}/> {extensionJob&&['queued','running'].includes(extensionJob.status)?
