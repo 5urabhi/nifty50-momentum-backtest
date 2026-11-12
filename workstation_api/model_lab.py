@@ -539,7 +539,8 @@ RUN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z_[0-9a-f]{10}$")
 
 
 def _run_root() -> Path:
-    return service.RESULTS / "model_laboratory"
+    # Peer of results/workstation_runs; do not mix index experiments and model calculations.
+    return service.RESULTS.parent / "model_laboratory"
 
 
 def save_result(result: dict) -> dict:
