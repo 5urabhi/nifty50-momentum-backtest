@@ -577,12 +577,12 @@ def save_result(result: dict) -> dict:
     return snapshot
 
 
-def list_saved_models() -> list[dict]:
+def list_saved_models(include_archived: bool = False, limit: int = 30) -> list[dict]:
     root=_run_root()
     if not root.is_dir() or root.is_symlink():
         return []
     rows=[]
-    for p in sorted(root.glob("*.json"),reverse=True)[:60]:
+    for p in sorted(root.glob("*.json"),reverse=True)[:max(60,limit*2)]:
         if p.is_symlink() or not RUN_ID.fullmatch(p.stem):
             continue
         try:
@@ -597,7 +597,11 @@ def list_saved_models() -> list[dict]:
             "dataset_id":(result.get("source") or {}).get("dataset_id"),
             "observations":(result.get("source") or {}).get("observations"),
             "figures":len(result.get("plots",[]))})
-    return rows[:30]
+    if not include_archived:
+        from . import research_library
+        rows = [r for r in rows if not research_library.resource_status(
+            "model_run", r["id"])["archived"]]
+    return rows[:limit]
 
 
 def read_saved_model(run_id: str) -> dict:
