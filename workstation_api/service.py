@@ -66,14 +66,36 @@ def datasets():
         if kind != "synthetic" and not folder.exists():
             continue
         items = [f.name for f in folder.iterdir() if f.is_file()] if folder.is_dir() else []
+        historical = {}
+        pit_path = folder / "PIT_MEMBERSHIP_PROVENANCE.json"
+        if pit_path.is_file() and not pit_path.is_symlink():
+            try:
+                historical = json.loads(pit_path.read_text())
+                if historical.get("missing_historical_symbols"):
+                    missing.append("unresolved_historical_index_prices")
+                if historical.get("missing_eligible_price_observations", 0):
+                    missing.append("missing_eligible_price_observations")
+                if historical.get("source_sha256") is None:
+                    missing.append("unverified_membership_source")
+            except (ValueError, OSError, TypeError):
+                missing.append("unreadable_membership_provenance")
         output.append({
-            "id": dataset_id, "label": label, "kind": kind,
+            "id": dataset_id,
+            "label": (str(historical.get("index_name")) + " · " + label) if historical else label,
+            "kind": kind,
             "ready": not missing, "missing": missing,
             "has_prices": "prices.csv" in items,
             "has_fundamentals": "fundamentals.csv" in items,
             "has_sectors": "sectors.csv" in items,
+            "historical_index": historical.get("index_name"),
+            "membership_source_commit": historical.get("source_commit"),
+            "unresolved_index_symbols": len(historical.get("missing_historical_symbols", [])),
             "files": sorted(items),
-            "basis": "synthetic" if kind == "synthetic" else
+            "basis": ("PIT " + str(historical.get("index_name")) +
+                      " membership from reconstructed NSE announcements; "
+                      "Dhan OHLCV is NOT dividend-reinvested TRI, and provenance is unverified")
+                     if historical else
+                     "synthetic" if kind == "synthetic" else
                      "raw Dhan monthly closes; not independently total-return adjusted" if kind == "dhan"
                      else "user supplied; source and PIT status unverified",
         })
