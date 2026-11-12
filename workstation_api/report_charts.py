@@ -70,6 +70,21 @@ def _saved_regions(plot: dict, dates: list) -> list[tuple[int,int,str]]:
     return result
 
 
+def _saved_annotations(plot: dict, dates: list) -> list[tuple[int,str]]:
+    records=plot.get("annotations")
+    if not isinstance(records,list):
+        return []
+    out=[]
+    for record in records[:8]:
+        if not isinstance(record,dict):continue
+        try:
+            index=next(i for i,x in enumerate(dates) if str(x)==str(record.get("x")))
+        except StopIteration:
+            continue
+        out.append((index,str(record.get("label","Event"))[:35]))
+    return out
+
+
 def svg(plot: dict) -> str:
     """Safe static vector chart, suitable for embedding into an HTML report."""
     if plot.get("kind") == "scatter2d":
@@ -132,6 +147,12 @@ def svg(plot: dict) -> str:
             items.append(f'<circle cx="{legend_x}" cy="{legend_y-4}" r="4" fill="{color}"/>')
             items.append(f'<text x="{legend_x+10}" y="{legend_y}" fill="#193d4b" '
                          f'font-size="10">{html.escape(name[:34])}</text>')
+    for index,label in _saved_annotations(plot,xs):
+        x=xx(index)
+        items.append(f'<line x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{bottom}" '
+                     'stroke="#c56d3f" stroke-dasharray="4 4"/>')
+        items.append(f'<text x="{min(right-100,x+4):.2f}" y="{top+10}" '
+                     f'fill="#9a4d24" font-size="9">{html.escape(label)}</text>')
     items.append('<text x="58" y="277" fill="#486671" font-size="10">'+
                  html.escape(str(xs[0])[:24])+'</text>')
     items.append('<text x="790" y="277" text-anchor="end" fill="#486671" font-size="10">'+
@@ -197,6 +218,13 @@ def pdf_drawing(plot: dict):
                              strokeColor=color,strokeWidth=3))
             drawing.add(String(left+k*145+16,legend_y-4,name[:23],
                                fontName="Helvetica",fontSize=7))
+    for index,label in _saved_annotations(plot,xs):
+        x=xx(index)
+        drawing.add(Line(x,bottom,x,top,strokeColor=HexColor("#bc744e"),
+                         strokeWidth=.8,strokeDashArray=[4,4]))
+        drawing.add(String(min(right-90,x+3),top+6,
+                           label.encode("latin-1","replace").decode("latin-1")[:25],
+                           fontSize=7,fillColor=HexColor("#a15a3e")))
     drawing.add(String(left,9,str(xs[0])[:18],fontName="Helvetica",fontSize=8))
     drawing.add(String(right,9,str(xs[-1])[:18],fontName="Helvetica",fontSize=8,
                        textAnchor="end"))
