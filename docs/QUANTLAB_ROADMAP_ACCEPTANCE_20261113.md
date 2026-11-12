@@ -131,3 +131,40 @@ the successful CI-validated merge but remains an environment-specific check.
 
 Open the local address printed by the launcher (normally
 http://127.0.0.1:5173). No separate Vercel deployment is required or claimed.
+
+
+
+## Additional research-depth software completion — PR #3 candidate
+
+This increment addresses the previously identified software gaps without
+pretending that independent external data is available:
+
+- **Vendor comparison:** explicit one-instrument read-only Dhan history
+  request after profile entitlement verification and user confirmation.
+  Reports vendor/cache overlapping dates, mismatches and source checksum;
+  no price overwrite and no broker order submission.
+- **Evidence gate:** eight research criteria with a SHA-bound source-link
+  ledger. Submitted provenance is never auto-certified. A source change
+  invalidates previously submitted references.
+- **Learning and RL:** train-only CPU ridge, random forest, histogram
+  gradient boosting and four-state tabular Q-learning, with purged
+  chronological training labels, fixed holdout policy, one-session delayed
+  entry, explicit costs and full holdout CSVs. No production LSTM/PPO/SAC
+  agent, unattended live execution or prediction-performance guarantee.
+- **Graph Studio:** valid graph-type suggestions by series count, exact-X
+  highlighted regions and event annotations preserved in exported report
+  vectors.
+- **Cache visibility:** pre-download details distinguish covered
+  instrument-calendar days, uncovered windows and estimated only-new Dhan
+  API requests. Canonical market-data reuse remains unchanged.
+- **Expanded browser acceptance:** source-evidence status, learning sample
+  sufficiency, actual trained holdout job, recorded chronology and
+  downloadable CSV; all vendor probes remain mocked without credentials.
+
+This is a *software implementation and automated verification* item.
+**Live account connection** and **independent dividend/TRI/PIT/fee/fill
+certification** still require actual third-party inputs and cannot truthfully
+be marked done from isolated CI fixtures. Advanced LSTM/PPO/SAC architectures
+are not part of this bounded study; do not label them completed.
+
+Details: docs/RESEARCH_INTEGRITY_AND_LEARNING.md
