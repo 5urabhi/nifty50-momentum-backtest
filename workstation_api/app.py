@@ -329,11 +329,12 @@ GUIDE_FILES = {
     "user-guide": "QUANTLAB_USER_GUIDE.md",
     "model-catalog": "MODEL_LABORATORY_GUIDE.md",
     "reproducibility": "QUANTLAB_REPRODUCIBILITY.md",
+    "workspace": "RESEARCH_WORKSPACE_GUIDE.md",
 }
 
 
 @app.get("/api/guide/{topic}", response_class=PlainTextResponse)
-def research_guide_document(topic: Literal["user-guide", "model-catalog", "reproducibility"]):
+def research_guide_document(topic: Literal["user-guide", "model-catalog", "reproducibility", "workspace"]):
     """Read one allowlisted repository document; no filesystem path input."""
     doc=service.ROOT / "docs" / GUIDE_FILES[topic]
     if not doc.is_file() or doc.is_symlink():
