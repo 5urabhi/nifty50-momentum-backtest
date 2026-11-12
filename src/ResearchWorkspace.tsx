@@ -106,14 +106,15 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
     if(running.current)return
     running.current=true
     try{
-      const [records,items,saved,index,registry,queue]=await Promise.all([
+      const [records,trashedRecords,items,saved,index,registry,queue]=await Promise.all([
         api<{records:Item[]}>('/workspace/records?archived=true'),
+        api<{records:Item[]}>('/workspace/records?trashed=true'),
         api<{resources:Resource[]}>('/workspace/resources?include_trashed=true'),
         api<{runs:ModelRun[]}>('/lab/runs'),
         api<{runs:IndexRun[]}>('/runs'),
         api<{models:ModelSpec[]}>('/lab/catalog'),
         api<{jobs:Job[]}>('/workspace/jobs')])
-      setLibrary(records.records)
+      setLibrary([...records.records,...trashedRecords.records])
       setResources(items.resources)
       setModels(registry.models)
       setRuns([
