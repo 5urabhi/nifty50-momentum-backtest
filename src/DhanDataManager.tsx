@@ -33,6 +33,7 @@ type BatchDetails = BatchSummary & {
 type Job = {job_id:string;batch?:BatchSummary}
 type TaskStatus = {id:string;kind:string;status:string;error?:string;result?:Record<string,unknown>}
 type DhanStatus = {token_configured:boolean;instrument_master_available:boolean;read_only:boolean}
+type DhanCredentialCheck = {ok:boolean;token_present:boolean;token_valid:boolean|null;data_plan_active:boolean|null;code:string;message:string;token_validity?:string;data_validity?:string}
 
 const fmt=(n:number)=>n.toLocaleString()
 const statusText=(s:string)=>s.replaceAll('_',' ')
@@ -78,6 +79,8 @@ const options:Array<{mode:SelectionMode;title:string;description:string;icon:typ
 
 export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}){
   const [connection,setConnection]=useState<DhanStatus|null>(null)
+  const [credentialCheck,setCredentialCheck]=useState<DhanCredentialCheck|null>(null)
+  const [credentialChecking,setCredentialChecking]=useState(false)
   const [mode,setMode]=useState<SelectionMode>('selected')
   const [exchange,setExchange]=useState<'NSE'|'BSE'>('NSE')
   const [query,setQuery]=useState('')
@@ -114,6 +117,15 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
     setConnection(value)
     return value
   },[])
+  const verifyCredentials=async()=>{
+    setCredentialChecking(true)
+    try{
+      const r=await api<DhanCredentialCheck>('/dhan/credentials/check')
+      setCredentialCheck(r)
+      tell(r.message,!r.ok)
+    }catch(e){tell(e instanceof Error?e.message:String(e),true)}
+    finally{setCredentialChecking(false)}
+  }
   const loadBatches=useCallback(async()=>{
     const data=await api<{batches:BatchSummary[]}>('/dhan/batches')
     setBatches(data.batches)
@@ -287,9 +299,13 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
 
     <div className="dh-connect">
       <div><span className={'dh-led '+(connection?.token_configured?'':'off')}/><LockKeyhole size={17}/>
-        <div><strong>{connection?.token_configured?'Dhan API connected':'Dhan API token missing'}</strong><small>{connection?.token_configured?'Secret is held by Python only':'Set DHAN_ACCESS_TOKEN in project-root .env'}</small></div></div>
+        <div><strong>{credentialCheck?.ok?'Dhan Data API verified':credentialCheck&&!credentialCheck.ok?'Dhan Data API needs attention':connection?.token_configured?'Token loaded · not verified':'Dhan API token missing'}</strong><small>{credentialCheck?.message??(connection?.token_configured?'Token held locally. Verify credentials and Data API entitlement.':'Set DHAN_ACCESS_TOKEN in project-root .env')}</small></div></div>
       <div><span className={'dh-led '+(connection?.instrument_master_available?'':'off')}/><Database size={17}/>
         <div><strong>{connection?.instrument_master_available?'Instrument master available':'Instrument master missing'}</strong><small>Current Dhan security ID catalog</small></div></div>
+      <button className="dh-small-btn" type="button" disabled={credentialChecking} onClick={()=>void verifyCredentials()}>
+        {credentialChecking?<LoaderCircle size={15} className="dh-spin"/>:<ShieldCheck size={15}/>}
+        Verify Dhan API access
+      </button>
       <button className="dh-small-btn" type="button" disabled={working||Boolean(task)} onClick={refreshMaster}>
         {task?.kind==='master'?<LoaderCircle size={15} className="dh-spin"/>:<RefreshCw size={15}/>}
         Refresh instrument catalog
@@ -397,6 +413,11 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         <div className="dh-batch-title"><div><strong>Batch {details.id.slice(-8)}</strong><span> · {interpretMode(details.selection)} · {fmt(details.total)} instruments</span></div>
           <Pill tone={details.status==='completed'?'good':currentActive?'blue':'warning'}>{statusText(details.status)}</Pill></div>
         <div className="dh-meter"><span style={{width:progress+'%'}}/></div>
+        {details.status==='paused' && (details.items||[]).some(item=>item.error?.includes('HTTP 401')||item.error?.includes('HTTP 403')) &&
+          <div className="dh-pit-alert"><CircleAlert size={18}/><div><strong>Dhan rejected a historical-data request (HTTP 401/403).</strong>
+            <p>The presence of a token in .env does not prove that it is unexpired or permitted to fetch historical market data. Your batch is paused, not deleted. Verify the token and Data API subscription before resuming.</p>
+            <button className="dh-small-btn" type="button" disabled={credentialChecking} onClick={()=>void verifyCredentials()}>Verify token and Data API subscription</button>
+          </div></div>}
         <div className="dh-progress-label"><span>{progress}% processed {details.current_symbol?'· Now: '+details.current_symbol:''}{details.current_window?' · Window '+details.current_window:''}</span>
           <span>{fmt(details.processed)} / {fmt(details.total)}</span></div>
         <div className="dh-progress-cards">{[
