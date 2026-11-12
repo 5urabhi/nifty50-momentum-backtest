@@ -176,6 +176,34 @@ class DatedIndexMembershipTests(unittest.TestCase):
         self.assertEqual(partial["historical_union_count"], 50)
         self.assertEqual(len(partial["historical_unresolved"]), 1)
 
+    def test_published_dhan_spot_index_ids_are_attributed_fallbacks(self):
+        from workstation_api import index_spot
+        # A cash-only Dhan master may omit IDX_I rows entirely. Published
+        # exchange index identifiers are allowed only with explicit provenance.
+        nifty, source = index_spot.resolve_with_evidence("nifty50_pit")
+        self.assertIsNotNone(nifty)
+        self.assertEqual(nifty.security_id, "13")
+        self.assertEqual(nifty.exchange_segment, "IDX_I")
+        self.assertEqual(source, "dhan_oss_published_idx_i_reference_fallback")
+        bank, source = index_spot.resolve_with_evidence("banknifty_pit")
+        self.assertIsNotNone(bank)
+        self.assertEqual(bank.security_id, "25")
+        self.assertEqual(source, "dhan_oss_published_idx_i_reference_fallback")
+        # An ambiguous current master is an evidence conflict, not permission
+        # to silently choose a published ID over two possible alternatives.
+        master = pd.read_csv(self.master, dtype=str)
+        extra = pd.DataFrame([
+            {"SEM_EXM_EXCH_ID": "IDX", "SEM_SEGMENT": "I",
+             "SEM_SMST_SECURITY_ID": id_, "SEM_INSTRUMENT_NAME": "INDEX",
+             "SEM_TRADING_SYMBOL": "NIFTY", "SEM_CUSTOM_SYMBOL": "NIFTY 50",
+             "SEM_SERIES": ""}
+            for id_ in ["13", "9999"]
+        ])
+        pd.concat([master, extra], ignore_index=True).to_csv(self.master, index=False)
+        unknown, status = index_spot.resolve_with_evidence("nifty50_pit")
+        self.assertIsNone(unknown)
+        self.assertEqual(status, "conflicting_index_sids_in_dhan_master")
+
     def test_optional_index_spot_uses_verified_idx_i_mapping(self):
         self._sync()
         master = pd.read_csv(self.master, dtype=str)
@@ -196,6 +224,7 @@ class DatedIndexMembershipTests(unittest.TestCase):
         spot = done["index_spot"]
         self.assertEqual(spot["status"], "complete")
         self.assertEqual(spot["security_id"], "13")
+        self.assertEqual(spot["identity_source"], "verified_unique_dhan_scrip_master_match")
         self.assertGreater(spot["rows"], 1)
         self.assertTrue((service.DATA / spot["file"]).is_file())
         self.assertIn("not a dividend-reinvested", spot["warning"])
