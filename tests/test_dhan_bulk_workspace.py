@@ -77,6 +77,51 @@ class BulkDhanWorkstationTests(unittest.TestCase):
             "volume": [1000] * len(days),
         })
 
+    def test_minute_candles_form_observed_daily_ohlcv_without_lookahead(self):
+        selection = dw.catalog()[0]
+        inst = selection["id"]
+        self.assertTrue(inst.startswith("NSE_EQ:"))
+        batch = dw.create_batch("selected", [inst], [],
+                                "2026-01-01", "2026-02-01", 1, False)
+        def precise_minutes(instrument, first, stop, **_kw):
+            if first != "2026-01-01":
+                raise AssertionError("Unexpected extra Dhan window")
+            dates = pd.to_datetime([
+                "2026-01-02T09:17:00+05:30",
+                "2026-01-02T09:15:00+05:30",
+                "2026-01-02T09:16:00+05:30",
+                "2026-01-05T09:15:00+05:30",
+            ], utc=True)
+            return pd.DataFrame({
+                "datetime": dates,
+                "label": instrument.label,
+                "security_id": instrument.security_id,
+                "exchange_segment": instrument.exchange_segment,
+                "instrument": instrument.instrument,
+                "open": [103, 100, 102, 105],
+                "high": [106, 103, 104, 108],
+                "low": [102, 98, 100, 104],
+                "close": [105, 102, 103, 107],
+                "volume": [30, 10, 20, 40],
+            })
+        with patch.object(dw, "download_candles", side_effect=precise_minutes):
+            result = dw.run_batch(batch["id"])
+        self.assertEqual(result["counts"]["complete"], 1)
+        with patch.object(dw, "download_candles",
+                          side_effect=AssertionError("Preparation must stay offline")):
+            prepared = dw.prepare_batch(batch["id"])
+        self.assertEqual(prepared["source_interval_minutes"], 1)
+        folder = service.DATA / "dhan" / "monthly_research" / batch["id"]
+        daily = pd.read_csv(folder / "daily_ohlcv" / "RELIANCE.csv")
+        first = daily.iloc[0]
+        self.assertEqual(first["date"], "2026-01-02")
+        self.assertEqual(first["open"], 100)
+        self.assertEqual(first["high"], 106)
+        self.assertEqual(first["low"], 98)
+        self.assertEqual(first["close"], 105)
+        self.assertEqual(first["volume"], 60)
+        self.assertEqual(first["bars"], 3)
+
     def test_catalog_understands_dhan_compact_master(self):
         resp = self.client.get("/api/dhan/catalog")
         self.assertEqual(resp.status_code, 200, resp.text)
