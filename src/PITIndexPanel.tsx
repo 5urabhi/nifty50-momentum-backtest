@@ -120,14 +120,14 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
     </div>
     {status?.available&&<div className="dh-pit-coverage">
       <span><Check size={13}/> Earliest: {readable(status.first_date||'2014-01-01')}</span>
-      <span><Clock3 size={13}/> Validated through: {readable(status.covered_through||'2014-01-01')}</span>
+      <span><Clock3 size={13}/> Source coverage through: {readable(status.covered_through||'2014-01-01')}</span>
       <span><ShieldCheck size={13}/> Reconstructed, source-pinned</span>
     </div>}
     {status?.available&&status.covered_through&&toDate>following(status.covered_through)&&
-      <div className="dh-pit-alert"><AlertTriangle size={18}/><div><strong>Selected dates extend beyond verified membership coverage</strong>
+      <div className="dh-pit-alert"><AlertTriangle size={18}/><div><strong>Selected dates extend beyond documented membership coverage</strong>
         <p>Membership source currently ends on {status.covered_through}. This workstation will not silently use today's constituents for later dates.</p>
         <button className="dh-small-btn" onClick={()=>onToDate(following(status.covered_through!))}>
-          Use verified end date ({following(status.covered_through)})
+          Use supported end date ({following(status.covered_through)})
         </button></div></div>}
     {!status?.available&&<div className="dh-pit-intro"><Database size={25}/>
       <strong>One-time historical membership sync</strong><p>This downloads a public CC0 point-in-time constituent history reconstructed from NSE notices. Dhan supplies market prices separately.</p>
