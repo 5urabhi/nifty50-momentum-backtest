@@ -270,8 +270,9 @@ def runs(include_archived: bool = False, limit: int = 100):
         })
     if not include_archived:
         from . import research_library
-        output = [r for r in output if not research_library.resource_status(
-            "research_run", r["id"])["archived"]]
+        states = research_library.resource_state_map()
+        output = [r for r in output if not states.get(
+            "research_run:"+r["id"],{}).get("archived",False)]
     return output[:limit]
 
 
