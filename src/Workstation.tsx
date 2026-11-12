@@ -3,11 +3,12 @@ import {
   Activity, ArrowDownToLine, ArrowRight, BarChart3, Beaker, BookOpen, Check,
   CheckCircle2, ChevronRight, CircleAlert, Clock3, Database, FileArchive,
   FileText, FlaskConical, Gauge, Layers3, LineChart, LoaderCircle,
-  LockKeyhole, Menu, Play, RefreshCw, Search, Settings2, ShieldAlert,
+  LockKeyhole, Menu, Play, RefreshCw, Settings2, ShieldAlert,
   ShieldCheck, Sigma, SlidersHorizontal, TrendingUp, Upload,
   Wallet, X
 } from 'lucide-react'
 import './workstation.css'
+import DhanDataManager from './DhanDataManager'
 
 type Dict = Record<string, unknown>
 type Dataset = {id:string; label:string; kind:string; ready:boolean; missing:string[]; files:string[]; has_prices:boolean; has_fundamentals:boolean; has_sectors:boolean; basis:string}
@@ -28,12 +29,12 @@ type Tab = 'overview'|'data'|'dhan'|'research'|'factors'|'construction'|'compari
 type NavItem = {id:Tab;label:string;icon:typeof Activity}
 const sections:{label:string;items:NavItem[]}[]=[
  {label:'COMMAND CENTER',items:[{id:'overview',label:'Overview',icon:Gauge},{id:'history',label:'Saved Runs',icon:Clock3}]},
- {label:'DATA OPERATIONS',items:[{id:'data',label:'Data Manager',icon:Database},{id:'dhan',label:'DhanHQ Connector',icon:Wallet}]},
+ {label:'DATA OPERATIONS',items:[{id:'data',label:'Data Manager',icon:Database},{id:'dhan',label:'Dhan Market Data',icon:Wallet}]},
  {label:'RESEARCH DESK',items:[{id:'research',label:'Index Research',icon:FlaskConical},{id:'factors',label:'Factor Laboratory',icon:Layers3},{id:'construction',label:'Index Construction',icon:SlidersHorizontal},{id:'comparisons',label:'Index Comparisons',icon:BarChart3}]},
  {label:'MODEL & RISK LAB',items:[{id:'mathematics',label:'Advanced Mathematics',icon:Sigma},{id:'rolling',label:'Rolling Validation',icon:LineChart},{id:'models',label:'Quantitative Models',icon:Beaker},{id:'risk',label:'Risk Attribution',icon:ShieldAlert},{id:'robustness',label:'Robustness',icon:Activity},{id:'visual',label:'Visual Validation',icon:TrendingUp}]},
  {label:'OUTPUT',items:[{id:'reports',label:'Research Reports',icon:FileText},{id:'settings',label:'Workstation Settings',icon:Settings2}]},
 ]
-const titles:Record<Tab,string>={overview:'Research command center',data:'Data manager',dhan:'DhanHQ data connector',research:'Index research engine',factors:'Factor laboratory',construction:'Index construction',comparisons:'Index comparisons',mathematics:'Advanced mathematics',rolling:'Rolling validation',models:'Quantitative models',risk:'Risk attribution',robustness:'Robustness & sensitivity',visual:'Visual validation',reports:'Research reports',history:'Saved research runs',settings:'Workstation settings'}
+const titles:Record<Tab,string>={overview:'Research command center',data:'Data manager',dhan:'DhanHQ market-data terminal',research:'Index research engine',factors:'Factor laboratory',construction:'Index construction',comparisons:'Index comparisons',mathematics:'Advanced mathematics',rolling:'Rolling validation',models:'Quantitative models',risk:'Risk attribution',robustness:'Robustness & sensitivity',visual:'Visual validation',reports:'Research reports',history:'Saved research runs',settings:'Workstation settings'}
 const factors=[['momentum','Momentum'],['low_volatility','Low volatility'],['value','Value'],['quality','Quality'],['size','Size']] as const
 const number=(v:unknown,d=2)=>typeof v==='number' && Number.isFinite(v) ? v.toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d}) : '—'
 const percent=(v:unknown,d=2)=>typeof v==='number' && Number.isFinite(v) ? (v*100).toFixed(d)+'%' : '—'
@@ -151,13 +152,6 @@ function App(){
   const [modelMethod,setModelMethod]=useState('shrinkage')
   const [modelCap,setModelCap]=useState(.3)
   const [dhan,setDhan]=useState<DhanStatus|null>(null)
-  const [query,setQuery]=useState('RELIANCE')
-  const [searchRows,setSearchRows]=useState<Dict[]>([])
-  const [instrument,setInstrument]=useState({label:'RELIANCE',security_id:'',exchange_segment:'NSE_EQ',instrument:'EQUITY',expiry_code:0})
-  const [fromDate,setFromDate]=useState('2025-01-01')
-  const [toDate,setToDate]=useState('2026-11-01')
-  const [interval,setInterval]=useState('daily')
-  const [downloadId,setDownloadId]=useState('')
   const dataset=datasets.find(d=>d.id===selectedDataset)
   const selected=runs.find(r=>r.id===selectedRun)
   const metrics=detail?.meta.metrics_by_split??selected?.metrics_by_split??{}
@@ -188,8 +182,6 @@ function App(){
       request<Job>('/jobs/'+job.id).then(j=>{
         setJob(j)
         if(j.status==='complete'){
-          if(j.kind==='dhan_download' && j.result && typeof j.result==='object' && 'download_id' in j.result){setDownloadId(String(j.result.download_id))}
-          if(j.kind==='dhan_prepare' && j.result && typeof j.result==='object' && 'dataset_id' in j.result){setSelectedDataset(String(j.result.dataset_id))}
           notify(j.kind==='experiment'?'Research run completed; saved to history.':'Operation completed.')
           void refresh()
           if(j.kind==='experiment' && typeof j.result==='string'){setSelectedRun(j.result);setTab('overview')}
@@ -216,10 +208,6 @@ function App(){
     },r=>{void refresh();setSelectedDataset(r.id);notify('Dataset imported for internal validation; provenance remains unverified.')})
   }
   const downloadReport=()=>execute(()=>post<{job_id:string}>('/runs/'+selectedRun+'/reports',{}),r=>{setJob({id:r.job_id,kind:'reports',status:'queued'});notify('Report export queued.')})
-  const refreshDhan=()=>execute(()=>post<{job_id:string}>('/dhan/instruments/refresh',{}),r=>{setJob({id:r.job_id,kind:'dhan_master',status:'queued'});notify('Downloading the Dhan instrument master.')})
-  const searchDhan=()=>execute(()=>request<{rows:Dict[]}>('/dhan/instruments?query='+encodeURIComponent(query)),r=>setSearchRows(r.rows))
-  const downloadDhan=()=>execute(()=>post<{job_id:string}>('/dhan/download',{instruments:[instrument],from_date:fromDate,to_date:toDate,interval:interval==='daily'?null:Number(interval)}),r=>{setJob({id:r.job_id,kind:'dhan_download',status:'queued'});notify('Read-only Dhan historical download queued.')})
-  const prepareDhan=()=>execute(()=>post<{job_id:string}>('/dhan/prepare',{download_id:downloadId}),r=>{setJob({id:r.job_id,kind:'dhan_prepare',status:'queued'});notify('Preparing unadjusted monthly Dhan close panel.')})
   const runPicker=<select aria-label="Select completed experiment" className="ws-select" value={selectedRun} onChange={e=>setSelectedRun(e.target.value)}>{runs.length===0?<option value="">No runs yet</option>:runs.map(r=><option key={r.id} value={r.id}>{r.name} · {r.id}</option>)}</select>
   const dataPicker=<select className="ws-select" aria-label="Select research dataset" value={selectedDataset} onChange={e=>{setSelectedDataset(e.target.value);setModel(null)}}><option value="">Choose dataset</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.label}{d.ready?'':' (incomplete)'}</option>)}</select>
   const withRun=(content:React.ReactNode)=><>{runs.length===0?<Empty title="No research run selected" onAction={()=>begin('research')} action="Run an experiment">All charts are generated from Python research outputs, not hardcoded sample performance.</Empty>:<>{runPicker}{content}</>}</>
@@ -250,11 +238,7 @@ function App(){
           {auditResult&&<Card title="Internal consistency audit"><div className="ws-data-audit">{Object.entries(auditResult).filter(([k])=>k!=='warnings').map(([k,v])=><div key={k}><span>{label(k)}</span><strong>{typeof v==='object'?JSON.stringify(v):String(v)}</strong></div>)}</div>{Array.isArray(auditResult.warnings)&&<div className="ws-warning">{auditResult.warnings.map((w,i)=><p key={i}>• {String(w)}</p>)}</div>}</Card>}
           <Card title="Imported dataset library"><Table rows={datasets.map(d=>({name:d.label,kind:d.kind,ready:d.ready,missing:d.missing.join(', ')||'none',basis:d.basis}))}/></Card>
         </>}
-        {tab==='dhan'&&<>
-          <div className="ws-grid halves"><Card title="Broker data connection"><div className="ws-connection"><div className={'ws-connection-icon '+(dhan?.token_configured?'connected':'')}><LockKeyhole size={24}/></div><div><strong>{dhan?.token_configured?'Dhan token configured locally':'Dhan token not configured'}</strong><p>Put DHAN_ACCESS_TOKEN in project-root .env and restart bash run.sh. Tokens never travel to React.</p></div></div><div className="ws-dhan-state"><span>Access scope</span><Tag tone="good">READ-ONLY DOWNLOADS</Tag></div><div className="ws-dhan-state"><span>Instrument master</span><Tag tone={dhan?.instrument_master_available?'good':'warn'}>{dhan?.instrument_master_available?'AVAILABLE':'NOT DOWNLOADED'}</Tag></div><button className="ws-button secondary" disabled={busy||job?.status==='running'} onClick={refreshDhan}><RefreshCw size={15}/> Refresh Dhan instrument master</button></Card>
-          <Card title="Search official instrument master"><div className="ws-search-row"><input aria-label="Search Dhan symbol" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Symbol or company name"/><button className="ws-button primary" disabled={busy||!dhan?.instrument_master_available} onClick={searchDhan}><Search size={15}/> Search</button></div><p className="ws-caption">Verify the exact Security ID, exchange and instrument before requesting candles. Symbols alone are not reliable identity keys.</p><div className="ws-dhan-results"><Table rows={searchRows} max={12}/></div></Card></div>
-          <Card title="Download historical OHLCV (read-only)" extra={<Tag tone="warn">RAW CANDLES ≠ TOTAL RETURNS</Tag>}><div className="ws-form-grid"><Field label="Security label" value={instrument.label} onChange={v=>setInstrument({...instrument,label:v})}/><Field label="Dhan Security ID" value={instrument.security_id} onChange={v=>setInstrument({...instrument,security_id:v})} placeholder="Verified numeric ID"/><Field label="Exchange segment" value={instrument.exchange_segment} onChange={v=>setInstrument({...instrument,exchange_segment:v})}/><Field label="Instrument type" value={instrument.instrument} onChange={v=>setInstrument({...instrument,instrument:v})}/><Field label="From (inclusive)" type="date" value={fromDate} onChange={setFromDate}/><Field label="To (exclusive)" type="date" value={toDate} onChange={setToDate}/><Select label="Data resolution" value={interval} onChange={setInterval} options={[{value:'daily',label:'Daily OHLCV'},...['1','5','15','25','60'].map(v=>({value:v,label:v+' minute candles'}))]}/></div><div className="ws-actions"><button className="ws-button primary" disabled={busy||!dhan?.token_configured||!instrument.security_id} onClick={downloadDhan}><ArrowDownToLine size={16}/> Download candles</button><span className="ws-caption">Stored locally in data/dhan/raw; no order endpoints exist.</span></div><div className="ws-rule"><ShieldCheck size={16}/> Monthly preparation creates prices.csv only. It cannot infer historical Nifty membership or a total-return benchmark.</div><div className="ws-setup-row"><Field label="Daily download ID" value={downloadId} onChange={setDownloadId} placeholder="download_..."/><button className="ws-button secondary" disabled={busy||!/^download_[0-9a-f]{12}$/.test(downloadId)} onClick={prepareDhan}>Prepare monthly prices</button></div></Card>
-        </>}
+        {tab==='dhan'&&<DhanDataManager onDataChanged={refresh}/>}
         {tab==='research'&&<>
           <div className="ws-grid two-thirds"><Card title="Experiment configuration" extra={<Tag tone="blue">BACKED BY PYTHON</Tag>}><div className="ws-setup-row"><span>Source dataset</span>{dataPicker}<Tag tone={dataset?.ready?'good':'warn'}>{dataset?.ready?'READY':'NEEDS INPUTS'}</Tag></div><div className="ws-form-grid"><Field label="Experiment name" value={config.name} onChange={v=>setConfig({...config,name:v})}/><Select label="Portfolio weighting" value={config.weighting} onChange={v=>setConfig({...config,weighting:v})} options={['equal','score','inverse_volatility','minimum_variance','risk_parity'].map(v=>({value:v,label:label(v)}))}/><NumberInput label="Constituents (top N)" value={config.top_n} min={2} max={300} onChange={v=>setConfig({...config,top_n:v})}/><NumberInput label="Maximum holding weight" value={config.max_weight} min={.01} max={1} step={.01} onChange={v=>setConfig({...config,max_weight:v})}/><NumberInput label="Rebalance frequency (months)" value={config.rebalance_every} min={1} max={12} onChange={v=>setConfig({...config,rebalance_every:v})}/><NumberInput label="Transaction costs (bps)" value={config.cost_bps} min={0} max={500} step={5} onChange={v=>setConfig({...config,cost_bps:v})}/><Select label="Execution lag" value={String(config.execution_lag)} onChange={v=>setConfig({...config,execution_lag:Number(v)})} options={[{value:'1',label:'One month (conservative)'},{value:'0',label:'Same-close idealization'}]}/><NumberInput label="Formation months" value={config.momentum_formation} min={2} max={60} onChange={v=>setConfig({...config,momentum_formation:v})}/><NumberInput label="Months to skip" value={config.momentum_skip} min={0} max={12} onChange={v=>setConfig({...config,momentum_skip:v})}/><NumberInput label="Volatility lookback (months)" value={config.volatility_lookback} min={3} max={60} onChange={v=>setConfig({...config,volatility_lookback:v})}/><Field label="Validation start (optional)" type="date" value={config.validation_start} onChange={v=>setConfig({...config,validation_start:v})}/><Field label="Frozen test start (optional)" type="date" value={config.final_test_start} onChange={v=>setConfig({...config,final_test_start:v})}/></div><label className="ws-checkbox"><input type="checkbox" checked={config.sector_cap!==null} onChange={e=>setConfig({...config,sector_cap:e.target.checked ? 0.4 : null})}/> Apply historical sector concentration cap</label>{config.sector_cap!==null&&<NumberInput label="Sector allocation cap" value={config.sector_cap} min={.1} max={1} step={.05} onChange={v=>setConfig({...config,sector_cap:v})}/>}<div className="ws-actions"><button className="ws-button primary" disabled={!dataset?.ready||busy||!!job&&['queued','running'].includes(job.status)} onClick={startRun}><Play size={15}/> Run Python backtest</button><span className="ws-caption">Uses saved datasets with explicit provenance; writes result artifacts to disk.</span></div></Card>
           <Card title="Factor allocation"><p className="ws-caption">Select a factor and adjust its relative contribution to the composite score.</p><div className="ws-sliders">{factors.map(([key,name])=><label className="ws-factor" key={key}><div><span>{name}</span><strong>{number(config.factor_weights[key],1)}</strong></div><input type="range" min="0" max="1" step=".1" value={config.factor_weights[key]??0} onChange={e=>setConfig({...config,factor_weights:{...config.factor_weights,[key]:Number(e.target.value)}})}/></label>)}</div><div className="ws-rule"><ShieldCheck size={16}/> A backtest cannot prove historical correctness when constituent histories, adjusted returns, and benchmark evidence are missing.</div></Card></div>
