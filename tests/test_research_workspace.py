@@ -167,6 +167,8 @@ class ResearchWorkspaceTests(unittest.TestCase):
         self.assertEqual(research_insights.evidence_class({
             "mode":"historical", "source":{"dataset_kind":"uploaded"}}),
             "historical")
+        research_library.resource_action("dataset","synthetic","archive")
+        self.assertEqual(service.create_synthetic()["id"], "synthetic")
 
     def test_quality_reports_actual_prices_without_forward_fill(self):
         result = research_insights.inspect_quality(self.dataset_id)
