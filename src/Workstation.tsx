@@ -27,16 +27,22 @@ type RunConfig = {
   validation_start:string;final_test_start:string;sector_cap:number|null
 }
 const defaultConfig:RunConfig = {name:'quant_research_v1', factor_weights:{momentum:1,low_volatility:0,value:0,quality:0,size:0},top_n:10,weighting:'equal',max_weight:.2,rebalance_every:3,cost_bps:10,execution_lag:1,momentum_formation:12,momentum_skip:1,volatility_lookback:12,validation_start:'',final_test_start:'',sector_cap:null}
-type Tab = 'overview'|'workspace'|'data'|'dhan'|'research'|'factors'|'construction'|'comparisons'|'mathematics'|'rolling'|'models'|'risk'|'robustness'|'visual'|'reports'|'history'|'settings'|'guide'
-type NavItem = {id:Tab;label:string;icon:typeof Activity}
-const sections:{label:string;items:NavItem[]}[]=[
- {label:'COMMAND CENTER',items:[{id:'overview',label:'Overview',icon:Gauge},{id:'history',label:'Saved Runs',icon:Clock3},{id:'workspace',label:'Research Workspace',icon:Workflow}]},
- {label:'DATA OPERATIONS',items:[{id:'data',label:'Data Manager',icon:Database},{id:'dhan',label:'Dhan Market Data',icon:Wallet}]},
- {label:'RESEARCH DESK',items:[{id:'research',label:'Index Research',icon:FlaskConical},{id:'factors',label:'Factor Laboratory',icon:Layers3},{id:'construction',label:'Index Construction',icon:SlidersHorizontal},{id:'comparisons',label:'Index Comparisons',icon:BarChart3}]},
- {label:'MODEL & RISK LAB',items:[{id:'mathematics',label:'Advanced Mathematics',icon:Sigma},{id:'rolling',label:'Rolling Validation',icon:LineChart},{id:'models',label:'Quantitative Models',icon:Beaker},{id:'risk',label:'Risk Attribution',icon:ShieldAlert},{id:'robustness',label:'Robustness',icon:Activity},{id:'visual',label:'Visual Validation',icon:TrendingUp}]},
- {label:'OUTPUT',items:[{id:'reports',label:'Research Reports',icon:FileText},{id:'guide',label:'User Guide & Documentation',icon:BookOpen},{id:'settings',label:'Workstation Settings',icon:Settings2}]},
+type Tab = 'overview'|'workspace'|'projects'|'data'|'dhan'|'research'|'factors'|'construction'|'comparisons'|'mathematics'|'rolling'|'models'|'risk'|'robustness'|'visual'|'reports'|'history'|'settings'|'guide'
+const primarySections:{id:Tab;label:string;icon:typeof Activity;tabs:Tab[]}[]=[
+ {id:'overview',label:'Home',icon:Gauge,tabs:['overview']},
+ {id:'data',label:'Data Library',icon:Database,tabs:['data','dhan']},
+ {id:'mathematics',label:'Model Laboratory',icon:Sigma,
+   tabs:['mathematics','models','risk','factors','construction']},
+ {id:'research',label:'Experiment Studio',icon:FlaskConical,
+   tabs:['research','rolling','robustness']},
+ {id:'workspace',label:'Compare & Visualize',icon:BarChart3,
+   tabs:['workspace','comparisons','visual']},
+ {id:'history',label:'Results Library',icon:Clock3,tabs:['history']},
+ {id:'projects',label:'Research Projects',icon:BookOpen,tabs:['projects','reports']},
+ {id:'guide',label:'Help & Settings',icon:Settings2,tabs:['guide','settings']},
 ]
-const titles:Record<Tab,string>={overview:'Research command center',workspace:'Research workspace',data:'Data manager',dhan:'DhanHQ market-data terminal',research:'Index research engine',factors:'Factor laboratory',construction:'Index construction',comparisons:'Index comparisons',mathematics:'Advanced mathematics',rolling:'Rolling validation',models:'Quantitative models',risk:'Risk attribution',robustness:'Robustness & sensitivity',visual:'Visual validation',reports:'Research reports',history:'Saved research runs',settings:'Workstation settings',guide:'How to use QuantLab'}
+
+const titles:Record<Tab,string>={overview:'Research command center',workspace:'Research workspace',projects:'Projects and notebooks',data:'Data manager',dhan:'DhanHQ market-data terminal',research:'Index research engine',factors:'Factor laboratory',construction:'Index construction',comparisons:'Index comparisons',mathematics:'Advanced mathematics',rolling:'Rolling validation',models:'Quantitative models',risk:'Risk attribution',robustness:'Robustness & sensitivity',visual:'Visual validation',reports:'Research reports',history:'Saved research runs',settings:'Workstation settings',guide:'How to use QuantLab'}
 const factors=[['momentum','Momentum'],['low_volatility','Low volatility'],['value','Value'],['quality','Quality'],['size','Size']] as const
 const number=(v:unknown,d=2)=>typeof v==='number' && Number.isFinite(v) ? v.toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d}) : '—'
 const percent=(v:unknown,d=2)=>typeof v==='number' && Number.isFinite(v) ? (v*100).toFixed(d)+'%' : '—'
@@ -203,7 +209,15 @@ function App(){
     <aside className={'ws-sidebar '+(menu?'open':'')}>
       <div className="ws-brand"><span className="ws-brand-mark"><Activity size={23}/></span><div><strong>QUANT<span>LAB</span></strong><small>RESEARCH WORKSTATION</small></div><button type="button" className="ws-mobile-close" onClick={()=>setMenu(false)}><X size={19}/></button></div>
       <div className="ws-env"><span className={'ws-status-dot '+(health?.ok?'':'offline')}/><div><strong>{health?.ok?'LOCAL ENGINE CONNECTED':'ENGINE DISCONNECTED'}</strong><small>127.0.0.1 · NO BROKER EXECUTION</small></div></div>
-      <nav>{sections.map(group=><div className="ws-nav-group" key={group.label}><span className="ws-nav-label">{group.label}</span>{group.items.map(item=><button type="button" key={item.id} onClick={()=>begin(item.id)} className={'ws-nav-item '+(tab===item.id?'active':'')}><item.icon size={17} strokeWidth={1.9}/>{item.label}{tab===item.id&&<span className="ws-nav-select"/>}</button>)}</div>)}</nav>
+      <nav aria-label="Primary QuantLab navigation">
+        <div className="ws-nav-group"><span className="ws-nav-label">RESEARCH DESTINATIONS</span>
+          {primarySections.map(section=><button type="button" key={section.id}
+            onClick={()=>begin(section.id)}
+            aria-current={section.tabs.includes(tab)?'page':undefined}
+            className={'ws-nav-item '+(section.tabs.includes(tab)?'active':'')}>
+            <section.icon size={17} strokeWidth={1.9}/>{section.label}
+            {section.tabs.includes(tab)&&<span className="ws-nav-select"/>}</button>)}
+        </div></nav>
       <div className="ws-sidefoot"><LockKeyhole size={15}/><div><strong>PRIVATE / LOCAL FIRST</strong><small>Credentials never sent to browser</small></div></div>
     </aside>
     {menu&&<button className="ws-backdrop" onClick={()=>setMenu(false)} aria-label="Close navigation"/>}
@@ -211,6 +225,13 @@ function App(){
       <header className="ws-topbar"><div className="ws-top-left"><button type="button" className="ws-menu" onClick={()=>setMenu(true)} aria-label="Open navigation"><Menu size={19}/></button><span className="ws-breadcrumb">WORKSTATION</span><ChevronRight size={14}/><strong>{titles[tab]}</strong></div><div className="ws-top-right">{job&&['queued','running'].includes(job.status)&&<Tag tone="blue"><LoaderCircle size={13} className="ws-spin"/> {label(job.kind)} running</Tag>}<Tag tone={health?.ok?'good':'bad'}>{health?.ok?'ENGINE ONLINE':'OFFLINE'}</Tag><button title="Refresh from backend" aria-label="Refresh data" className="ws-icon" onClick={()=>void refresh()}><RefreshCw size={16}/></button></div></header>
       <main className="ws-content">
         <div className="ws-titlebar"><div><div className="ws-overline">QUANTITATIVE EQUITY INDEX & FACTOR RESEARCH</div><h1>{titles[tab]}</h1><p>Local Python research engine · React/Vite desktop-style interface · Explicit source provenance</p></div><div className="ws-title-actions"><button type="button" className="ws-button secondary" onClick={()=>begin('guide')}><BookOpen size={15}/> Guide</button><button type="button" className="ws-button secondary" onClick={()=>begin('data')}><Database size={15}/> Data</button><button type="button" className="ws-button primary" onClick={()=>begin('research')}><Play size={14}/> New experiment</button></div></div>
+        {primarySections.some(section=>section.tabs.includes(tab)&&section.tabs.length>1)&&
+          <nav className="ws-context-tabs" aria-label="Modules within selected research destination">
+            {primarySections.find(section=>section.tabs.includes(tab))?.tabs.map(module=>
+              <button type="button" key={module} aria-current={tab===module?'page':undefined}
+                className={tab===module?'active':''} onClick={()=>begin(module)}>
+                {titles[module]}</button>)}
+          </nav>}
         {notice&&<div role="status" className={'ws-notice '+(notice.error?'error':'')}><span>{notice.error?<CircleAlert size={17}/>:<CheckCircle2 size={17}/>}</span>{notice.text}<button onClick={()=>setNotice(null)} aria-label="Dismiss"><X size={16}/></button></div>}
         {tab==='overview'&&<>
           <div className="ws-overview-banner"><div><Tag tone="blue">RESEARCH CONTROL DESK / MODEL LAB V1</Tag><h2>One workstation.<br/><em>Every model, traceable.</em></h2><p>Keep datasets, factor experiments, risk calculations and generated evidence in one reproducible local research environment.</p><div className="ws-banner-actions"><button className="ws-button primary" onClick={()=>begin('research')}><Play size={16}/> Run research</button><button className="ws-button secondary" onClick={()=>begin('dhan')}><Database size={16}/> Connect market data</button></div></div><div className="ws-banner-graphic"><div className="ws-orbit one"/><div className="ws-orbit two"/><div className="ws-orbit three"/><span className="ws-center-glow"><Activity size={45}/></span><span className="ws-orbit-label a">MOMENTUM</span><span className="ws-orbit-label b">RISK</span><span className="ws-orbit-label c">FACTOR</span></div></div>
@@ -227,7 +248,8 @@ function App(){
           <Card title="Imported dataset library"><Table rows={datasets.map(d=>({name:d.label,kind:d.kind,ready:d.ready,benchmark:d.benchmark_kind==='price_index_spot_only'?'PRICE INDEX (not TRI)':d.benchmark_kind||'missing',daily_prices:d.has_daily_prices?'yes':'no',source_resolution:d.source_interval_minutes===null?'daily':d.source_interval_minutes?d.source_interval_minutes+' min':'unreported',missing:d.missing.join(', ')||'none',basis:d.basis}))}/></Card>
         </>}
         {tab==='dhan'&&<DhanDataManager onDataChanged={refresh}/>}
-        {tab==='workspace'&&<ResearchWorkspace datasets={datasets}
+        {(tab==='workspace'||tab==='projects')&&<ResearchWorkspace key={tab}
+          initialPage={tab==='projects'?'projects':'home'} datasets={datasets}
           selectedDataset={selectedDataset} onSelectDataset={setSelectedDataset}
           onDataChanged={refresh} onOpenDhan={()=>begin('dhan')}
           onOpenModels={()=>begin('models')}/>}
