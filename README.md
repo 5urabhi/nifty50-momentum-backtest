@@ -1,3 +1,11 @@
+> **Current application — React/Vite QuantLab workstation (November 12, 2026):**
+> The previous Streamlit dashboard has been replaced as the **default** interface
+> by a private local React/Vite workstation backed by FastAPI/Python. Start with
+> `bash run.sh` and open **http://127.0.0.1:5173**. API tokens belong in
+> project-root `.env`. Read [REACT_WORKSTATION.md](REACT_WORKSTATION.md)
+> for current setup, supported workflows and validation status. The older
+> Streamlit instructions below are retained for legacy reference only.
+>
 # Equity Index Quantitative Research & Construction Framework
 
 **Local-first research software | Independent project | Development branch**
