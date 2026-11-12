@@ -141,7 +141,7 @@ All model-lab charts are returned by the **Python research engine**. The chart i
 - **Heatmaps**: observed correlation matrix for the selected sample.
 - **3D surfaces**: option-price response across assumptions, or hypothetical correlation stress with observed marginal volatilities.
 - **Tables**: exact values; capped in-browser for readability.
-- **JSON export**: the request's validated parameters, model identity, source lineage, output metrics and plotted observations. Retain this alongside experiment notes.
+- **JSON export**: the request's validated parameters, model identity, source lineage, output metrics and plotted observations. Each successful model run is also automatically archived in the Git-ignored \`results/model_laboratory/\` folder, accessible via **Saved model runs** in the same laboratory panel. Retain exports alongside experiment notes.
 - **CSV export**: data rows when present or named metrics otherwise.
 
 If the selected model is classified as **synthetic/theoretical**, changing the dataset selector does not make it historically calibrated. The run response explicitly states that the dataset was not used.
