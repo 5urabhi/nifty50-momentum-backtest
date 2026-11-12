@@ -34,8 +34,8 @@ idx=next((i for i,p in enumerate(known) if candidate and str(p.resolve())==str(P
 root=st.selectbox("Inspect local research input directory",known,index=idx,format_func=str)
 st.session_state["research_input_dir"]=str(root.resolve())
 runs=Path("results/research_v1")
-st.page_link("dashboard/pages/12_Dhan_Data_Setup.py",label="Back to Dhan Historical Data →",icon="📥")
-st.page_link("dashboard/pages/1_Index_Research.py",label="Continue to Index Research →",icon="📈")
+st.page_link("pages/12_Dhan_Data_Setup.py",label="Back to Dhan Historical Data →",icon="📥")
+st.page_link("pages/1_Index_Research.py",label="Continue to Index Research →",icon="📈")
 
 st.subheader("Import missing evidence into this local dataset")
 st.caption("Upload reviewed CSV/JSON files here instead of moving files in a terminal. The tool only checks basic structure; importing a file does NOT independently validate its origin or historical correctness.")
