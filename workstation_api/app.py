@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -50,7 +50,7 @@ JOBS_LOCK = Lock()
 JOB_FUTURES: dict[str, object] = {}
 JOB_RETRY_SPECS: dict[str, tuple] = {}
 JOB_STOP_SIGNALS: dict[str, Event] = {}
-CANCELLABLE_TASKS = {"workspace_parameter_sweep","workspace_grid_sweep","workspace_validation"}
+CANCELLABLE_TASKS = {"workspace_parameter_sweep","workspace_grid_sweep","workspace_validation","workspace_learning"}
 
 
 class JobCancelled(RuntimeError):
@@ -116,7 +116,7 @@ def _spawn(kind: str, action, *args, **kwargs):
                 JOB_RETRY_SPECS.pop(old, None)
                 JOB_STOP_SIGNALS.pop(old, None)
         if kind in {"workspace_parameter_sweep", "workspace_grid_sweep",
-                    "workspace_validation", "workspace_report"}:
+                    "workspace_validation", "workspace_report", "workspace_learning"}:
             JOB_RETRY_SPECS[task_id] = (kind, action, args, kwargs)
         queued_snapshot = dict(JOBS[task_id])
     _persist_job(queued_snapshot)
@@ -968,6 +968,103 @@ async def research_project_import_bundle(file: UploadFile = File(...)):
     try:
         content=await file.read(project_bundles.MAX_BUNDLE+1)
         return project_bundles.import_bundle(content)
+    except Exception as exc:
+        bad(exc)
+
+
+# ---------------------- Remaining research integrity ----------------------
+class ResearchEvidenceReference(BaseModel):
+    model_config=ConfigDict(extra="forbid")
+    category: Literal["prices","membership","actions","benchmark","delistings",
+                      "fundamentals","costs","execution"]
+    source_url: str = Field(min_length=12,max_length=500)
+    as_of: str = Field(min_length=10,max_length=10)
+    explanation: str = Field(default="",max_length=1200)
+
+
+class LiveDhanProbeRequest(BaseModel):
+    model_config=ConfigDict(extra="forbid")
+    dataset_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,80}$")
+    column: str = Field(min_length=1,max_length=80)
+    confirm: bool = False
+
+
+class LearningStudyRequest(BaseModel):
+    model_config=ConfigDict(extra="forbid")
+    dataset_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,80}$")
+    asset: str = Field(min_length=1,max_length=100)
+    method: Literal["ridge","random_forest","hist_gradient_boosting","tabular_q"] = "ridge"
+    train_fraction: float = Field(default=.70,ge=.60,le=.85)
+    cost_bps: float = Field(default=8.,ge=0.,le=250.)
+    seed: int = Field(default=2026,ge=0,le=2147483647)
+    confirm: bool = False
+
+
+@app.get("/api/workspace/integrity/{dataset_id}")
+def workstation_integrity(dataset_id: str):
+    try:
+        return research_integrity.inspect(dataset_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/integrity/{dataset_id}/sources")
+def workstation_source_reference(dataset_id: str,body: ResearchEvidenceReference):
+    try:
+        return research_integrity.add_source(dataset_id,**body.model_dump())
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/dhan-live/plan")
+def workstation_live_dhan_plan(dataset_id: str, column: str = ""):
+    try:
+        return dhan_live_verification.plan(dataset_id,column or None)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/dhan-live/previous")
+def workstation_live_dhan_previous(dataset_id: str):
+    try:
+        return dhan_live_verification.previous(dataset_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/dhan-live/probe")
+def workstation_live_dhan_probe(body: LiveDhanProbeRequest):
+    if not body.confirm:
+        raise HTTPException(400,"Explicit permission is required for a live Dhan history probe")
+    try:
+        plan=dhan_live_verification.plan(body.dataset_id,body.column)
+        if not plan.get("available"):
+            raise ValueError(plan.get("reason","Live probe cannot be prepared"))
+        return _spawn("dhan_readonly_probe",dhan_live_verification.probe,
+                      body.dataset_id,body.column,confirm=True)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/learning/readiness")
+def workstation_learning_readiness(dataset_id: str,asset: str):
+    try:
+        return research_learning.readiness(dataset_id,asset)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/learning/run")
+def workstation_learning_run(body: LearningStudyRequest):
+    if not body.confirm:
+        raise HTTPException(400,"Confirm the chronological CPU research run and assumptions")
+    try:
+        report=research_learning.readiness(body.dataset_id,body.asset)
+        if not report["ready"]:
+            raise ValueError("Insufficient observations; inspect minimum and 20% data buffer")
+        return _spawn("workspace_learning",research_learning.run,
+            body.dataset_id,body.asset,method=body.method,
+            train_fraction=body.train_fraction,cost_bps=body.cost_bps,seed=body.seed)
     except Exception as exc:
         bad(exc)
 

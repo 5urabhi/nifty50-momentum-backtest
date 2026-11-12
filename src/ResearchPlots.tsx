@@ -6,7 +6,8 @@ export type ResearchPlotData={
   traces?:ResearchTrace[];x_label?:string;y_label?:string;
   z_label?:string;z?:number[][];band?:{lower:number[];upper:number[]};
   labels?:string[];row_labels?:string[];scale?:string;values?:number[][];threshold?:number;
-  annotations?:{x:string|number;label:string}[]
+  annotations?:{x:string|number;label:string}[];
+  regions?:{start:string|number;end:string|number;label:string}[]
 }
 const COLORS=['#66e3c3','#ffca83','#78a8ff','#ce9dff','#ff8c9b','#a2f6e2']
 const finite=(n:unknown):n is number=>typeof n==='number'&&Number.isFinite(n)
@@ -48,6 +49,18 @@ function Canvas2D({plot}:{plot:ResearchPlotData}){
           stroke="#304353" strokeDasharray="3 7" opacity=".8"/>
         <text x="60" y={GRID_TOP+t*height+4} fill="#8fa3b4" fontSize="11" textAnchor="end">{fmt(hi-t*(hi-lo))}</text>
       </g>)}
+      {(plot.regions||[]).slice(0,3).map((region,i)=>{
+        const start=x.findIndex(v=>String(v)===String(region.start))
+        const end=x.findIndex(v=>String(v)===String(region.end))
+        if(start<0||end<start)return null
+        const x1=xcoord(start),x2=xcoord(end)
+        return <g key={i}>
+          <rect x={x1} y={GRID_TOP} width={Math.max(1,x2-x1)} height={height}
+            fill="#7dc4f5" opacity=".12"/>
+          <text x={Math.min(GRID_RIGHT-110,x1+4)} y={GRID_TOP+12+i*13}
+            fill="#a9deff" fontSize="9">{region.label.slice(0,25)}</text>
+        </g>
+      })}
       {plot.band?.lower&&plot.band.upper&&plot.band.lower.length===x.length&&
         <polygon points={[
           ...plot.band.upper.map((v,i)=>xcoord(i)+','+yp(v)),

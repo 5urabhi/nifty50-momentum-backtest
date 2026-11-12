@@ -134,12 +134,36 @@ def inspect(model_id: str, dataset_id: str | None, params: dict | None = None) -
     # exchange sessions. The uncovered-span planner remains the authority.
     potential_weekdays = int(len(pd.bdate_range(start, end - timedelta(days=1)))) if start<end else 0
     count_upper_bound = potential_weekdays * len(mapped)
+    cached_days = 0
+    missing_windows = 0
+    estimated_vendor_daily_windows = 0
+    missing_calendar_days = 0
+    try:
+        for instrument in mapped:
+            spans = [(a.isoformat(), b.isoformat()) for _,a,b
+                     in shared_market_data.cached_spans(instrument)]
+            gaps = dhan_workspace._uncovered(start, end, spans)
+            days = sum((b-a).days for a,b in gaps)
+            cached_days += max(0,(end-start).days-days)
+            missing_calendar_days += days
+            missing_windows += len(gaps)
+            estimated_vendor_daily_windows += sum(math.ceil((b-a).days/365) for a,b in gaps)
+    except (ValueError,OSError) as exc:
+        # A corrupt SHA manifest is a blocker, not permission to redownload
+        # the whole history or silently erase conflicting cached records.
+        can_download = False
+        reason = "Cached market history failed provenance verification: " + str(exc)[:100]
     return {**req, **observed, "dataset_id": dataset_id, "status": status,
             "estimated_calendar_weekdays": potential_weekdays,
             "estimated_max_instrument_day_requests": count_upper_bound,
-            "request_scope_note": "Calendar weekday upper bound before cache de-duplication. "
-                                  "NSE holidays and Dhan limits reduce actual observations, "
-                                  "and existing cached dates are never fetched twice.",
+            "cached_instrument_calendar_days": cached_days,
+            "missing_instrument_calendar_days": missing_calendar_days,
+            "missing_uncovered_windows": missing_windows,
+            "estimated_vendor_daily_requests": estimated_vendor_daily_windows,
+            "request_scope_note": "Estimated vendor daily requests use SHA-verified cached "
+                                  "instrument/date coverage and Dhan's 365-calendar-day chunks. "
+                                  "Actual exchange-session observations, NSE holidays and "
+                                  "provider limits may differ; no covered window is refetched.",
             "runnable": runnable, "missing_minimum": missing_min,
             "missing_to_target": missing_target, "assets_available": len(mapped),
             "assets_missing": max(0, req["assets_requested"] - observed["assets_found"]),

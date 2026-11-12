@@ -6,10 +6,11 @@ import {Archive,ArrowDownToLine,ArrowLeft,ArrowRight,BarChart3,BookOpen,Check,
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
 import ResearchAdvanced from './ResearchAdvanced'
 import ResearchGuided from './ResearchGuided'
+import ResearchCompletion from './ResearchCompletion'
 import './research-workspace.css'
 
 type Raw = Record<string,unknown>
-type Page='home'|'library'|'compare'|'plots'|'guided'|'projects'|'automation'|'quality'|'jobs'
+type Page='home'|'library'|'compare'|'plots'|'guided'|'projects'|'automation'|'quality'|'integrity'|'jobs'
 type RecordKind='configuration'|'project'|'notebook'|'chart'|'comparison'|'dashboard'|'note'|'report'|'study'
 type ResourceKind='dataset'|'model_run'|'research_run'
 type Item={id:string;kind:RecordKind;title:string;payload:Raw;tags:string[];
@@ -37,6 +38,7 @@ const PAGES:{id:Page;label:string;sub:string}[]=[
   {id:'projects',label:'Projects & Notes',sub:'Notebooks and reports'},
   {id:'automation',label:'Research Tools',sub:'Sweeps, validation, shocks'},
   {id:'quality',label:'Data Quality',sub:'Coverage and provenance'},
+  {id:'integrity',label:'Evidence & ML',sub:'Vendor validation and learning'},
   {id:'jobs',label:'Jobs',sub:'Runs and downloads'},
 ]
 const fmt=(v:number)=>v.toLocaleString('en-US',{maximumFractionDigits:3})
@@ -315,6 +317,10 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
       perform={perform} startJob={start}/>}
     {page==='quality'&&<QualityPanel datasets={datasets} selectedDataset={selectedDataset}
       onSelectDataset={onSelectDataset} onOpenDhan={onOpenDhan}/>}
+    {page==='integrity'&&<ResearchCompletion datasets={datasets}
+      selectedDataset={selectedDataset} onSelectDataset={onSelectDataset}
+      records={library} onOpenDhan={onOpenDhan} onStartJob={start}
+      onChanged={()=>void reload()}/>}
     {page==='jobs'&&<JobsPanel jobs={jobs} busy={busy} perform={perform} onPage={setPage}/>}
     {searchOpen&&<div className="rw-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSearchOpen(false)}}>
       <div className="rw-search-dialog" role="dialog" aria-modal="true" aria-label="Search QuantLab research library">

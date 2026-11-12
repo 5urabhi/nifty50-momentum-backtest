@@ -420,3 +420,34 @@ Corporate actions, dividends, delistings, point-in-time index memberships,
 risk-free rates, benchmark TRI, fees, and broker execution must be independently
 audited. A +20% sample buffer is not itself a valid holdout. The workstation
 never sends broker trading orders.
+
+
+
+## Evidence & ML (additional research integrity workflow)
+
+From **Compare & Visualize → Research Workspace → Evidence & ML**, you can:
+
+- Examine source hashes, dated PIT membership, dividend/corporate-action,
+  benchmark TRI, delisting, vintage fundamentals, costs and prospective
+  execution evidence requirements. Source links are **submitted/unverified**
+  and turn stale when the original price file changes.
+- Run a user-approved **read-only Dhan sample comparison** for one actually
+  mapped instrument. This compares saved closes to the current vendor
+  endpoint, records overlap/mismatches, and never overwrites OHLCV or submits
+  orders. A real credential is still necessary on your local machine.
+- Train CPU Ridge, Random Forest, Histogram Gradient Boosting or long/cash
+  tabular Q-learning on daily research data using purged historical training
+  and later chronological evaluation. The result includes a one-bar
+  execution delay, explicit transaction costs, a saved graph and complete
+  downloadable holdout observations.
+- Inspect explicit minimum and preferred (+20%) historical sample lengths
+  before training. Download shortfalls using the existing canonical Dhan
+  manager, never by creating a duplicate NIFTY/BANK NIFTY price dataset.
+
+The Data Requirements panel now estimates existing cached instrument/date
+coverage, genuinely uncovered windows, and newly needed vendor request
+chunks using verified cache manifests. These are estimates, not a Dhan bill.
+
+Read docs/RESEARCH_INTEGRITY_AND_LEARNING.md for the formula, as-of data
+limits, and live-check instructions. No source link, vendor sample match or
+trained retrospective model establishes independently certified alpha.
