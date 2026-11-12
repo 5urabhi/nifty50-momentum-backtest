@@ -375,6 +375,8 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
   const [title,setTitle]=useState(loadDraft('ql-rw-chart-title','Saved model comparison'))
   const [annotation,setAnnotation]=useState(loadDraft('ql-rw-chart-note',''))
   const [plot,setPlot]=useState<ResearchPlotData|null>(null)
+  const [panels,setPanels]=useState<ResearchPlotData[]>([])
+  const [plotIndices,setPlotIndices]=useState<Record<string,number>>({})
   const [kind,setKind]=useState('line2d')
   const [from,setFrom]=useState('0')
   const [to,setTo]=useState('100')
@@ -383,32 +385,43 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
   const [savedTemplate,setSavedTemplate]=useState('')
   const [overlay,setOverlay]=useState<'overlay'|'split'>('overlay')
   const history=useRef<{title:string;annotation:string;kind:string}[]>([])
+  const redoHistory=useRef<{title:string;annotation:string;kind:string}[]>([])
   useEffect(()=>{window.localStorage.setItem('ql-rw-chart-title',title)},[title])
   useEffect(()=>{window.localStorage.setItem('ql-rw-chart-note',annotation)},[annotation])
   const edit=(next:{title?:string;annotation?:string;kind?:string})=>{
     history.current.push({title,annotation,kind})
+    redoHistory.current=[]
     setTitle(next.title??title);setAnnotation(next.annotation??annotation);setKind(next.kind??kind)
   }
   const undo=()=>{
     const last=history.current.pop()
-    if(last){setTitle(last.title);setAnnotation(last.annotation);setKind(last.kind)}
+    if(last){redoHistory.current.push({title,annotation,kind})
+      setTitle(last.title);setAnnotation(last.annotation);setKind(last.kind)}
+  }
+  const redo=()=>{
+    const next=redoHistory.current.pop()
+    if(next){history.current.push({title,annotation,kind})
+      setTitle(next.title);setAnnotation(next.annotation);setKind(next.kind)}
   }
   const toggle=(key:string)=>{
     setSelection(s=>s.includes(key)?s.filter(v=>v!==key):s.length>=8?s:[...s,key])
-    setPlot(null);setComparison(null)
+    setPlot(null);setPanels([]);setComparison(null)
   }
   const chosen=selection.map(key=>runs.find(run=>run.key===key)).filter(
     (x):x is RunOption=>!!x)
-  const selections=chosen.map(run=>({kind:run.kind,run_id:run.id,plot_index:0}))
+  const selections=chosen.map(run=>({kind:run.kind,run_id:run.id,plot_index:plotIndices[run.key]||0}))
   const build=()=>perform(()=>api<Raw>('/workspace/compare',{
-    title,selections,normalize:normalization,alignment},'POST'),
-    res=>{setPlot(res.plot as ResearchPlotData);setComparison(res);onMessage('Compatible saved results aligned. Inspect axes before reporting.')})
+    title,selections,normalize:normalization,alignment,layout:overlay},'POST'),
+    res=>{setPlot((res.plot||null) as ResearchPlotData|null)
+      setPanels(Array.isArray(res.plots)?res.plots as ResearchPlotData[]:[])
+      setComparison(res)
+      onMessage(overlay==='split'?'Saved results shown in independent panels':'Compatible results aligned on one graph')})
   const saveComparison=()=>perform(()=>api<Item>('/workspace/records',{
-    kind:'comparison',title,payload:{selections,normalize:normalization,alignment,
-      annotation,created_chart:comparison?.plot||null},tags:['comparison']},'POST'),
+    kind:'comparison',title,payload:{selections,normalize:normalization,alignment,layout:overlay,
+      annotation,created_chart:comparison?.plot||null,plots:comparison?.plots||null},tags:['comparison']},'POST'),
     savedItem=>{setSaved(savedItem.id);onMessage('Comparison workspace saved')})
   const saveChart=()=>perform(()=>api<Item>('/workspace/records',{
-    kind:'chart',title,payload:{source_comparison:saved||null,plot:displayPlot,
+    kind:'chart',title,payload:{source_comparison:saved||null,plot:displayPlot,plots:panels,
       annotation,layout:{kind,from,to,overlay}},tags:['chart']},'POST'),
     res=>{setSavedTemplate(res.id);onMessage('Graph layout saved')})
   const loadComparison=(item:Item)=>{
@@ -416,9 +429,21 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
     if(!Array.isArray(configs))return
     const values=(configs as {kind:string;run_id:string}[]).map(x=>x.kind+':'+x.run_id)
     setSelection(values);setTitle(item.title)
+    setPlotIndices(Object.fromEntries((configs as {kind:string;run_id:string;plot_index?:number}[])
+      .map(x=>[x.kind+':'+x.run_id,x.plot_index||0])))
+    setOverlay(item.payload.layout==='split'?'split':'overlay')
     setNormalization(String(item.payload.normalize||'none'))
     setAlignment(String(item.payload.alignment||'intersection'))
-    setAnnotation(String(item.payload.annotation||''));setPlot(null);setComparison(null)
+    setAnnotation(String(item.payload.annotation||''));setPlot(null);setPanels([]);setComparison(null)
+  }
+  const loadChart=(item:Item)=>{
+    if(!item.payload.plot&&!item.payload.plots)return
+    setPlot(item.payload.plot as ResearchPlotData|null)
+    setPanels(Array.isArray(item.payload.plots)?item.payload.plots as ResearchPlotData[]:[])
+    setTitle(item.title);setAnnotation(String(item.payload.annotation||''))
+    const layout=item.payload.layout as {kind?:string;from?:string;to?:string;overlay?:string}|undefined
+    setKind(layout?.kind||'line2d');setFrom(layout?.from||'0');setTo(layout?.to||'100')
+    setOverlay(layout?.overlay==='split'?'split':'overlay')
   }
   const displayPlot=useMemo(()=>{
     if(!plot)return null
@@ -435,6 +460,29 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
     const serialized=new XMLSerializer().serializeToString(graph)
     safeDownload('quantlab_comparison.svg',serialized,'image/svg+xml')
   }
+  const exportPNG=()=>{
+    const graph=document.querySelector('.rw-graph-preview .ql-svg-chart, .rw-graph-preview .ql-surface svg') as SVGElement|null
+    if(!graph)return
+    const raw=new XMLSerializer().serializeToString(graph)
+    const blob=new Blob([raw],{type:'image/svg+xml;charset=utf-8'})
+    const address=URL.createObjectURL(blob)
+    const image=new Image()
+    image.onload=()=>{
+      const canvas=document.createElement('canvas')
+      canvas.width=1320;canvas.height=690
+      const ctx=canvas.getContext('2d')
+      if(ctx){ctx.fillStyle='#0c1b2a';ctx.fillRect(0,0,canvas.width,canvas.height)
+        ctx.drawImage(image,0,0,canvas.width,canvas.height)
+        canvas.toBlob(result=>{if(!result)return
+          const url=URL.createObjectURL(result)
+          const a=document.createElement('a');a.href=url;a.download='quantlab_comparison.png'
+          document.body.appendChild(a);a.click();a.remove()
+          window.setTimeout(()=>URL.revokeObjectURL(url),1000)},'image/png')}
+      URL.revokeObjectURL(address)
+    }
+    image.onerror=()=>URL.revokeObjectURL(address)
+    image.src=address
+  }
   const exportCSV=()=>{
     if(!displayPlot?.x?.length)return
     const traces=displayPlot.traces||[]
@@ -449,7 +497,12 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
         <p className="rw-help">Select 2–8 completed saved runs. QuantLab checks compatible axes and evidence types before overlaying outputs.</p>
         <div className="rw-run-list">{runs.map(r=><label key={r.key} className="rw-check-row">
           <input type="checkbox" checked={selection.includes(r.key)} onChange={()=>toggle(r.key)}/>
-          <span><strong>{r.label}</strong><small>{r.kind} · {r.model||'index experiment'}</small></span></label>)}
+          <span><strong>{r.label}</strong><small>{r.kind} · {r.model||'index experiment'}</small></span>
+          {selection.includes(r.key)&&r.figures>1&&<select aria-label={'Choose figure for '+r.label}
+            value={plotIndices[r.key]||0}
+            onChange={e=>{setPlotIndices(p=>({...p,[r.key]:Number(e.target.value)}));setPlot(null);setPanels([])}}>
+            {Array.from({length:r.figures},(_,i)=><option key={i} value={i}>Figure {i+1}</option>)}</select>}
+        </label>)}}
           {!runs.length&&<Empty title="No saved results">First run a mathematical model or index experiment.</Empty>}
         </div>
         <div className="rw-form-grid">
@@ -469,30 +522,33 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
         <div className="rw-form-grid"><Select label="Visualization" value={kind}
           onChange={v=>edit({kind:v})} options={[{value:'line2d',label:'Line / ordered series'},
             {value:'bar2d',label:'Grouped bars'}]}/>
-          <Select label="Layout" value={overlay} onChange={v=>setOverlay(v as 'overlay'|'split')}
-            options={[{value:'overlay',label:'Same graph'},{value:'split',label:'Separate curves'}]}/></div>
+          <Select label="Layout" value={overlay} onChange={v=>{
+            setOverlay(v as 'overlay'|'split');setPlot(null);setPanels([]);setComparison(null)}}
+            options={[{value:'overlay',label:'Compatible curves on same graph'},
+              {value:'split',label:'Independent 2D / 3D figure panels'}]}/></div>
         <div className="rw-form-grid">
           <Field label="Show from (%)" type="number" value={from} onChange={setFrom}/>
           <Field label="Show through (%)" type="number" value={to} onChange={setTo}/>
         </div>
         <div className="rw-button-group">
           <button onClick={undo} disabled={!history.current.length}><Undo2 size={14}/> Undo edit</button>
+          <button onClick={redo} disabled={!redoHistory.current.length}><RotateCcw size={14}/> Redo</button>
           <button onClick={saveComparison} disabled={!comparison||busy}><Save size={14}/> Save comparison</button>
-          <button onClick={saveChart} disabled={!displayPlot||busy}><Save size={14}/> Save graph</button>
+          <button onClick={saveChart} disabled={(!displayPlot&&!panels.length)||busy}><Save size={14}/> Save graph</button>
         </div>
         <div className="rw-button-group"><button disabled={!displayPlot} onClick={exportCSV}>
           <Download size={14}/> CSV</button>
-          <button disabled={!displayPlot} onClick={exportSVG}><Download size={14}/> SVG</button>
+          <button disabled={!displayPlot&&!panels.length} onClick={exportSVG}><Download size={14}/> SVG</button>
+          <button disabled={!displayPlot&&!panels.length} onClick={exportPNG}><Download size={14}/> PNG</button>
           <button disabled={!displayPlot} onClick={()=>displayPlot&&safeDownload(
             'quantlab_comparison.json',JSON.stringify({plot:displayPlot,annotation},null,2),'application/json')}>
             <Download size={14}/> JSON</button></div>
         {(saved||savedTemplate)&&<p className="rw-success">Saved {savedTemplate||saved} in the research library.</p>}
       </Box>
     </div>
-    {!!displayPlot&&<div className="rw-graph-preview">
-      {overlay==='overlay'?<ResearchPlot plot={displayPlot}/>:<div className="rw-grid-plots">
-        {(displayPlot.traces||[]).map((trace,i)=><ResearchPlot key={i}
-          plot={{...displayPlot,title:trace.name,traces:[trace]}}/>)}</div>}
+    {(!!displayPlot||panels.length>0)&&<div className="rw-graph-preview">
+      {overlay==='overlay'&&displayPlot?<ResearchPlot plot={displayPlot}/>:
+        <div className="rw-grid-plots">{panels.map((p,i)=><ResearchPlot key={i} plot={p}/>)}</div>}
       {annotation&&<p className="rw-note">Research note: {annotation}</p>}
       <p className="rw-caution">These are saved numerical outputs, not proof of independent out-of-sample predictive skill. Rebase and z-score transformations change plotted units.</p>
     </div>}
@@ -503,6 +559,11 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
           <RotateCcw size={15}/></button>)}
       {!items.some(x=>x.kind==='comparison'&&!x.trashed)&&
         <Empty title="No saved comparison layouts">Build a compatible overlay to save it here.</Empty>}
+      <h4>Saved graph templates</h4>
+      {items.filter(x=>x.kind==='chart'&&!x.trashed).map(item=><button className="rw-row"
+        key={item.id} onClick={()=>loadChart(item)}>
+          <span><strong>{item.title}</strong><small>{item.updated_utc.slice(0,16)}</small></span>
+          <RotateCcw size={15}/></button>)}
     </Box>
   </div>
 }
