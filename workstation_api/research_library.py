@@ -73,6 +73,12 @@ def _connect():
         error TEXT, result_excerpt TEXT
       );
       CREATE INDEX IF NOT EXISTS jobs_updated ON job_history(updated_utc);
+      CREATE TABLE IF NOT EXISTS resource_labels (
+        key TEXT PRIMARY KEY, title TEXT, description TEXT,
+        tags TEXT NOT NULL DEFAULT '[]',
+        favorite INTEGER NOT NULL DEFAULT 0,
+        updated_utc TEXT NOT NULL
+      );
     """)
         yield conn
         conn.commit()
@@ -289,6 +295,81 @@ def resource_state_map() -> dict[str, dict]:
             for key, archived, trashed in rows}
 
 
+def resource_labels_map() -> dict:
+    with _connect() as conn:
+        conn.row_factory = sqlite3.Row
+        labels = list(conn.execute("SELECT * FROM resource_labels"))
+    return {row["key"]: {"title": row["title"],"description":row["description"],
+            "tags": json.loads(row["tags"]), "favorite":bool(row["favorite"]),
+            "updated_utc":row["updated_utc"]} for row in labels}
+
+
+def resource_info(kind: str, item_id: str) -> dict:
+    key=_resource_key(kind,item_id)
+    states=resource_state_map()
+    label=resource_labels_map().get(key,{})
+    return {"kind":kind,"id":item_id,**states.get(key,{"archived":False,"trashed":False}),
+            "title":label.get("title"),"description":label.get("description"),
+            "tags":label.get("tags",[]),"favorite":label.get("favorite",False)}
+
+
+def set_resource_info(kind: str, item_id: str, *, title: str | None = None,
+                      description: str | None = None, tags: list | None = None,
+                      favorite: bool | None = None) -> dict:
+    key=_resource_key(kind,item_id)
+    if resource_status(kind,item_id)["trashed"]:
+        raise ValueError("Restore an item before changing its metadata")
+    if kind=="dataset":
+        service.dataset_path(item_id)
+    elif kind=="model_run":
+        model_lab.read_saved_model(item_id)
+    else:
+        service.run_details(item_id)
+    if title is not None and (not isinstance(title,str) or not 1<=len(title.strip())<=120):
+        raise ValueError("Resource title must contain 1–120 characters")
+    if description is not None and (not isinstance(description,str) or len(description)>2500):
+        raise ValueError("Description must contain at most 2500 characters")
+    labels=_validate_tags(tags) if tags is not None else None
+    if favorite is not None and not isinstance(favorite,bool):
+        raise ValueError("Favorite status must be a boolean")
+    existing=resource_labels_map().get(key,{})
+    with LOCK, _connect() as conn:
+        conn.execute("""INSERT INTO resource_labels(key,title,description,tags,favorite,updated_utc)
+            VALUES(?,?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET title=excluded.title,
+            description=excluded.description,tags=excluded.tags,
+            favorite=excluded.favorite,updated_utc=excluded.updated_utc""",
+            (key, title.strip() if title is not None else existing.get("title"),
+             description if description is not None else existing.get("description"),
+             labels if labels is not None else json.dumps(existing.get("tags",[])),
+             int(favorite if favorite is not None else existing.get("favorite",False)),now()))
+    return resource_info(kind,item_id)
+
+
+def duplicate_model_run(item_id: str) -> dict:
+    """Independent, byte-size-bounded snapshot, never a new model execution."""
+    original=model_lab.read_saved_model(item_id)
+    snapshot=dict(original)
+    new_id=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")+"_"+uuid.uuid4().hex[:10]
+    snapshot["run_id"]=new_id
+    snapshot["duplicated_from"]=item_id
+    snapshot["duplicated_utc"]=now()
+    snapshot["note"]="Duplicated archived computation, not an independently refitted model."
+    encoded=json.dumps(snapshot,ensure_ascii=False,allow_nan=False,indent=2).encode("utf-8")
+    if len(encoded)>4_000_000:
+        raise ValueError("Saved model exceeds maximum duplicate artifact size")
+    path=model_lab._run_root() / (new_id+".json")
+    path.parent.mkdir(parents=True,exist_ok=True)
+    with path.open("xb") as dest:
+        dest.write(encoded)
+    original_meta=resource_info("model_run",item_id)
+    set_resource_info("model_run",new_id,
+        title=(original_meta["title"] or original["title"])[:110]+" (copy)",
+        tags=original_meta["tags"],favorite=False)
+    return {"kind":"model_run","id":new_id,"duplicate_of":item_id,
+            "warning":"This is a separate saved copy of the original numerical result, "
+                      "not a new run or newly validated market evidence."}
+
+
 def resource_status(kind, item_id):
     key = _resource_key(kind, item_id)
     with _connect() as conn:
@@ -388,6 +469,7 @@ def resource_action(kind: str, item_id: str, operation: str, *,
             else:
                 src.unlink(missing_ok=True)
             conn.execute("DELETE FROM resources WHERE key=?", (key,))
+            conn.execute("DELETE FROM resource_labels WHERE key=?", (key,))
     return {"key": key, "kind": kind, "id": item_id,
             **resource_status(kind, item_id)}
 
@@ -395,13 +477,18 @@ def resource_action(kind: str, item_id: str, operation: str, *,
 def resource_listing(*, include_trashed: bool = False) -> list[dict]:
     rows = []
     states = resource_state_map()
+    labels = resource_labels_map()
     for dataset in service.datasets(include_archived=True):
         status = states.get("dataset:" + dataset["id"],
                             {"archived": False, "trashed": False})
         if not include_trashed and (status["archived"] or status["trashed"]):
             continue
-        rows.append({"kind": "dataset", "id": dataset["id"], "title": dataset["label"],
-                     "summary": dataset.get("basis", ""), "protected": not (
+        label=labels.get("dataset:"+dataset["id"],{})
+        rows.append({"kind": "dataset", "id": dataset["id"],
+                     "title": label.get("title") or dataset["label"],
+                     "summary": label.get("description") or dataset.get("basis", ""),
+                     "tags": label.get("tags",[]),"favorite":label.get("favorite",False),
+                     "protected": not (
                          dataset["id"].startswith("upload_") or
                          dataset["id"].startswith("dhan_batch_")),
                      **status})
@@ -412,16 +499,21 @@ def resource_listing(*, include_trashed: bool = False) -> list[dict]:
                                 {"archived": False, "trashed": False})
             if not include_trashed and (status["archived"] or status["trashed"]):
                 continue
+            label=labels.get(group+":"+result["id"],{})
             rows.append({"kind": group, "id": result["id"],
-                         "title": result.get("title") or result.get("name") or result["id"],
-                         "summary": result.get("dataset_id") or result.get("generated_utc") or "",
+                         "title": label.get("title") or result.get("title") or result.get("name") or result["id"],
+                         "summary": label.get("description") or result.get("dataset_id") or result.get("generated_utc") or "",
+                         "tags": label.get("tags",[]),"favorite":label.get("favorite",False),
                          "protected": False, **status})
     if include_trashed:
         with _connect() as conn:
             conn.row_factory = sqlite3.Row
             for row in conn.execute("SELECT * FROM resources WHERE trashed=1"):
+                label=labels.get(row["key"],{})
                 rows.append({"kind": row["kind"], "id": row["item_id"],
-                             "title": row["item_id"], "summary": "Moved to recoverable Trash",
+                             "title": label.get("title") or row["item_id"],
+                             "summary": "Moved to recoverable Trash",
+                             "tags":label.get("tags",[]),"favorite":label.get("favorite",False),
                              "protected": False, "archived": bool(row["archived"]),
                              "trashed": True})
     return rows
