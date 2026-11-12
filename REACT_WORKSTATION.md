@@ -59,7 +59,7 @@ There is no multi-user authentication, account isolation, or broker order API.
 | Overview | Live API status, local dataset inventory, saved run metrics and cumulative wealth plot | Connected |
 | Data manager | Synthetic demo fixture, validated research ZIP import, readiness and dataset audit | Connected |
 | DhanHQ market-data terminal | Search and multiselect stocks, all current NSE/BSE EQ cash-market instruments, ticker-list CSV, daily/intraday batch download, pause/resume, status per instrument, verified cache and candle preview | Connected |
-| Dhan monthly prepare | Convert cached daily download batches to month-end observed closes, restricted to requested date range | Connected; still missing benchmark and PIT membership |
+| Dhan monthly prepare | Convert cached daily batches to month-end prices; historical NIFTY batches also export explicit dated membership.csv | Connected; compatible total-return benchmark still required |
 | Index research | Real Python backtest with factor mix, top-N, cap, cost, execution lag, holdout dates | Connected |
 | Factor laboratory | Saved rank IC and exposure tables from executed runs | Connected where artifacts exist |
 | Index construction | Post-rebalance portfolio weights and HHI/concentration | Connected where artifacts exist |
@@ -102,10 +102,37 @@ You do not need to enter numeric Security IDs manually.
 
 You can choose **Choose stocks** (search and multi-select), **All NSE stocks**
 (current Dhan NSE EQ-series equity instruments), **All BSE stocks**
-(current BSE cash-market equity instruments), or **Paste a ticker list**
-(including a plain one-column CSV). The server resolves the exact Dhan
-Security IDs. Current master membership is NOT historical Nifty 50, Nifty 500
-or any other past index constituent membership.
+(current BSE cash-market equity instruments), **Paste a ticker list**, plus
+**NIFTY 50 · Historical** and **BANK NIFTY · Historical**.
+
+**For a historical index:** Sync public reconstructed NSE membership events
+from the NIFTY card. The workstation pins the exact GitHub source commit and
+SHA-256, records the provenance and the official NSE Indices 2025-12-01 bank
+inclusion correction, and builds the **union of all index members during the
+selected date range**. Use the as-of date selector to inspect membership at a
+specific historical date, or inspect adds/removals by effective date.
+The Python backend matches exact unambiguous symbols to the current Dhan
+master. Renamed/delisted historical companies may not have available current
+Security IDs: they appear as explicit gaps and are never silently replaced.
+Downloading mapped stocks despite these gaps requires separate informed
+consent and never creates a fully accepted research dataset.
+
+The independent historical source is
+[aditya-jha/nse-historical-membership](https://github.com/aditya-jha/nse-historical-membership),
+data released under CC0. It is reconstructed from public NSE notices, **not
+endorsed or certified by NSE**; the upstream documented membership coverage is
+2014-01-01 through 2026-10-13 at this revision. Pre-2018 coverage has known
+gaps. The app refuses requests outside its recorded source window, instead
+of treating today's stocks as historical members. A 2025-12-01 official notice
+[issued by NSE Indices](https://www.niftyindices.com/Press_Release/ind_prs01122025.pdf)
+sets UNIONBANK and YESBANK's additional BANK NIFTY inclusion effective
+2025-12-31, correcting a dated inference in the reconstructed source.
+
+When Dhan's scrip master contains a unique `IDX_I` / `INDEX` mapping, the
+historical group can additionally request the underlying NIFTY 50 or BANK NIFTY
+**spot index OHLCV** and store it under `data/dhan/index_spot/`. This index
+price series is not a dividend-reinvested TRI and cannot substitute for a
+compatible total-return benchmark in investment performance research.
 
 Choose the inclusive start date, exclusive end date and candle resolution
 (daily/1/5/15/60-minute). Batches above 100 instruments require a clear
@@ -123,8 +150,16 @@ Persistent paths:
 - `data/dhan/batches/batch_<id>/manifest.json` — batch selection, source
   master SHA-256, dates, counts and each security's download status.
 - `data/dhan/monthly_research/batch_<id>/prices.csv` — optional, unadjusted
-  observed month-end closing prices. The matrix is restricted to the
-  selected batch's date window, even if other history is in the shared cache.
+  observed month-end closing prices, restricted to requested dates.
+- `data/dhan/monthly_research/batch_<id>/membership.csv` — for a historical
+  NIFTY group, explicit True/False monthly point-in-time membership.
+- `data/dhan/monthly_research/batch_<id>/PIT_MEMBERSHIP_PROVENANCE.json` —
+  pinned source, effective intervals, unmapped members, missing eligible prices,
+  date coverage, official source corrections and audit warnings.
+- `data/index_membership/nse_reconstructed_pit.csv` — verified-hash local
+  copy of reconstructed NSE membership intervals, downloaded on user sync.
+- `data/dhan/index_spot/batch_<id>/` — optional independent index OHLCV
+  with vendor source metadata (not total-return index history).
 
 Only candles in missing requested date windows are fetched. Previously saved
 covered ranges are reused after validating the file digest and instrument
@@ -136,11 +171,14 @@ The Python Dhan adapter only calls historical-data endpoints. Its existing
 read-only single-instrument route is retained for backward compatibility
 but is no longer used by the main React page.
 
-**Research limitation:** Dhan's current instrument master is NOT survivorship-
-free historical index membership. Daily candles are not independently
-verified dividend-adjusted total returns, benchmark returns or corporate-
-action evidence. Prepared `prices.csv` is intentionally marked incomplete
-until those datasets are supplied separately.
+**Research limitation:** The historical NIFTY modes supply dated membership
+without fabricating additions/exclusions, but cannot guarantee data for
+renamed or delisted constituent symbols. A prepared historical dataset with
+unmapped constituents or missing eligible market prices is explicitly **not
+ready**. Even when the membership is complete, index backtesting requires a
+compatible independently sourced total-return benchmark (and independently
+reviewed corporate-action/delisting evidence). No broker API is presumed to
+provide an adjusted TRI benchmark.
 
 
 ## Verification on your Ubuntu machine
