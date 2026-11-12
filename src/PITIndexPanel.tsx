@@ -74,6 +74,7 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
       return
     }
     const controller=new AbortController()
+    setPlan(null);onPlan(null)
     setLoading(true);setIssue('')
     const params=new URLSearchParams({index_id:mode,from_date:fromDate,to_date:toDate,as_of_date:asOf})
     void get<MembershipPlan>('/indices/preview?'+params, {signal:controller.signal}).then(p=>{
