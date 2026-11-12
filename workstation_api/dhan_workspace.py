@@ -429,7 +429,14 @@ def prepare_batch(batch_id: str) -> dict:
         values = pd.to_numeric(frame["close"], errors="raise")
         if values.isna().any() or (values <= 0).any():
             raise ValueError("Invalid recorded closing prices")
-        value = pd.Series(values.to_numpy(), index=times.dt.tz_localize(None)).sort_index()
+        # A shared cache can contain MORE history than this batch requested.
+        # Preparing a batch must never leak observations outside its dates.
+        within = ((times.dt.date >= date.fromisoformat(data["from_date"]))
+                  & (times.dt.date < date.fromisoformat(data["to_date"])))
+        if not within.any():
+            continue
+        selected_times = times.loc[within].dt.tz_localize(None)
+        value = pd.Series(values.loc[within].to_numpy(), index=selected_times).sort_index()
         monthly = value.groupby(value.index.to_period("M")).last()
         monthly.index = monthly.index.to_timestamp("M")
         symbol = row["symbol"]
@@ -441,12 +448,15 @@ def prepare_batch(batch_id: str) -> dict:
         mappings.append({"column": symbol, "security_id": row["security_id"],
                          "exchange_segment": row["exchange_segment"],
                          "source_sha256": meta["sha256"]})
+    if not streams:
+        raise ValueError("No observed trading closes within the selected batch dates")
     prices = pd.concat(streams, axis=1).sort_index()
     if prices.empty:
         raise ValueError("No observed trading closes in completed downloads")
     prices.to_csv(output / "prices.csv", index_label="date")
     _atomic_json(output / "DHAN_BATCH_PROVENANCE.json", {
         "source_batch": batch_id, "generated_utc": _now(),
+        "from_inclusive": data["from_date"], "to_exclusive": data["to_date"],
         "columns": mappings, "observations": len(prices),
         "warning": "UNADJUSTED MONTHLY PRICES ONLY. No benchmark, PIT constituents, "
                    "delisting coverage or dividend-reinvested total returns established.",
