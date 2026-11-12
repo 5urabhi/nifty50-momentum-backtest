@@ -1,8 +1,8 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import {Archive,ArrowDownToLine,ArrowLeft,ArrowRight,BarChart3,BookOpen,Check,
-  CheckCircle2,ChevronDown,Copy,Database,Download,FileText,Folder,Heart,
+  CheckCircle2,Database,Download,FileText,Folder,Heart,
   History,Layers3,LoaderCircle,Plus,RefreshCw,RotateCcw,Save,Search,
-  Settings2,ShieldCheck,SlidersHorizontal,Trash2,Undo2,Upload,Workflow,X} from 'lucide-react'
+  Settings2,ShieldCheck,SlidersHorizontal,Trash2,Undo2,Workflow,X} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
 import './research-workspace.css'
 
@@ -517,7 +517,6 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob}:{
   const [dirty,setDirty]=useState(false)
   const [saving,setSaving]=useState(false)
   const [notebookTitle,setNotebookTitle]=useState('')
-  const [noteText,setNoteText]=useState('')
   const initialized=useRef(false)
   const selectedNotebook=notebooks.find(n=>n.id===notebookId)
   const projectNotebooks=notebooks.filter(n=>String(n.payload.project_id||'')===projectId)
@@ -662,7 +661,6 @@ function AutomationPanel({datasets,selectedDataset,onSelectDataset,models,runs,b
   const [scenarioResult,setScenarioResult]=useState<Raw|null>(null)
   const chosen=models.find(x=>x.id===modelId)
   const numeric=(chosen?.parameters||[]).filter(p=>p.type==='number'||p.type==='integer')
-  const datasetChoices=[{value:'',label:'No dataset (synthetic / theoretical only)'},...dataOptions(datasets)]
   useEffect(()=>{window.localStorage.setItem('ql-rw-sweep-values',values)},[values])
   const chooseModel=(id:string)=>{
     setModelId(id);setMetric('')
