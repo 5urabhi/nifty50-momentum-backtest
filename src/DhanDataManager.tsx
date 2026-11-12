@@ -273,7 +273,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
     tell('Stop requested. The current Dhan request can finish before the queue pauses.')
   })}
   const prepare=()=>{if(!batchId)return;void run(()=>post<{job_id:string}>('/dhan/batches/'+batchId+'/prepare'),r=>{
-    setTask({id:r.job_id,kind:'prepare'});tell('Building an unadjusted monthly price matrix from completed symbols.')
+    setTask({id:r.job_id,kind:'prepare'});tell('Preparing daily OHLCV and point-in-time monthly prices from local candles. No additional Dhan download is needed.')
   })}
   const acceptFile=async(file:File)=>{
     if(file.size>1024*1024){tell('Ticker CSV is too large (1 MiB max).',true);return}
@@ -446,10 +446,12 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         <div className="dh-queue-actions">
           {currentActive?<button className="dh-small-btn" onClick={cancel}><Pause size={15}/> Pause after current request</button>:
             couldResume&&<button className="dh-small-btn" disabled={working||Boolean(task)} onClick={resume}><Play size={15}/> Resume / retry remaining</button>}
-          {details.interval===null&&countsCompleted>0&&!details.prepared_dataset_id&&
-            <button className="dh-small-btn primary" disabled={working||Boolean(task)||currentActive} onClick={prepare}><FileSpreadsheet size={16}/> Prepare monthly price matrix</button>}
+          {countsCompleted>0&&!details.prepared_dataset_id&&
+            <button className="dh-small-btn primary" disabled={working||Boolean(task)||currentActive} onClick={prepare}>
+              <FileSpreadsheet size={16}/> Prepare research dataset from {details.interval===null?'daily':details.interval+'-minute'} candles
+            </button>}
           {details.prepared_dataset_id&&<Pill tone="good">Prepared dataset: {details.prepared_dataset_id}</Pill>}
-          {details.historical_index_name&&<div className="dh-pit-in-batch"><strong>{details.historical_index_name} · dated membership</strong><span>Universe: {details.historical_union_count} unique symbols · {details.historical_unresolved?.length||0} have no Dhan ID. Preparing daily candles writes membership.csv from saved effective-date intervals; a compatible benchmark remains required.</span>
+          {details.historical_index_name&&<div className="dh-pit-in-batch"><strong>{details.historical_index_name} · dated membership</strong><span>Universe: {details.historical_union_count} unique symbols · {details.historical_unresolved?.length||0} have no Dhan ID. Preparing cached minute or daily candles produces daily_prices.csv, monthly prices.csv and date-accurate membership.csv without re-downloading. An independent benchmark remains required.</span>
           {details.index_spot&&<span>Index spot OHLCV: {details.index_spot.status} · {details.index_spot.rows||0} rows{details.index_spot.file?" · saved to data/"+details.index_spot.file:""}{details.index_spot.error?" · "+details.index_spot.error:""}. Spot prices are not dividend-adjusted TRI.
           {details.index_spot.identity_source&&<> · ID source: {details.index_spot.identity_source==="verified_unique_dhan_scrip_master_match"?"Current Dhan instrument master":"Published Dhan IDX_I reference"}{details.index_spot.reference&&<> (<a href={details.index_spot.reference} target="_blank" rel="noreferrer">source ↗</a>)</>}</>}</span>}</div>}
         </div>
