@@ -128,11 +128,24 @@ of treating today's stocks as historical members. A 2025-12-01 official notice
 sets UNIONBANK and YESBANK's additional BANK NIFTY inclusion effective
 2025-12-31, correcting a dated inference in the reconstructed source.
 
-When Dhan's scrip master contains a unique `IDX_I` / `INDEX` mapping, the
-historical group can additionally request the underlying NIFTY 50 or BANK NIFTY
-**spot index OHLCV** and store it under `data/dhan/index_spot/`. This index
-price series is not a dividend-reinvested TRI and cannot substitute for a
-compatible total-return benchmark in investment performance research.
+The historical group can also request the underlying NIFTY 50 or BANK NIFTY
+**spot index OHLCV** and store it under `data/dhan/index_spot/`. The backend
+prefers a unique `IDX_I` / `INDEX` identity in the current official Dhan
+instrument master. If that master omits index underlyings entirely, it falls
+back to Dhan's *published* IDX_I reference identities, NIFTY 50 = 13 and
+BANK NIFTY = 25, and records the resolution source in each batch manifest.
+The reference is
+[Dhan's open-source instrument guide](https://github.com/dhan-oss/dhanhq-skills/blob/main/skills/dhanhq/references/instruments.md).
+Conflicting identities in the master **block** the fallback. These identifiers
+are not hardcoded stock prices or historical memberships. Index spot candles
+are **price-index observations**, not a dividend-reinvested TRI benchmark.
+
+PIT monthly preparation now labels each row using the last **observed NSE
+cash-market session** of the month, not a synthetic calendar month-end.
+A historical constituent missing the actual final session keeps a missing
+value (no silent forward fill), and its prepared dataset is flagged **not ready**.
+The observed session calendar itself is inferred from Dhan candle timestamps,
+not independently verified against the official NSE holiday calendar.
 
 Choose the inclusive start date, exclusive end date and candle resolution
 (daily/1/5/15/60-minute). Batches above 100 instruments require a clear
@@ -152,7 +165,8 @@ Persistent paths:
 - `data/dhan/monthly_research/batch_<id>/prices.csv` — optional, unadjusted
   observed month-end closing prices, restricted to requested dates.
 - `data/dhan/monthly_research/batch_<id>/membership.csv` — for a historical
-  NIFTY group, explicit True/False monthly point-in-time membership.
+  NIFTY group, explicit True/False membership at each observed final trading
+  session of the month, never a made-up weekend market close.
 - `data/dhan/monthly_research/batch_<id>/PIT_MEMBERSHIP_PROVENANCE.json` —
   pinned source, effective intervals, unmapped members, missing eligible prices,
   date coverage, official source corrections and audit warnings.
