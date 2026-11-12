@@ -142,8 +142,8 @@ def datasets(include_archived: bool = False):
         })
     if not include_archived:
         from . import research_library
-        output = [r for r in output if not research_library.resource_status(
-            "dataset", r["id"])["archived"]]
+        states = research_library.resource_state_map()
+        output = [r for r in output if not states.get("dataset:"+r["id"],{}).get("archived",False)]
     return output
 
 
