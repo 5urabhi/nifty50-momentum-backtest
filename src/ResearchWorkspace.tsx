@@ -108,7 +108,7 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
     try{
       const [records,items,saved,index,registry,queue]=await Promise.all([
         api<{records:Item[]}>('/workspace/records?archived=true'),
-        api<{resources:Resource[]}>('/workspace/resources'),
+        api<{resources:Resource[]}>('/workspace/resources?include_trashed=true'),
         api<{runs:ModelRun[]}>('/lab/runs'),
         api<{runs:IndexRun[]}>('/runs'),
         api<{models:ModelSpec[]}>('/lab/catalog'),
@@ -266,13 +266,14 @@ function LibraryPanel({items,resources,busy,perform,onChanged,onOpenModels,onOpe
   const [detail,setDetail]=useState<Item|Resource|null>(null)
   const [newTitle,setNewTitle]=useState('')
   const visibleResources=resources.filter(x=>(filter==='all'||x.kind===filter)&&
-    (showArchived||!x.archived)&&
+    (mode==='trash'?x.trashed:!x.trashed)&&(showArchived||mode==='trash'||!x.archived)&&
     (x.title+' '+x.summary).toLowerCase().includes(search.toLowerCase()))
   const visibleRecords=items.filter(x=>(filter==='all'||x.kind===filter)&&
     (mode==='trash'?x.trashed:!x.trashed)&&
     (showArchived||mode==='trash'||!x.archived)&&
     (x.title+' '+x.tags.join(' ')).toLowerCase().includes(search.toLowerCase()))
   const resourceOperation=(resource:Resource,operation:string)=>{
+    if(operation==='purge'&&!window.confirm('Permanently delete this resource from Trash? This cannot be undone.'))return
     if(operation==='trash'&&!window.confirm('Move '+resource.title+' to recoverable Trash? Shared raw market history will remain untouched.'))return
     perform(()=>api<Raw>('/workspace/resources/action',{kind:resource.kind,item_id:resource.id,
       action:operation,confirm:operation==='trash'||operation==='purge'},'POST'),()=>{
@@ -307,20 +308,24 @@ function LibraryPanel({items,resources,busy,perform,onChanged,onOpenModels,onOpe
         <label className="rw-inline"><input type="checkbox" checked={showArchived}
           onChange={e=>setShowArchived(e.target.checked)}/> Show archived</label>
       </div>
-      {mode==='resources'?
+      {(mode==='resources'||mode==='trash')&&
         <div className="rw-list">{visibleResources.map(r=><div key={r.kind+r.id} className="rw-list-item">
           <div><strong>{r.title}</strong><small>{r.kind} · {r.id} {r.protected?' · Protected source':''}</small>
             <p>{r.summary.slice(0,180)}</p></div>
           <div className="rw-row-actions">
             <button onClick={()=>setDetail(r)} aria-label={'Details '+r.title}><BookOpen size={15}/></button>
-            <button title={r.archived?'Unarchive':'Archive'} disabled={busy}
-              onClick={()=>resourceOperation(r,r.archived?'unarchive':'archive')}><Archive size={15}/></button>
-            {!r.protected&&<button title="Move to Trash" disabled={busy}
-              onClick={()=>resourceOperation(r,'trash')}><Trash2 size={15}/></button>}
+            {r.trashed?<><button title="Restore resource" disabled={busy}
+              onClick={()=>resourceOperation(r,'restore')}><RotateCcw size={15}/></button>
+              <button title="Permanently delete" disabled={busy}
+              onClick={()=>resourceOperation(r,'purge')}><Trash2 size={15}/></button></>:
+              <><button title={r.archived?'Unarchive':'Archive'} disabled={busy}
+                onClick={()=>resourceOperation(r,r.archived?'unarchive':'archive')}><Archive size={15}/></button>
+                {!r.protected&&<button title="Move to Trash" disabled={busy}
+                  onClick={()=>resourceOperation(r,'trash')}><Trash2 size={15}/></button>}</>}
           </div></div>)}
           {!visibleResources.length&&<Empty title="No matching resources">Try another filter or include archived items.</Empty>}
-        </div>:
-        <><div className="rw-toolbar">
+        </div>}
+      {mode!=='resources'&&<><div className="rw-toolbar">
           {!!selected.length&&<><strong>{selected.length} selected</strong>
             {(['archive','favorite','trash','restore'] as const).filter(v=>mode==='trash'?v==='restore':v!=='restore')
               .map(v=><button key={v} onClick={()=>batch(v)} disabled={busy}>{v}</button>)}</>}
