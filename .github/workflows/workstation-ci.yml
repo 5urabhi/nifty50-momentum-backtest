@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - workstation/quant-research-development-20261112
+      - feature/quantlab-model-laboratory-and-guide-20261113
   workflow_dispatch:
 
 permissions:
