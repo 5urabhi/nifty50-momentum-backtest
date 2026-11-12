@@ -183,10 +183,12 @@ def run(dataset_id: str,asset: str,method: str = "ridge",
         std=float(np.std(z,ddof=1))
         return math.sqrt(252)*float(np.mean(z))/std if std>1e-14 else None
     dates=[d.date().isoformat() for d in realized[cut:]]
+    # Full observations go to CSV. The library graph is a bounded preview.
+    preview=np.unique(np.linspace(0,len(dates)-1,min(600,len(dates)),dtype=int))
     plot=model_lab.xy("Strictly later observed returns — "+METHODS[method],
-        dates,
-        [{"name":"Frozen learning policy, net cost","y":w.tolist()},
-         {"name":"Single-asset passive reference (price-only)","y":bh.tolist()}],
+        [dates[i] for i in preview],
+        [{"name":"Frozen learning policy, net cost","y":w[preview].tolist()},
+         {"name":"Single-asset passive reference (price-only)","y":bh[preview].tolist()}],
         "Realized holdout session","Illustrative wealth base 100")
     report={
         "kind":"learning_holdout","method":method,"asset":asset,"dataset_id":dataset_id,
@@ -196,7 +198,8 @@ def run(dataset_id: str,asset: str,method: str = "ridge",
                           "training_embargo_samples":embargo},
         "features":list(FEATURES),"model_detail":model_detail,
         "train_observations":len(xtrain),"embargo_samples":embargo,
-        "test_observations":len(xtest),"preferred_sample":TARGET_SAMPLES,
+        "test_observations":len(xtest),"figure_observations":len(preview),
+        "preferred_sample":TARGET_SAMPLES,
         "last_training_label_date":realized[train_stop-1].date().isoformat(),
         "first_test_decision_date":decision[cut].date().isoformat(),
         "first_test_entry_date":entry[cut].date().isoformat(),
