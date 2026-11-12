@@ -118,6 +118,53 @@ def catalog() -> list[dict]:
     return list(_catalog_cached(str(path), stat.st_mtime_ns, stat.st_size))
 
 
+def catalog_health() -> dict:
+    """Report source-schema faults independently of historical delistings.
+
+    This never guesses missing security IDs. Older detailed-master files are
+    detected explicitly, rather than being mistaken for 51 delisted stocks.
+    """
+    path = _master()
+    if not path.is_file() or path.is_symlink():
+        return {"ready": False, "code": "master_missing", "nse_equities": 0,
+                "verified_nse_tickers": 0, "message": "Download the compact Dhan instrument master."}
+    try:
+        header = pd.read_csv(path, nrows=0)
+        columns = {str(k).strip().upper() for k in header.columns}
+        has_trading = "SEM_TRADING_SYMBOL" in columns
+        has_key = {"SEM_EXM_EXCH_ID", "SEM_SEGMENT", "SEM_SMST_SECURITY_ID",
+                   "SEM_INSTRUMENT_NAME"}.issubset(columns)
+        if not has_trading or not has_key:
+            return {"ready": False, "code": "outdated_detailed_master",
+                    "nse_equities": 0, "verified_nse_tickers": 0,
+                    "has_trading_symbol": has_trading,
+                    "message": "The local Dhan master does not contain the canonical "
+                               "compact exchange trading-symbol schema. Refresh the catalog."}
+        rows = catalog()
+        equities = [r for r in rows if r["exchange_segment"] == "NSE_EQ"
+                    and r["regular_eq"]]
+        verified = [r for r in equities if r.get("trading_symbol_verified")]
+        expected = {"RELIANCE", "HDFCBANK", "ICICIBANK", "INFY", "TCS", "ITC"}
+        seen = {str(r["symbol"]).strip().upper() for r in verified}
+        matched = sorted(expected & seen)
+        ready = len(verified) >= 100 and len(matched) >= 3
+        return {
+            "ready": ready,
+            "code": "ready" if ready else "master_unusable",
+            "nse_equities": len(equities),
+            "verified_nse_tickers": len(verified),
+            "sample_major_symbols_found": matched,
+            "message": ("Compact catalog contains verified NSE trading symbols."
+                        if ready else "Compact catalog did not resolve expected actively "
+                        "listed NSE companies; refresh it before creating historical batches."),
+        }
+    except (ValueError, OSError, KeyError) as exc:
+        return {"ready": False, "code": "catalog_parse_error", "nse_equities": 0,
+                "verified_nse_tickers": 0,
+                "message": "Dhan instrument catalog failed schema validation: " +
+                           str(exc)[:150]}
+
+
 def search_catalog(query: str = "", exchange: str = "NSE", page: int = 1,
                    per_page: int = 60, regular_only: bool = True) -> dict:
     if exchange not in {"NSE", "BSE"} or not 1 <= page <= 10000 or not 1 <= per_page <= 100:
