@@ -1,5 +1,5 @@
 import {useEffect,useState} from 'react'
-import {BookOpen,Database,Download,FlaskConical,LoaderCircle,Play,
+import {Database,Download,FlaskConical,LoaderCircle,Play,
   RefreshCw,Save,ShieldAlert,ShieldCheck} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
 
