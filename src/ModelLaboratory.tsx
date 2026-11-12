@@ -14,7 +14,7 @@ type ModelSpec={
   parameters:Parameter[];chart:string
 }
 type Datum={id:string;label:string;has_prices:boolean;ready:boolean;source_interval_minutes?:number|null}
-type Response={
+type LabResult={
   model_id:string;title:string;group:string;mode:string;formula:string;
   generated_utc:string;params:Record<string,number|string>;source?:{
     dataset_id:string;dataset_label:string;frequency:string;observations:number;
@@ -61,7 +61,7 @@ async function getJSON<T>(path:string):Promise<T>{
   if(!response.ok)throw new Error(await errorText(response))
   return response.json() as Promise<T>
 }
-function exportResult(modelId:string,result:Response,format:'json'|'csv'){
+function exportResult(modelId:string,result:LabResult,format:'json'|'csv'){
   let content:string,mime:string
   if(format==='json'){
     content=JSON.stringify(result,null,2);mime='application/json'
@@ -90,7 +90,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   const [view,setView]=useState<ResultView>('configure')
   const [readiness,setReadiness]=useState<Readiness|null>(null)
   const [readinessError,setReadinessError]=useState<string|null>(null)
-  const [result,setResult]=useState<Response|null>(null)
+  const [result,setResult]=useState<LabResult|null>(null)
   const [error,setError]=useState<string|null>(null)
   const [working,setWorking]=useState(false)
   useEffect(()=>{
@@ -149,7 +149,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
           dataset_id:selected.mode==='historical'?selectedDataset:null,params}),
       })
       if(!response.ok)throw new Error(await errorText(response))
-      const data=await response.json() as Response
+      const data=await response.json() as LabResult
       setResult(data);setView('figures')
     }catch(e){setError(e instanceof Error?e.message:String(e));setView('configure')}
     finally{setWorking(false)}
