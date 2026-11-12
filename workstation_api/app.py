@@ -13,6 +13,7 @@ from urllib.request import Request as UrlRequest, urlopen
 import os
 import json
 import logging
+import inspect
 import uuid
 
 import pandas as pd
@@ -48,6 +49,13 @@ JOBS: dict[str, dict] = {}
 JOBS_LOCK = Lock()
 JOB_FUTURES: dict[str, object] = {}
 JOB_RETRY_SPECS: dict[str, tuple] = {}
+JOB_STOP_SIGNALS: dict[str, Event] = {}
+CANCELLABLE_TASKS = {"workspace_parameter_sweep","workspace_grid_sweep","workspace_validation"}
+
+
+class JobCancelled(RuntimeError):
+    """Raised only between completed, atomic model or validation steps."""
+
 
 
 def _persist_job(snapshot: dict):
@@ -97,12 +105,16 @@ def _spawn(kind: str, action, *args, **kwargs):
         JOBS[task_id] = {
             "id": task_id, "kind": kind, "status": "queued",
             "created_utc": datetime.now(timezone.utc).isoformat(),
+            "stage": "Waiting for compute worker", "percent": 0,
+            "cancellable": kind in CANCELLABLE_TASKS,
         }
+        JOB_STOP_SIGNALS[task_id] = Event()
         for old in list(JOBS)[:-50]:
             if JOBS[old]["status"] not in {"queued", "running"}:
                 JOBS.pop(old, None)
                 JOB_FUTURES.pop(old, None)
                 JOB_RETRY_SPECS.pop(old, None)
+                JOB_STOP_SIGNALS.pop(old, None)
         if kind in {"workspace_parameter_sweep", "workspace_grid_sweep",
                     "workspace_validation", "workspace_report"}:
             JOB_RETRY_SPECS[task_id] = (kind, action, args, kwargs)
@@ -113,10 +125,30 @@ def _spawn(kind: str, action, *args, **kwargs):
         LOG.info("QuantLab background job started: kind=%s job_id=%s", kind, task_id)
         with JOBS_LOCK:
             JOBS[task_id]["status"] = "running"
+            JOBS[task_id]["stage"] = "Preparing research inputs"
             starting_snapshot = dict(JOBS[task_id])
         _persist_job(starting_snapshot)
+
+        def progress(percent: float, stage: str):
+            signal=JOB_STOP_SIGNALS.get(task_id)
+            if signal is not None and signal.is_set():
+                raise JobCancelled("Research cancelled safely between numerical operations")
+            if not isinstance(percent,(int,float)) or not 0<=percent<=100:
+                raise ValueError("Invalid computational progress")
+            with JOBS_LOCK:
+                JOBS[task_id]["percent"] = round(float(percent),1)
+                JOBS[task_id]["stage"] = str(stage)[:140]
+
         try:
-            result = action(*args, **kwargs)
+            options=dict(kwargs)
+            if "progress" in inspect.signature(action).parameters:
+                options["progress"]=progress
+            result = action(*args, **options)
+        except JobCancelled as exc:
+            with JOBS_LOCK:
+                JOBS[task_id].update(status="cancelled",stage=str(exc),cancellable=False)
+                stopped=dict(JOBS[task_id])
+            _persist_job(stopped)
         except Exception as exc:
             # Do not expose vendor responses or secrets in browser logs.
             message = str(exc)
@@ -132,7 +164,8 @@ def _spawn(kind: str, action, *args, **kwargs):
         else:
             LOG.info("QuantLab background job completed: kind=%s job_id=%s", kind, task_id)
             with JOBS_LOCK:
-                JOBS[task_id].update(status="complete", result=result)
+                JOBS[task_id].update(status="complete", result=result, percent=100,
+                                     stage="Output saved", cancellable=False)
                 success_snapshot = dict(JOBS[task_id])
             _persist_job(success_snapshot)
     future = RUNNER.submit(work)
@@ -716,13 +749,19 @@ def workspace_cancel_job(job_id: str):
         status = JOBS.get(job_id)
         if not status:
             raise HTTPException(404, "Unknown research job")
+        if status["status"] == "running":
+            if not status.get("cancellable"):
+                raise HTTPException(409,"This operation cannot be safely interrupted while running")
+            JOB_STOP_SIGNALS[job_id].set()
+            status["stage"]="Cancellation requested; waiting for a safe checkpoint"
+            return dict(status)
         if status["status"] != "queued":
-            raise HTTPException(409, "Only queued jobs can be safely cancelled. "
-                                     "Running calculations finish their current operation.")
+            raise HTTPException(409, "Only queued or checkpoint-cancellable running jobs can be cancelled")
         future = JOB_FUTURES.get(job_id)
         if future is None or not future.cancel():
             raise HTTPException(409, "Job is already starting")
         status["status"] = "cancelled"
+        status["cancellable"] = False
         completed_snapshot = dict(status)
     _persist_job(completed_snapshot)
     return completed_snapshot
