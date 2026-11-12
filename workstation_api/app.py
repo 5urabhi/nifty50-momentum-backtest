@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from index_research.dhan_data import (
-    MASTER_URL, Instrument, download_candles, save_download,
+    MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 
 )
 from . import service
@@ -355,3 +355,36 @@ def download(body: DhanDownloadRequest):
     if not os.getenv("DHAN_ACCESS_TOKEN"):
         raise HTTPException(400, "Set DHAN_ACCESS_TOKEN in the project .env and restart the workstation")
     return _spawn("dhan_download", _download, body)
+
+class DhanPrepareRequest(BaseModel):
+    download_id: str = Field(pattern=r"^download_[0-9a-f]{12}$")
+
+
+def _prepare_dhan(body: DhanPrepareRequest):
+    raw = service.DATA / "dhan" / "raw" / body.download_id
+    if not raw.is_dir() or raw.is_symlink():
+        raise ValueError("Unknown Dhan download directory")
+    manifests = sorted(raw.glob("*_daily.manifest.json"))
+    if not manifests or len(manifests) > 25:
+        raise ValueError("Prepare requires a nonempty DAILY OHLCV download")
+    instruments = []
+    for path in manifests:
+        if path.is_symlink():
+            raise ValueError("Unsafe manifest file")
+        record = json.loads(path.read_text())
+        if record.get("interval_minutes") is not None or record.get("source") != "DhanHQ REST API v2":
+            raise ValueError("Only reviewed local Dhan daily manifests can be prepared")
+        instrument = Instrument(**record["instrument"])
+        instruments.append(instrument)
+    output = service.DATA / "dhan" / "monthly_research" / body.download_id
+    if (output / "prices.csv").exists():
+        raise ValueError("Prepared price matrix exists; refusing to overwrite")
+    target = build_monthly_close(raw, instruments, output)
+    return {"dataset_id": "dhan_" + body.download_id, "prices": str(target.relative_to(service.ROOT)),
+            "status": "incomplete",
+            "warning": "Dhan monthly close alone is NOT benchmark or historical membership evidence. Import separately sourced CSVs before backtesting."}
+
+
+@app.post("/api/dhan/prepare")
+def prepare_dhan(body: DhanPrepareRequest):
+    return _spawn("dhan_prepare", _prepare_dhan, body)
