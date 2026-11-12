@@ -114,6 +114,7 @@ def _historical_input(dataset_id: str, required: int, assets: int) -> tuple[pd.D
     source={
         "dataset_id":dataset_id,
         "dataset_label":record["label"],
+        "dataset_kind":record.get("kind","unverified"),
         "frequency":frequency,
         "periods_per_year":PER_YEAR[frequency],
         "observations":len(aligned),
@@ -148,7 +149,9 @@ def readiness(dataset_id: str) -> dict:
         "sample_start":prices.index.min().date().isoformat(),
         "sample_end":prices.index.max().date().isoformat(),
         "benchmark_kind":record.get("benchmark_kind"),
-        "warning":"Observed-price availability is not audited total-return investability.",
+        "warning":("Synthetic fixture: data are generated and are not observed market prices."
+                   if record.get("kind")=="synthetic" else
+                   "Observed-price availability is not audited total-return investability."),
     }
 
 
@@ -182,6 +185,10 @@ def run_model(model_id: str, dataset_id: str | None = None,
             minimum = max(minimum, int(params["train_window"]) + 30)
         data,meta=_historical_input(dataset_id or "", minimum,int(params.get("assets",8)))
         response["source"]=meta
+        if meta.get("dataset_kind")=="synthetic":
+            warnings.append("SYNTHETIC FIXTURE: input prices were generated for a demo. "
+                            "These are not observed market prices; fitted results "
+                            "must not be reported as empirical backtests.")
         obs=len(data)
         annual=meta["periods_per_year"]
         basket=data.mean(axis=1)
