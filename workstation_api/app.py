@@ -308,9 +308,19 @@ def _download_master():
         destination.write_bytes(data)
         # Validate CSV before atomically replacing the existing master.
         frame = pd.read_csv(destination, dtype=str, nrows=5)
-        if frame.empty or len(frame.columns) < 5:
-            raise ValueError("Instrument master contains no usable records")
+        expected = {"SEM_EXM_EXCH_ID", "SEM_SEGMENT", "SEM_SMST_SECURITY_ID",
+                    "SEM_INSTRUMENT_NAME", "SEM_TRADING_SYMBOL"}
+        if frame.empty or not expected.issubset(
+                {str(col).strip().upper() for col in frame.columns}):
+            raise ValueError(
+                "Downloaded Dhan master is not the compact CSV with exchange "
+                "trading symbols. Existing catalog was preserved.")
         destination.replace(path)
+        dhan_workspace._catalog_cached.cache_clear()
+        health = dhan_workspace.catalog_health()
+        if not health["ready"]:
+            raise ValueError("Compact Dhan master downloaded, but its NSE ticker "
+                             "mapping failed validation: " + health["message"])
     finally:
         destination.unlink(missing_ok=True)
     return {"path": "data/dhan/instrument_master.csv", "bytes": len(data)}
@@ -470,6 +480,11 @@ class DhanBatchCreate(BaseModel):
 
 
 BATCH_CANCEL_EVENTS: dict[str, Event] = {}
+
+
+@app.get("/api/dhan/catalog/health")
+def dhan_catalog_health():
+    return dhan_workspace.catalog_health()
 
 
 @app.get("/api/dhan/catalog")
