@@ -15,6 +15,7 @@ from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta, timezone
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import random
@@ -34,6 +35,7 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env", override=F
 BASE = "https://api.dhan.co/v2"
 MASTER_URL = "https://images.dhan.co/api-data/api-scrip-master.csv"  # Compact master exposes SEM_TRADING_SYMBOL required for PIT matching
 ALLOWED_INTERVALS = {1, 5, 15, 25, 60}
+LOG = logging.getLogger("quantlab.dhan.transport")
 
 
 @dataclass(frozen=True)
@@ -101,6 +103,9 @@ def _post_json(path: str, payload: dict, token: str, *, attempts: int=4,
     headers = {"Content-Type": "application/json", "Accept": "application/json",
                "access-token": token}
     request = Request(BASE+path, data=data, headers=headers, method="POST")
+    LOG.info("Dhan candle request started: endpoint=%s interval=%s from=%s to=%s instrument=%s segment=%s security_id=%s",
+             path, payload.get("interval", "daily"), payload.get("fromDate"), payload.get("toDate"),
+             payload.get("instrument"), payload.get("exchangeSegment"), payload.get("securityId"))
     for attempt in range(attempts):
         try:
             with opener(request, timeout=30) as response:
@@ -111,13 +116,18 @@ def _post_json(path: str, payload: dict, token: str, *, attempts: int=4,
             if result.get("status") == "failure" or result.get("errorCode"):
                 # Vendor messages might contain account context; do not print body.
                 raise RuntimeError("Dhan returned an error: verify token, instrument, subscription and dates")
+            LOG.info("Dhan candle request succeeded: endpoint=%s security_id=%s", path, payload.get("securityId"))
             return result
         except HTTPError as exc:
+            LOG.warning("Dhan candle HTTP error: endpoint=%s status=%s attempt=%s/%s security_id=%s",
+                        path, exc.code, attempt + 1, attempts, payload.get("securityId"))
             if exc.code in (429,500,502,503,504) and attempt < attempts-1:
                 sleeper(min(30,2**attempt+random.random()))
                 continue
             raise RuntimeError(f"Dhan HTTP {exc.code} (response body hidden)") from None
-        except (URLError, TimeoutError):
+        except (URLError, TimeoutError) as exc:
+            LOG.warning("Dhan candle network error: endpoint=%s category=%s attempt=%s/%s",
+                        path, type(exc).__name__, attempt + 1, attempts)
             if attempt < attempts-1:
                 sleeper(min(30,2**attempt+random.random()))
                 continue
