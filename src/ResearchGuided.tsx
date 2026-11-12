@@ -1,6 +1,5 @@
 import {useEffect,useMemo,useState} from 'react'
-import {BarChart3,BookOpen,CheckCircle2,Database,Download,FlaskConical,
-  Gauge,LoaderCircle,Play,Save,ShieldCheck,SlidersHorizontal} from 'lucide-react'
+import {BarChart3,BookOpen,Database,Gauge,LoaderCircle,Play,ShieldCheck,SlidersHorizontal} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
 
 type Dataset={id:string;label:string;has_prices:boolean;ready:boolean}
@@ -55,7 +54,6 @@ function Guided({models,datasets,selectedDataset,onSelectDataset,onOpenModels,on
   const [selected,setSelected]=useState('')
   const [running,setRunning]=useState(false)
   const [busy,setBusy]=useState(false)
-  const [historical,setHistorical]=useState(false)
   useEffect(()=>{
     let active=true;setGuidance(null)
     void call<Guidance>('workspace/guided/'+goal+
