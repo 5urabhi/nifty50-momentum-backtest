@@ -1107,7 +1107,18 @@ function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan}:{
         {label:'Invalid dates',value:Number(quality.invalid_dates||0)},
         {label:'Latest date',value:String(quality.latest_observed_date||'Unavailable')},
         {label:'Assets not checked',value:Number(quality.unassessed_assets||0)},
+        {label:'Weekdays since last observation',value:String(quality.weekdays_since_latest??'Unknown')},
+        {label:'Possible weekday gaps',value:String(quality.weekdays_missing_in_daily_span??'Not audited')},
       ]}/>
+      {quality.recent_market_data===false&&<p className="rw-caution">
+        This dataset ends more than five weekdays before the current date.
+        That may be intentional for an older research window. If current market prices are needed,
+        check the shared Dhan coverage and download only missing observations.
+      </p>}
+      {quality.issues&&<div className="rw-stats">
+        {Object.entries(quality.issues as Record<string,number>).map(([name,count])=>
+          <div key={name}><small>{name.replaceAll('_',' ')}</small><strong>{count}</strong></div>)}
+      </div>}
       <div className="rw-scroll"><table><thead><tr>
         <th>Security</th><th>Prices</th><th>Missing</th><th>Non-positive</th>
         <th>Extreme returns</th><th>Last 10 flat</th></tr></thead><tbody>
