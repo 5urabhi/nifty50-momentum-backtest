@@ -659,6 +659,36 @@ def render_notebook_report(notebook_id: str, *, format: str = "html") -> dict:
     return {**report, "formats": ["markdown", "html", "pdf"], "figures": len(figures)}
 
 
+def attach_notebook_reference(notebook_id: str, kind: str, source_id: str) -> dict:
+    """Atomically append one saved chart/model reference; never execute code."""
+    if kind=="chart":
+        source=get(source_id)
+        if source["kind"]!="chart" or source["trashed"]:
+            raise ValueError("Choose an active saved chart")
+    elif kind=="run":
+        model_lab.read_saved_model(source_id)
+    else:
+        raise ValueError("Notebook attachment must reference a saved chart or model run")
+    if not ID.fullmatch(notebook_id):
+        raise ValueError("Invalid notebook identifier")
+    with LOCK, _connect() as conn:
+        conn.row_factory=sqlite3.Row
+        row=conn.execute("SELECT * FROM records WHERE id=?",(notebook_id,)).fetchone()
+        if not row or row["kind"]!="notebook" or row["trashed"]:
+            raise ValueError("Select an active research notebook")
+        notebook=json.loads(row["payload"])
+        cells=notebook.get("cells",[])
+        if not isinstance(cells,list) or len(cells)>=100:
+            raise ValueError("Notebook cannot exceed 100 cells")
+        cell={"id":"cell_"+uuid.uuid4().hex[:16],"type":kind}
+        cell["chart_id" if kind=="chart" else "run_id"]=source_id
+        cells.append(cell)
+        conn.execute("UPDATE records SET payload=?,updated_utc=? WHERE id=?",
+                     (_validate_payload({**notebook,"cells":cells}),now(),notebook_id))
+    return {"notebook_id":notebook_id,"attached":source_id,"kind":kind,
+            "cell_id":cell["id"],"total_cells":len(cells)}
+
+
 def report_path(report_id: str, format: str) -> Path:
     report = get(report_id)
     if report["kind"] != "report" or report["trashed"]:
