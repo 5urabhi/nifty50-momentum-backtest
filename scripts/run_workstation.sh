@@ -16,7 +16,7 @@ bash scripts/start.sh setup
 
 test -x .venv/bin/uvicorn || fail "FastAPI dependencies missing from .venv"
 # The setup tool may provision Node as a local, ignored portable installation.
-if ! command -v npm >/dev/null 2>&1; then
+if ! command -v node >/dev/null 2>&1 || ! node -e 'let s=process.versions.node.split(".").map(Number);process.exit((s[0]>22||(s[0]===22&&s[1]>=12)||(s[0]===20&&s[1]>=19))?0:1)' 2>/dev/null || ! command -v npm >/dev/null 2>&1; then
   NODE_PATH="$ROOT/.local-tools/node-v22.16.0-linux-$(case "$(uname -m)" in x86_64|amd64) echo x64;; aarch64|arm64) echo arm64;; esac)/bin"
   test -x "$NODE_PATH/node" || fail "Node unavailable after setup"
   export PATH="$NODE_PATH:$PATH"
@@ -47,4 +47,4 @@ done
 info "Starting the React/Vite RESEARCH WORKSTATION"
 info "Open http://127.0.0.1:5173"
 info "Press Ctrl+C to stop both local servers"
-exec npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
