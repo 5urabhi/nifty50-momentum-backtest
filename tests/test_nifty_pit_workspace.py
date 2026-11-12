@@ -5,6 +5,7 @@ No GitHub, NSE, Dhan, or brokerage account is accessed by these tests.
 from __future__ import annotations
 
 from datetime import date
+from io import BytesIO
 from pathlib import Path
 import json
 import tempfile
@@ -132,6 +133,23 @@ class DatedIndexMembershipTests(unittest.TestCase):
         self.assertIn("UNIONBANK", after["asof_members"])
         self.assertEqual(before["change_count"], 2)
         self.assertEqual(after["end_count"], 14)
+
+    def test_midperiod_membership_gap_is_blocked_at_every_effective_event(self):
+        # The 2014, 2020 and Jan-2025 snapshots still have fifty members;
+        # a gap created in June 2025 must also be detected before syncing.
+        table = pd.read_csv(BytesIO(self.csv), dtype=str, keep_default_na=False)
+        mask = ((table["index_name"] == "Nifty 50")
+                & (table["symbol"] == "STK02"))
+        self.assertEqual(int(mask.sum()), 1)
+        table.loc[mask, "valid_to"] = "2025-06-01"
+        table = pd.concat([table, pd.DataFrame([record(
+            "Nifty 50", "STK02", "2025-07-01"
+        )])], ignore_index=True)
+        self.csv = table.to_csv(index=False).encode("utf-8")
+        with patch.object(pit, "_fetch", side_effect=self._fetch_mock):
+            with self.assertRaisesRegex(ValueError, "cardinality mismatch on 2025-06-01"):
+                pit.sync()
+        self.assertFalse(pit.status()["available"])
 
     def test_nifty_membership_replacements_do_not_leak_into_earlier_dates(self):
         self._sync()
