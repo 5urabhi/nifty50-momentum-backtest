@@ -6,6 +6,8 @@ tokens, names, or raw vendor response bodies to the React interface.
 from __future__ import annotations
 import json
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -41,10 +43,20 @@ def check_profile(opener=urlopen) -> dict:
     # Dhan V2 documents tokenValidity, dataPlan and dataValidity.
     # Never emit dhanClientId, UCC, account details or token content.
     state = str(payload.get("dataPlan", "")).strip().lower()
-    token_valid = bool(payload.get("tokenValidity"))
+    # Dhan documents tokenValidity as DD/MM/YYYY HH:MM (an expiry timestamp),
+    # NOT a boolean. Nonempty strings are not evidence of an active token.
+    expiry = str(payload.get("tokenValidity", "")).strip()
+    try:
+        valid_until = datetime.strptime(expiry, "%d/%m/%Y %H:%M").replace(
+            tzinfo=ZoneInfo("Asia/Kolkata"))
+        token_valid = datetime.now(ZoneInfo("Asia/Kolkata")) < valid_until
+    except ValueError:
+        token_valid = None
     plan_active = state == "active"
-    if not token_valid:
-        code, message = "token_unverified", "Dhan did not confirm token validity. Refresh the token and retry."
+    if token_valid is False:
+        code, message = "token_expired", "Dhan access token expired. Generate a fresh access token in Dhan Web and restart the workstation."
+    elif token_valid is None:
+        code, message = "token_expiry_unknown", "Dhan authenticated, but the token expiry field could not be interpreted."
     elif not plan_active:
         code, message = "data_plan_inactive", "Dhan Data API subscription is not active. Trading API access alone does not enable historical market-data requests."
     else:
@@ -52,5 +64,5 @@ def check_profile(opener=urlopen) -> dict:
     return {"ok": bool(token_valid and plan_active), "token_present": True,
             "token_valid": token_valid, "data_plan_active": plan_active,
             "code": code, "message": message,
-            "token_validity": str(payload.get("tokenValidity", ""))[:40],
+            "token_validity": expiry[:40],
             "data_validity": str(payload.get("dataValidity", ""))[:40]}
