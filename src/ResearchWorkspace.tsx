@@ -968,6 +968,9 @@ function JobsPanel({jobs,busy,perform,onPage}:{
           <strong>{j.kind.replaceAll('_',' ')}</strong><small>{j.id} · {j.created_utc?.slice(0,16)||''}</small></button>
         <span className={'rw-pill '+j.status}>{j.status}</span>
         {j.status==='queued'&&<button disabled={busy} onClick={()=>cancel(j)}><X size={14}/> Cancel</button>}
+        {(j.status==='error'||j.status==='cancelled')&&<button disabled={busy}
+          onClick={()=>perform(()=>api<Raw>('/workspace/jobs/'+j.id+'/retry',{},'POST'))}>
+          <RotateCcw size={14}/> Retry</button>}
       </div>)}
       {!jobs.length&&<Empty title="No jobs recorded">Download history, parameter sweeps, and report creation will appear here.</Empty>}</div>
     </Box>
