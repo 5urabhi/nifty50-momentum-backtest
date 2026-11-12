@@ -15,7 +15,7 @@ from unittest.mock import patch
 import pandas as pd
 from fastapi.testclient import TestClient
 
-from workstation_api import dhan_workspace as dw, pit_index as pit, service
+from workstation_api import dhan_benchmark, dhan_workspace as dw, index_spot, pit_index as pit, service
 from workstation_api.app import app
 
 
@@ -322,6 +322,41 @@ class DatedIndexMembershipTests(unittest.TestCase):
                         if item["id"] == outcome["dataset_id"])
         self.assertFalse(registry["ready"])
         self.assertIn("missing_eligible_price_observations", registry["missing"])
+
+    def test_saved_index_spot_creates_price_only_benchmark_with_real_previous_month_baseline(self):
+        self._sync()
+        # Mid-month start ensures an observed baseline before the first
+        # fully-covered calendar month used by the PIT stock-price matrix.
+        batch = dw.create_batch("nifty50_pit", [], [],
+                                "2025-06-10", "2026-02-01", 1, False)
+        with patch.object(dw, "download_candles", side_effect=self._candles), \\
+             patch.object(index_spot, "download_candles", side_effect=self._candles):
+            done = dw.run_batch(batch["id"])
+        self.assertEqual(done["counts"]["complete"], 51)
+        self.assertEqual(done["index_spot"]["status"], "complete")
+        with patch.object(dw, "download_candles",
+                          side_effect=AssertionError("No broker calls during preparation")), \\
+             patch.object(index_spot, "download_candles",
+                          side_effect=AssertionError("No index broker calls during preparation")):
+            prepared = dw.prepare_batch(batch["id"])
+            benchmark = dhan_benchmark.prepare_price_benchmark(batch["id"])
+        self.assertEqual(prepared["source_interval_minutes"], 1)
+        self.assertEqual(benchmark["benchmark_kind"], "price_index_spot_only")
+        folder = service.DATA / "dhan" / "monthly_research" / batch["id"]
+        returns = pd.read_csv(folder / "benchmark.csv")
+        stock_marks = pd.read_csv(folder / "prices.csv")
+        self.assertEqual(returns["date"].tolist(), stock_marks["date"].tolist())
+        self.assertTrue((returns["return"] == 0).all())  # constant mocked spot
+        evidence = json.loads((folder / "BENCHMARK_PROVENANCE.json").read_text())
+        self.assertFalse(evidence["is_total_return_index"])
+        self.assertFalse(evidence["is_dividend_reinvested"])
+        self.assertEqual(evidence["month_marks"][0]["previous_month_close_date"], "2025-06-30")
+        registered = next(d for d in service.datasets() if d["id"] == benchmark["dataset_id"])
+        self.assertTrue(registered["ready"])
+        self.assertTrue(registered["has_prices"])
+        self.assertFalse(registered["benchmark_is_total_return"])
+        with self.assertRaisesRegex(ValueError, "already exists"):
+            dhan_benchmark.prepare_price_benchmark(batch["id"])
 
     def test_cached_minute_batch_prepares_daily_and_pit_monthly_without_new_dhan_calls(self):
         # This is the downloaded-data workflow from the React screenshot:
