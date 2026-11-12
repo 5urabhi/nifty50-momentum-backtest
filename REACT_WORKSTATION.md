@@ -34,6 +34,49 @@ only to inspect the original Python pages during migration. The old `bash run.sh
 and `bash run.sh research` names now start the *same React workstation*, not
 the previous showcase or Streamlit interface.
 
+## Troubleshooting: Dhan HTTP 401 and incomplete historical index mappings
+
+If a batch pauses on `Dhan HTTP 401`, use **Dhan Market Data → Verify
+Dhan API access**. The workstation checks `GET /v2/profile` without exposing
+the access token or account identity. A token's *presence* in `.env` is
+not evidence that Dhan accepts it. A token obtained from Dhan Web generally
+expires after 24 hours; generate a fresh one at
+**Dhan Web → My Profile → Access DhanHQ APIs**, update the root `.env`,
+restart `bash run.sh`, and recheck token expiration and
+**Data API subscription**. Free trading API access does not necessarily
+include the separate market-data subscription. Dhan publishes `DH-901` for
+invalid/expired authentication and `DH-902` for access/market-data
+subscription problems.
+
+Historical index membership matching uses **actual NSE trading symbols**.
+The official Dhan **compact** scrip master
+(`https://images.dhan.co/api-data/api-scrip-master.csv`) contains the
+`SEM_TRADING_SYMBOL` column. The previous detailed scrip master does not,
+and its display names should **not** be treated as canonical exchange
+symbols. After updating QuantLab, click **Refresh instrument catalog**;
+the backend replaces the old catalog with the compact one.
+
+If a previous historical index batch contained only 8 mapped securities out
+of 51 historical members, **do not resume that old batch**: its instrument
+list is frozen at creation and reflects the old mapping. Refresh the catalog,
+select historical NIFTY 50/BANK NIFTY again, review the fresh mapping counts,
+then **create a new batch**. Some genuinely delisted/renamed historical symbols
+can still be unresolved. Those need independently reviewed historical ID
+mapping and should not be silently substituted.
+
+### Verification on the target Ubuntu PC
+
+```bash
+cd ~/Desktop/codes/nifty50-momentum-backtest/nifty50-momentum-backtest
+git switch workstation/quant-research-development-20261112
+git pull --ff-only
+bash run.sh
+```
+
+In the React UI, click **Verify Dhan API access**, then
+**Refresh instrument catalog**. When both succeed, select a small
+historical index range and launch a fresh batch. No order endpoints are used.
+
 ## API tokens
 
 Edit **project root** `.env`, not `src/.env`:
