@@ -6,6 +6,7 @@ use strictly later observations than calibration, not in-sample fit scores.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 import hashlib
 import math
 import json
@@ -389,13 +390,22 @@ def validate_out_of_sample(dataset_id: str, *, model: str = "min_variance",
     baseline = _metrics(benchmark, annual)
     portfolio = (100*(1+results).cumprod()).tolist()
     equal = (100*(1+benchmark).cumprod()).tolist()
-    plot = model_lab.xy("Strictly later observations · " + model, [r["date"] for r in rows],
-                        [{"name": model, "y": portfolio},
-                         {"name": "Equal-weight benchmark", "y": equal}],
+    # SVG/React should not render thousands of points at once. Preserve the
+    # complete time series as an artifact and sample the on-screen preview.
+    stride = max(1, math.ceil(len(rows) / 600))
+    preview_indices = list(range(0, len(rows), stride))
+    if preview_indices[-1] != len(rows)-1:
+        preview_indices.append(len(rows)-1)
+    plot = model_lab.xy("Strictly later observations · " + model,
+                        [rows[i]["date"] for i in preview_indices],
+                        [{"name": model, "y": [portfolio[i] for i in preview_indices]},
+                         {"name": "Equal-weight benchmark",
+                          "y": [equal[i] for i in preview_indices]}],
                         "Observed trading period", "Wealth index (base 100)")
     report = {"mode": mode, "model": model, "source": meta, "train_window": train_window,
               "test_step": test_step, "max_weight": max_weight,
               "folds": folds, "test_observations": len(results),
+              "figure_observations": len(preview_indices),
               "metrics": observed, "baseline_metrics": baseline,
               "uncertainty": _bootstrap(results - benchmark, annual, seed=seed),
               "plot": plot, "rows": rows,
@@ -406,8 +416,33 @@ def validate_out_of_sample(dataset_id: str, *, model: str = "min_variance",
                                      {k: report[k] for k in ("model","mode","source",
                                          "train_window","test_step","max_weight",
                                          "metrics","baseline_metrics","uncertainty",
-                                         "folds","plot","warning")})
-    return {**report, "study_id": record["id"]}
+                                         "folds","plot","warning",
+                                         "test_observations","figure_observations")})
+    target = study_returns_root() / (record["id"] + ".csv")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        pd.DataFrame.from_records(rows).to_csv(target, index=False, float_format="%.12g")
+    except Exception:
+        # Never advertise a complete study without its complete observations.
+        research_library.action(record["id"], "trash")
+        target.unlink(missing_ok=True)
+        raise
+    return {**report, "study_id": record["id"],
+            "returns_csv_url": "/api/workspace/studies/" + record["id"] + "/returns.csv"}
+
+
+def study_returns_root() -> Path:
+    return service.RESULTS.parent / "research_studies"
+
+
+def study_returns_path(study_id: str) -> Path:
+    item = research_library.get(study_id)
+    if item["kind"] != "study" or item["trashed"] or "test_observations" not in item["payload"]:
+        raise FileNotFoundError("This saved study has no available holdout-return artifact")
+    path = study_returns_root() / (study_id + ".csv")
+    if not path.is_file() or path.is_symlink():
+        raise FileNotFoundError("Holdout-return CSV unavailable")
+    return path
 
 
 def sweep(model_id: str, dataset_id: str | None, params: dict,
