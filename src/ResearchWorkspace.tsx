@@ -178,6 +178,11 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
   }
   const openSearch=(x:{kind:string;id:string;location:string})=>{
     setSearchOpen(false);setQuery('')
+    if(x.location==='model_catalog'){onOpenModels();return}
+    if(x.location==='documentation'){
+      window.open('/api/guide/'+encodeURIComponent(x.id),'_blank','noopener,noreferrer')
+      return
+    }
     if(x.location==='resource_library')setPage('library')
     else if(x.kind==='project'||x.kind==='notebook')setPage('projects')
     else if(x.kind==='chart'||x.kind==='comparison')setPage('compare')
