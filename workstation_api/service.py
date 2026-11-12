@@ -163,7 +163,7 @@ def create_synthetic():
     path = DATA / "synthetic_example"
     if not (path / "prices.csv").is_file():
         make_fixture(path)
-    return next(item for item in datasets() if item["id"] == "synthetic")
+    return next(item for item in datasets(include_archived=True) if item["id"] == "synthetic")
 
 
 def import_zip(blob: bytes, original_filename: str) -> dict:
