@@ -6,6 +6,7 @@ stock observations are NEVER deleted through the dataset-management API.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from contextlib import contextmanager
 from pathlib import Path
 from threading import RLock
 import hashlib
@@ -41,13 +42,15 @@ def report_root() -> Path:
     return service.RESULTS.parent / "research_workspace_reports"
 
 
+@contextmanager
 def _connect():
     path = root() / "library.sqlite3"
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, timeout=30)
     conn.execute("PRAGMA busy_timeout=30000")
     conn.execute("PRAGMA journal_mode=WAL")
-    conn.executescript("""
+    try:
+        conn.executescript("""
       CREATE TABLE IF NOT EXISTS records (
         id TEXT PRIMARY KEY, kind TEXT NOT NULL, title TEXT NOT NULL,
         payload TEXT NOT NULL, tags TEXT NOT NULL,
@@ -71,7 +74,13 @@ def _connect():
       );
       CREATE INDEX IF NOT EXISTS jobs_updated ON job_history(updated_utc);
     """)
-    return conn
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def _validate_payload(payload) -> str:
@@ -277,22 +286,39 @@ def resource_status(kind, item_id):
 
 
 def resource_dependencies(kind: str, item_id: str) -> list[dict]:
-    """Conservative references; no dependent source may be silently purged."""
+    """Scan every saved reference before moving a source to Trash."""
     _resource_key(kind, item_id)
     refs = []
-    for entry in list_items(archived=True, limit=500):
-        raw = json.dumps(entry["payload"], ensure_ascii=False)
-        if item_id in raw:
-            refs.append({"kind": entry["kind"], "id": entry["id"], "title": entry["title"]})
+    with _connect() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT id,kind,title FROM records WHERE trashed=0 "
+                            "AND payload LIKE ? LIMIT 150",
+                            ("%" + item_id + "%",)).fetchall()
+    refs.extend([{"kind": row["kind"], "id": row["id"], "title": row["title"]}
+                 for row in rows])
     if kind == "dataset":
-        for run in service.runs():
+        # Do NOT use service.runs() or model_lab.list_saved_models() here:
+        # those intentionally paginate for UI and can miss older dependent runs.
+        for file in service.RESULTS.glob("*/workstation_run.json"):
+            if file.is_symlink() or file.parent.is_symlink() or not RUN_ID.fullmatch(file.parent.name):
+                continue
+            try:
+                run = json.loads(file.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
             if run.get("dataset_id") == item_id:
-                refs.append({"kind": "research_run", "id": run["id"], "title": run["name"]})
-        for run in model_lab.list_saved_models():
-            if run.get("dataset_id") == item_id:
-                refs.append({"kind": "model_run", "id": run["id"], "title": run["title"]})
-    return refs[:50]
-
+                refs.append({"kind": "research_run", "id": file.parent.name,
+                             "title": file.parent.name})
+        for file in model_lab._run_root().glob("*.json"):
+            if file.is_symlink() or not model_lab.RUN_ID.fullmatch(file.stem):
+                continue
+            try:
+                model_run = json.loads(file.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if (model_run.get("source") or {}).get("dataset_id") == item_id:
+                refs.append({"kind": "model_run", "id": file.stem, "title": file.stem})
+    return refs[:150]
 
 def resource_action(kind: str, item_id: str, operation: str, *,
                     confirm: bool = False) -> dict:
