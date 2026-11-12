@@ -128,7 +128,17 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   useEffect(()=>{
     let active=true
     getJSON<{models:ModelSpec[]}>('/lab/catalog').then(data=>{
-      if(active)setCatalog(data.models)
+      if(!active)return
+      setCatalog(data.models)
+      let target:string|null=null
+      try{target=window.localStorage.getItem('ql-target-model')}catch{}
+      const requested=data.models.find(m=>m.id===target)
+      if(requested){
+        setGroup(requested.group)
+        setModelId(requested.id)
+        setResult(null);setView('configure')
+        try{window.localStorage.removeItem('ql-target-model')}catch{}
+      }
     }).catch(e=>{if(active)setCatalogError(e instanceof Error?e.message:String(e))})
     return()=>{active=false}
   },[])
