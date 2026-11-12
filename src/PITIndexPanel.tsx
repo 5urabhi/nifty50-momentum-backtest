@@ -77,23 +77,38 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
     void refresh().catch(e=>setIssue(e instanceof Error?e.message:String(e)))
   },[refresh])
   useEffect(()=>{setAsOf(fromDate)},[fromDate,mode])
+  // Preview the source-covered portion even when the requested end date is
+  // newer. Do NOT authorize downloads with a silently shortened period:
+  // only send a valid plan to the parent when the entire range is covered.
+  const supportedEnd=status?.covered_through ? following(status.covered_through) : ''
+  const endOutsideCoverage=Boolean(status?.available&&supportedEnd&&toDate>supportedEnd)
   useEffect(()=>{
-    const outOfBounds=asOf<fromDate||asOf>=toDate
-    if(outOfBounds||!status?.available){
+    if(!status?.available||!supportedEnd){
       setPlan(null);onPlan(null)
       return
     }
+    const previewEnd=toDate<supportedEnd?toDate:supportedEnd
+    if(fromDate>=previewEnd){
+      setPlan(null);onPlan(null);setIssue('')
+      return
+    }
+    const previewAsOf=asOf<fromDate?fromDate:asOf>=previewEnd?previous(previewEnd):asOf
     const controller=new AbortController()
     setPlan(null);onPlan(null)
     setLoading(true);setIssue('')
-    const params=new URLSearchParams({index_id:mode,from_date:fromDate,to_date:toDate,as_of_date:asOf})
+    const params=new URLSearchParams({
+      index_id:mode,from_date:fromDate,to_date:previewEnd,as_of_date:previewAsOf,
+    })
     void get<MembershipPlan>('/indices/preview?'+params, {signal:controller.signal}).then(p=>{
-      if(!controller.signal.aborted){setPlan(p);onPlan(p)}
+      if(!controller.signal.aborted){
+        setPlan(p)
+        onPlan(toDate>previewEnd?null:p)
+      }
     }).catch(e=>{
       if(!controller.signal.aborted){setPlan(null);onPlan(null);setIssue(e instanceof Error?e.message:String(e))}
     }).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
     return()=>controller.abort()
-  },[mode,fromDate,toDate,asOf,status?.available,status?.covered_through,status?.source_commit,onPlan])
+  },[mode,fromDate,toDate,asOf,status?.available,status?.covered_through,status?.source_commit,onPlan,supportedEnd])
   useEffect(()=>{
     if(!syncId)return
     onSyncBusy(true)
@@ -133,11 +148,16 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
       <span><Clock3 size={13}/> Source coverage through: {readable(status.covered_through||'2014-01-01')}</span>
       <span><ShieldCheck size={13}/> Reconstructed, source-pinned</span>
     </div>}
-    {status?.available&&status.covered_through&&toDate>following(status.covered_through)&&
-      <div className="dh-pit-alert"><AlertTriangle size={18}/><div><strong>Selected dates extend beyond documented membership coverage</strong>
-        <p>Membership source currently ends on {status.covered_through}. This workstation will not silently use today's constituents for later dates.</p>
-        <button className="dh-small-btn" onClick={()=>onToDate(following(status.covered_through!))}>
-          Use supported end date ({following(status.covered_through)})
+    {endOutsideCoverage&&
+      <div className="dh-pit-alert"><AlertTriangle size={18}/><div>
+        <strong>Your end date is newer than the historical membership source.</strong>
+        <p>Selected: {readable(fromDate)} to {readable(previous(toDate))}.
+          Membership evidence is available only through {readable(status!.covered_through!)}.
+          Below is a preview of the documented portion; the original download range
+          is unchanged and a full-range download remains disabled until we have
+          evidence for the missing dates.</p>
+        <button type="button" className="dh-small-btn" onClick={()=>onToDate(supportedEnd)}>
+          Explicitly use documented end date ({supportedEnd})
         </button></div></div>}
     {!status?.available&&<div className="dh-pit-intro"><Database size={25}/>
       <strong>One-time historical membership sync</strong><p>This downloads a public CC0 point-in-time constituent history reconstructed from NSE notices. Dhan supplies market prices separately.</p>
@@ -147,6 +167,7 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
     {issue&&<div className="dh-pit-alert"><AlertTriangle size={17}/><p>{issue}</p></div>}
     {loading&&<div className="dh-pit-loading"><LoaderCircle size={17} className="dh-spin"/> Reconstructing membership across the selected dates…</div>}
     {plan&&<>
+      {endOutsideCoverage&&<p className="dh-hint">PREVIEW ONLY · Historical index membership through {plan.to_date} (exclusive). Missing remainder is not included in this selection.</p>}
       <div className="dh-pit-counts">
         <div><strong>{plan.start_count}</strong><span>At start</span></div>
         <div><strong>{plan.end_count}</strong><span>At end</span></div>
@@ -157,9 +178,9 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
         <strong>Every stock belonging to {name} at any point in this period ({plan.union_count})</strong>
         <div className="dh-pit-head-actions">
           <button onClick={()=>exportCsv(
-            mode+'_'+fromDate+'_'+toDate+'_historical_union.csv',
+            mode+'_'+fromDate+'_'+plan.to_date+'_historical_union.csv',
             [['index','from_inclusive','to_exclusive','symbol','membership_source_commit'],
-             ...plan.union_members.map(symbol=>[plan.index_name,fromDate,toDate,symbol,plan.source_commit])]
+             ...plan.union_members.map(symbol=>[plan.index_name,fromDate,plan.to_date,symbol,plan.source_commit])]
           )}><ArrowDownToLine size={13}/> Export union CSV</button>
           <button onClick={()=>setShowUnion(v=>!v)}>{showUnion?'Hide list':'Show list'} <ChevronDown size={14}/></button>
         </div>
@@ -168,7 +189,7 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
       <div className="dh-pit-asof">
         <div><div><CalendarDays size={16}/><strong>Who was in {name} on this date?</strong></div>
           <small>Membership follows exact inclusion and exclusion effective dates.</small></div>
-        <label><span>As of</span><input type="date" value={asOf} min={fromDate} max={previous(toDate) < plan.covered_through ? previous(toDate) : plan.covered_through}
+        <label><span>As of</span><input type="date" value={asOf} min={fromDate} max={previous(plan.to_date)}
           onChange={e=>setAsOf(e.target.value)} aria-label="Historical index membership as-of date"/></label>
       </div>
       <div className="dh-pit-chip-head"><strong>{plan.asof_members.length} constituents on {readable(plan.asof_date)}</strong>
@@ -194,9 +215,9 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onSy
       {plan.unresolved_count>0&&<div className="dh-pit-unresolved">
         <div><AlertTriangle size={17}/><strong>Historical members not found in the current Dhan master</strong>
           <button onClick={()=>exportCsv(
-            mode+'_'+fromDate+'_'+toDate+'_unresolved_dhan_ids.csv',
+            mode+'_'+fromDate+'_'+plan.to_date+'_unresolved_dhan_ids.csv',
             [['index','from_inclusive','to_exclusive','symbol','unresolved_reason'],
-             ...plan.unresolved.map(item=>[plan.index_name,fromDate,toDate,item.symbol,item.reason])]
+             ...plan.unresolved.map(item=>[plan.index_name,fromDate,plan.to_date,item.symbol,item.reason])]
           )}><ArrowDownToLine size={13}/> Export gaps</button>
           <button onClick={()=>setShowMissing(v=>!v)}>{showMissing?'Hide':'View'}</button></div>
         <p>These may be old, renamed, or delisted listings. The app will not invent mappings. Downloading only available stocks will leave a documented historical-price gap.</p>
