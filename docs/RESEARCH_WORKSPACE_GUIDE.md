@@ -285,3 +285,138 @@ not an automatically valid test split. Historical constituent membership,
 source-dated fundamentals, corporate actions, dividends, delistings and a
 compatible TRI benchmark require separate evidence, even when the shared
 daily-price store is complete. The software does not send broker orders.
+
+
+---
+
+# Research Workspace v2 — Advanced Guide (November 13, 2026)
+
+## Eight destinations, preserving the original research modules
+
+The sidebar now has eight main destinations: Home, Data Library, Model
+Laboratory, Experiment Studio, Compare & Visualize, Results Library, Research
+Projects, and Help & Settings. Earlier model/risk modules remain available
+in nested navigation. The Research Workspace has Start, Library, Compare &
+Graph, Plot Builder, Guided & Grids, Projects & Notes, Research Tools,
+Data Quality and Jobs.
+
+Press **Ctrl+K** from the Research Workspace to search saved results,
+datasets, mathematical models and documentation. Escape closes the palette.
+
+## Plot Builder, Graph Studio and outputs
+
+Open Compare & Visualize -> Plot Builder, choose observed source data and
+numeric columns, then select line, two-series scatter, histogram, KDE,
+normal Q–Q, drawdown, cumulative wealth, rolling volatility or correlation
+heatmap. Choose original price, simple return, log return, base-100 or
+z-score. Graph types reject mathematically inappropriate columns and the
+engine never forward-fills missing return samples.
+
+Graph Studio supports 2D multi-series overlays, trace hiding, colors,
+user axis labels, optional log10 transform for positive Y values, exact
+X-axis event markers, annotations, and saved chart templates. Exports
+include SVG, PNG, CSV, JSON and self-contained 2D HTML with pan and zoom.
+The 3D mathematical surfaces offer interactive drag/keyboard rotation and
+zoom in QuantLab; full 3D interactions are not flattenable into PDF.
+Supported 2D scatter/heatmap/line plots export as static PDF/HTML vectors.
+
+A saved figure can be attached directly to a selected research notebook
+using the **Add to report** action in Plot Builder or Compare & Graph.
+Notebook reports freeze the saved numerical figure snapshot.
+
+## Statistical Center
+
+Statistics & Diagnostics computes nominal Jarque–Bera, Ljung–Box and
+ARCH LM tests on observed returns, with named assumptions and caveats.
+Return-series factor-proxy attribution estimates OLS using earlier returns,
+then evaluates unchanged coefficients on a later holdout. These are proxies,
+not publication-dated fundamental risk-factor libraries.
+
+The Significance Center reads saved chronological validation return CSVs,
+computes Newey–West HAC mean statistics, moving-block bootstrap intervals
+and Holm-adjusted p-values. If an active-return series has zero variance,
+a p-value is unavailable, not significant by default.
+
+Help & Settings -> Metric Guide includes clickable definitions, formulas,
+interpretation, and limits for VaR, ES, Sharpe, Sortino, drawdown, HHI,
+factor exposure and common inference metrics. The comprehensive formula
+reference is docs/METRIC_REFERENCE.md.
+
+## Guided and Advanced modes; multi-parameter grids
+
+Guided & Grids supports rule-based model selection by objective:
+portfolio allocation, volatility, tail risk, stochastic models, derivatives
+or factor proxies. Guidance comes from the same actual model catalog as
+Advanced Mathematics. For historical models, data-readiness shows required
+common observations, missing count and preferred **+20% buffer**.
+
+When available, the local Dhan data extension prompts for explicit user
+approval. It requests only uncovered mapped date windows, reusing the shared
+NIFTY/BANK NIFTY stock price cache. The estimated date scope represents
+calendar weekdays, not a guaranteed NSE session count or provider quote.
+
+Multi-parameter grids validate one or two numeric axes before allowing
+execution; they cap a grid at 36 saved real Python runs, calculate relative
+work units, and save the parameter-response graph/heatmap. Relative work
+units are not a promise of wall-clock time. Optimization dashboard compares
+saved metrics without replacing missing entries with fabricated zeros.
+Research Tools also contains single-axis sweeps, historical walk-forward
+validation, stress decomposition and source/recompute audits.
+
+## Library metadata, versioning, notebooks and portable projects
+
+Library resource details support rename, tags, description and favorites
+for datasets, saved model runs and saved index experiments. Model runs may
+be duplicated as clearly labeled copies of the original mathematical
+output; a duplicate does not constitute a new independent model execution.
+Shared Dhan data is protected from user-level dataset deletion.
+
+Research metadata supports batch archive/restore/Trash, favorites and
+search. Dataset dependencies block unsafe deletion. Research notebooks
+support re-running a referenced saved model with its recorded parameters
+while retaining earlier run identifiers for comparison. Old numerical
+results are never overwritten.
+
+Export portable project ZIP creates a checksum-manifested package of
+project-linked safe JSON metadata, figures, settings, and metrics-only
+summaries of referenced model runs. It excludes raw licensed OHLCV, secret
+tokens and executable source code. Import creates independent local IDs
+and remaps saved chart references; old run summaries are non-executable.
+Rebind market sources and rerun rather than treating imported summaries
+as live verified data.
+
+Reports are editable text and can be downloaded as HTML, PDF and Markdown.
+The source notebook and supported charts are independently retained.
+
+## Job progress, quality audits and reproducibility
+
+Jobs now shows stage-level percentage for parameter sweeps, grid research,
+and chronological validation. Running numerical tasks can be cancelled
+only between safe checkpoints. The Job Manager marks tasks interrupted
+after a Python restart; it never represents an interrupted calculation
+as successful.
+
+Data Quality reports invalid/duplicate dates, missing prices, extreme
+returns, flat series, data freshness, source SHA-256 and weekday gaps.
+Weekday counts include NSE holidays and do not certify a missing exchange
+session. A deliberately old research window may appropriately be stale.
+
+Newly saved model runs record source SHA-256, model parameters and
+execution time, plus Git commit (when locally available), Python, NumPy,
+pandas and SciPy versions. The Reproducibility Checker distinguishes
+unchanged source input from actual deterministic recomputation.
+
+## Automated acceptance
+
+Run from the repository root:
+
+    npm run build
+    python -m unittest discover -s tests -p 'test_research_advanced.py' -v
+    python -m unittest discover -s tests -p 'test_research_workspace.py' -v
+    python -m unittest discover -s tests -v
+
+Even a passing regression suite does not certify historical investability.
+Corporate actions, dividends, delistings, point-in-time index memberships,
+risk-free rates, benchmark TRI, fees, and broker execution must be independently
+audited. A +20% sample buffer is not itself a valid holdout. The workstation
+never sends broker trading orders.
