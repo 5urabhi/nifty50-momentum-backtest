@@ -241,6 +241,37 @@ reproducibility, data quality, and report HTML escaping.
     python -m unittest discover -s tests -v
     npm run build
 
+## 9A. Pinning results and moving preferences between browsers
+
+The Start page includes **My custom research dashboard**. Choose up to six
+saved model-run IDs. QuantLab retrieves their archived numerical metrics and
+first figure and places them together on a personal dashboard. Pinned items
+are stored locally in browser preferences. A named dashboard can also be
+stored in the research library and restored later.
+
+The **Research workspace settings** panel can export and import a JSON
+bundle containing local interface preferences, saved view layout controls,
+pins and model configuration drafts. It does not export market prices, saved
+model results, Dhan credentials, or secrets. Reload the app after importing
+preferences. Use the research library and notebook export for actual saved
+research artifacts.
+
+## 9B. Putting real saved figures into a notebook report
+
+First build a chart in **Compare & Graph**, then click **Save graph**.
+Open **Projects & Notes**, select your notebook and add **Saved chart
+figure**. Choose the saved chart and add your interpretation. The notebook
+shows the actual saved figure, not merely a text placeholder.
+
+When generating a report, QuantLab freezes up to 16 selected figure
+snapshots. Two-dimensional series are embedded as safe, selectable SVG
+vectors in HTML and vector shapes in PDF. Some interactive 3D surfaces
+cannot be meaningfully flattened into the same two-dimensional report;
+those figures retain their numerical source and a disclosure directing
+readers to the full interactive QuantLab surface. Editing the written
+report preserves its frozen figure snapshots even if a source chart is
+later archived or moved to Trash.
+
 ## 10. Important limitations
 
 QuantLab can run 26 registered mathematical, stochastic, option,
