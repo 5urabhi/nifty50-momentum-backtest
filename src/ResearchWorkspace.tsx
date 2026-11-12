@@ -450,6 +450,7 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
   const [comparison,setComparison]=useState<Raw|null>(null)
   const [saved,setSaved]=useState('')
   const [savedTemplate,setSavedTemplate]=useState('')
+  const [reportNotebook,setReportNotebook]=useState('')
   const [overlay,setOverlay]=useState<'overlay'|'split'>('overlay')
   const history=useRef<{title:string;annotation:string;kind:string}[]>([])
   const redoHistory=useRef<{title:string;annotation:string;kind:string}[]>([])
@@ -491,6 +492,10 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
     kind:'chart',title,payload:{source_comparison:saved||null,plot:displayPlot,plots:panels,
       annotation,layout:{kind,from,to,overlay}},tags:['chart']},'POST'),
     res=>{setSavedTemplate(res.id);onMessage('Graph layout saved')})
+  const attachSavedChart=()=>perform(()=>api<Raw>(
+    '/workspace/notebooks/'+encodeURIComponent(reportNotebook)+'/attach',
+    {kind:'chart',source_id:savedTemplate},'POST'),
+    ()=>onMessage('Chart attached to the selected research notebook; generate the report from Projects & Notes'))
   const loadComparison=(item:Item)=>{
     const configs=item.payload.selections
     if(!Array.isArray(configs))return
@@ -617,6 +622,17 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
             'quantlab_comparison.json',JSON.stringify({plot:displayPlot,annotation},null,2),'application/json')}>
             <Download size={14}/> JSON</button></div>
         {(saved||savedTemplate)&&<p className="rw-success">Saved {savedTemplate||saved} in the research library.</p>}
+        {savedTemplate&&<div className="rw-form-grid">
+          <Select label="Add saved graph directly to report notebook"
+            value={reportNotebook} onChange={setReportNotebook}
+            options={[{value:'',label:'Choose a research notebook'},...items
+              .filter(x=>x.kind==='notebook'&&!x.trashed)
+              .map(x=>({value:x.id,label:x.title}))]}/>
+          <div className="rw-inline-actions">
+            <button disabled={busy||!reportNotebook} onClick={attachSavedChart}>
+              <FileText size={14}/> Add to report notebook</button>
+          </div>
+        </div>}
       </Box>
     </div>
     {(!!displayPlot||panels.length>0)&&<div className="rw-graph-preview">
