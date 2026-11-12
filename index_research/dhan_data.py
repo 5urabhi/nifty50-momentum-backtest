@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env", override=False)
 
 BASE = "https://api.dhan.co/v2"
-MASTER_URL = "https://images.dhan.co/api-data/api-scrip-master-detailed.csv"
+MASTER_URL = "https://images.dhan.co/api-data/api-scrip-master.csv"  # Compact master exposes SEM_TRADING_SYMBOL required for PIT matching
 ALLOWED_INTERVALS = {1, 5, 15, 25, 60}
 
 
