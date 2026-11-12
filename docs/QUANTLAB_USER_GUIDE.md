@@ -92,6 +92,19 @@ No repeat stock downloading is necessary for the local preparation steps. The or
 - **Fundamentals** and **sectors** are optional for some models but compulsory if a selected factor or constraint needs them.
 - Price-index comparison excludes reinvested dividends. To claim excess total returns, acquire independently sourced **NIFTY TRI** and audit each stock's split/dividend/corporate-action history.
 
+## 4A. Unified market history and model data readiness
+
+**One canonical Dhan store:** Market closes are keyed by exchange segment, Dhan Security ID and trading date in `data/dhan/shared_market.sqlite3`. The two files `data/dhan/monthly_research/shared/daily_prices.csv` and `prices.csv` are derived, reusable model views, not independent datasets. One stock appearing in multiple NIFTY/BANK NIFTY portfolios is stored once. Index membership and benchmark files remain separate because they represent different historical evidence.
+
+1. Open **Advanced Mathematics** or **Quantitative Models** and choose a historical model and an observed Dhan dataset.
+2. The **Data requirements & shared history** panel shows the model minimum, +20% research buffer, actual common finite returns across the requested number of securities, and any shortage. The minimum and buffer target are distinct: the model can run with its minimum while showing that additional data is preferable.
+3. When appropriate, click **Yes — download & prepare missing data**. This is the user's explicit authorization for read-only Dhan requests. The backend inspects SHA-verified existing daily and intraday caches first, and downloads **only uncovered date windows** for each instrument.
+4. The background job appends new observations to the canonical SQLite store, checks conflicts, regenerates the shared daily/monthly views and rechecks model readiness. It selects `dhan_shared` on completion and reports when history remains insufficient. Original per-batch data and prior saved research snapshots are preserved.
+
+**Important:** The +20% preference is extra sample depth, not automatically an independent testing holdout. Separate chronological training, validation and untouched test data for out-of-sample claims. Observed unadjusted Dhan closes are not audited total-return series. Missing prices and sessions are never manufactured or forward-filled. The current automatic extension supports up to 18 unambiguously mapped Dhan stocks, and cannot reconstruct unresolved delistings, fundamentals or source-unavailable history.
+
+**Existing downloads without network use:** The local backend offers `POST /api/lab/data-requirements/reuse-cached` to import the already cached Dhan catalog into the canonical store without vendor requests. Import can use significant local disk and CPU. The shared dataset may have a Data Manager "missing membership/benchmark" badge because it is usable for price-model experiments but not independently certified for index backtesting.
+
 ## 5. Run your first index experiment
 
 1. Open **Index Research**, choose the prepared NIFTY dataset.
