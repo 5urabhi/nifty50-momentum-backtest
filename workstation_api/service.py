@@ -40,7 +40,7 @@ ARTIFACTS = {
     "concentration.csv", "rolling_metrics.csv", "cost_sensitivity.csv",
     "robustness_grid.csv", "methodology_summary.csv", "methodology_returns.csv",
     "data_quality.json", "dataset_audit.json", "research_manifest.json",
-    "research_report.html", "research_report.pdf",
+    "research_report.html", "research_paper_draft.pdf",
 }
 SAFE_ID = re.compile(r"^[a-zA-Z0-9_-]{1,80}$")
 
@@ -123,7 +123,7 @@ def import_zip(blob: bytes, original_filename: str) -> dict:
         try:
             for entry in info:
                 with archive.open(entry) as source, (folder / entry.filename).open("wb") as target:
-                    copied = shutil.copyfileobj(source, target, length=1024 * 1024)
+                    shutil.copyfileobj(source, target, length=1024 * 1024)
             audit = audit_dataset(folder)  # Reject malformed CSVs before making them selectable.
             (folder / "workstation_source.json").write_text(json.dumps({
                 "uploaded_filename": Path(original_filename).name[:120],
