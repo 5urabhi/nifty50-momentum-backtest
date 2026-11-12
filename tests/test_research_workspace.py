@@ -136,7 +136,7 @@ class ResearchWorkspaceTests(unittest.TestCase):
                    model="equal",assets=4,train_window=75,test_step=20,
                    max_weight=.45,mode="single_holdout")
         self.assertEqual(len(result["folds"]),1)
-        self.assertEqual(result["test_observations"],220-75)
+        self.assertEqual(result["test_observations"],(220-1)-75)  # one price date is lost to return formation
 
     def test_quality_reports_actual_prices_without_forward_fill(self):
         result = research_insights.inspect_quality(self.dataset_id)
