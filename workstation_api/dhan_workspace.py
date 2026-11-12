@@ -477,10 +477,13 @@ def prepare_batch(batch_id: str) -> dict:
                   & (times.dt.date < date.fromisoformat(data["to_date"])))
         if not within.any():
             continue
-        selected_times = times.loc[within].dt.tz_localize(None)
-        value = pd.Series(values.loc[within].to_numpy(), index=selected_times).sort_index()
-        monthly = value.groupby(value.index.to_period("M")).last()
-        monthly.index = monthly.index.to_timestamp("M")
+        # Anchor monthly data to actual observed sessions; never promote a
+        # stale security close to a subsequent month-end trading date.
+        selected_days = times.loc[within].dt.tz_localize(None).dt.normalize()
+        if selected_days.duplicated().any():
+            raise ValueError("Duplicate local OHLC daily sessions: " + row["symbol"])
+        observed = pd.Series(values.loc[within].to_numpy(dtype=float),
+                             index=pd.DatetimeIndex(selected_days)).sort_index()
         symbol = row.get("pit_symbol", row["symbol"])
         if data.get("historical_index"):
             if symbol in used or not SAFE_SYMBOL.fullmatch(symbol):
@@ -488,16 +491,26 @@ def prepare_batch(batch_id: str) -> dict:
         elif symbol in used or not SAFE_SYMBOL.fullmatch(symbol):
             symbol = row["exchange_segment"] + "_" + row["security_id"]
         used.add(symbol)
-        monthly.name = symbol
-        streams.append(monthly)
+        observed.name = symbol
+        streams.append(observed)
         mappings.append({"column": symbol, "security_id": row["security_id"],
                          "exchange_segment": row["exchange_segment"],
                          "source_sha256": meta["sha256"]})
     if not streams:
         raise ValueError("No observed trading closes within the selected batch dates")
-    prices = pd.concat(streams, axis=1).sort_index()
+    daily_panel = pd.concat(streams, axis=1).sort_index()
+    if daily_panel.empty or daily_panel.index.has_duplicates:
+        raise ValueError("No unique observed trading sessions in downloaded candles")
+    # Use the last market session actually present in the batch per month.
+    # A stock lacking that day's close remains NaN, never forward-filled.
+    final_sessions = (
+        pd.Series(daily_panel.index, index=daily_panel.index)
+        .groupby(daily_panel.index.to_period("M")).max()
+    )
+    marks = pd.DatetimeIndex(final_sessions.to_list(), name="date")
+    prices = daily_panel.reindex(marks)
     if prices.empty:
-        raise ValueError("No observed trading closes in completed downloads")
+        raise ValueError("No monthly market sessions in downloaded candles")
     historical = data.get("historical_index")
     missing_symbols: list[str] = []
     missing_membership_prices = 0
@@ -529,6 +542,8 @@ def prepare_batch(batch_id: str) -> dict:
             "missing_historical_symbols": missing_symbols,
             "missing_eligible_price_observations": missing_membership_prices,
             "fully_covered_months_only": True,
+            "month_marks": "last observed market session; no stale price carryforward",
+            "session_calendar_basis": "observed Dhan cash equity sessions, not independently NSE-calendar certified",
             "index_spot": data.get("index_spot"),
             "warning": "Independently reconstructed interval history (not NSE-certified). "
                        "Dhan price candles lack a verified dividend-total-return adjustment."
@@ -538,6 +553,7 @@ def prepare_batch(batch_id: str) -> dict:
         "source_batch": batch_id, "generated_utc": _now(),
         "from_inclusive": data["from_date"], "to_exclusive": data["to_date"],
         "columns": mappings, "observations": len(prices),
+        "month_marks": "last observed trading session; missing prices remain NaN",
         "warning": "UNADJUSTED MONTHLY PRICES ONLY. No benchmark, PIT constituents, "
                    "delisting coverage or dividend-reinvested total returns established.",
     })
