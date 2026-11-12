@@ -239,6 +239,12 @@ with tabs[3]:
     if not mapped:
         st.warning("Add at least one reviewed Dhan instrument in the Watchlist mapping tab.")
     selected_names = st.multiselect("Instruments to download", [i.label for i in mapped], default=[i.label for i in mapped[:1]])
+    if selected_names:
+        selected_details=[{"Label":x.label,"Security ID":x.security_id,
+                           "Exchange":x.exchange_segment,"Instrument":x.instrument}
+                          for x in mapped if x.label in selected_names]
+        st.dataframe(pd.DataFrame(selected_details),hide_index=True,use_container_width=True)
+        st.caption("Check the actual Security ID, segment and instrument before requesting candles. An instrument name alone does not establish a valid mapping.")
     today = date.today()
     left, right, third = st.columns(3)
     start = left.date_input("Start date (inclusive)", value=today - timedelta(days=365), max_value=today)
@@ -267,6 +273,7 @@ with tabs[3]:
                     completed.append((inst.label, len(frame), str(filepath.relative_to(ROOT))))
                 except Exception as exc:
                     st.error(f"{inst.label}: {exc}")
+                    st.info("For HTTP 400: check the Dhan error code, the verified master Security ID, NSE_EQ/EQUITY mapping, date range and your historical Data API subscription. Your access token is not shown.")
             if completed:
                 st.success(f"Completed {len(completed)} of {len(instruments)} instrument downloads.")
                 st.dataframe(pd.DataFrame(completed, columns=["Instrument","Candles","Local file"]), hide_index=True, use_container_width=True)
