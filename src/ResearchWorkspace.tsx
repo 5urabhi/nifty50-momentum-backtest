@@ -96,6 +96,7 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
   const [runs,setRuns]=useState<RunOption[]>([])
   const [runOffsets,setRunOffsets]=useState({model:100,index:100})
   const [hasOlderRuns,setHasOlderRuns]=useState({model:false,index:false})
+  const pagingTouched=useRef(false)
   const [jobs,setJobs]=useState<Job[]>([])
   const [loading,setLoading]=useState(true)
   const [busy,setBusy]=useState(false)
@@ -123,13 +124,20 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
       setLibrary([...records.records,...trashedRecords.records])
       setResources(items.resources)
       setModels(registry.models)
-      setRuns([
+      const freshest:RunOption[]=[
         ...saved.runs.map(x=>({key:'model_run:'+x.id,kind:'model_run' as const,id:x.id,
             label:x.title+' · '+x.id.slice(0,8),model:x.model_id,figures:x.figures})),
         ...index.runs.map(x=>({key:'research_run:'+x.id,kind:'research_run' as const,
-            id:x.id,label:x.name+' · '+x.id.slice(0,8),figures:1}))])
-      setRunOffsets({model:100,index:100})
-      setHasOlderRuns({model:saved.runs.length===100,index:index.runs.length===100})
+            id:x.id,label:x.name+' · '+x.id.slice(0,8),figures:1}))]
+      setRuns(existing=>{
+        if(!pagingTouched.current)return freshest
+        const ids=new Set(freshest.map(r=>r.key))
+        return [...freshest,...existing.filter(item=>!ids.has(item.key))]
+      })
+      if(!pagingTouched.current){
+        setRunOffsets({model:100,index:100})
+        setHasOlderRuns({model:saved.runs.length===100,index:index.runs.length===100})
+      }
       setSavedConfigs(records.records.filter(x=>x.kind==='configuration'&&!x.trashed).length)
       setJobs(queue.jobs)
     }catch(e){setError(e instanceof Error?e.message:String(e))}
@@ -175,6 +183,7 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
     return()=>{alive=false;window.clearTimeout(timer)}
   },[query])
   const loadOlderRuns=async()=>{
+    pagingTouched.current=true
     setBusy(true)
     setError(null)
     try{
