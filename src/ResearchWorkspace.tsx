@@ -522,8 +522,31 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob}:{
   const [dirty,setDirty]=useState(false)
   const [saving,setSaving]=useState(false)
   const [notebookTitle,setNotebookTitle]=useState('')
+  const [goal,setGoal]=useState('')
+  const [description,setDescription]=useState('')
+  const [editingReport,setEditingReport]=useState('')
+  const [reportBody,setReportBody]=useState('')
+
   const initialized=useRef(false)
   const selectedNotebook=notebooks.find(n=>n.id===notebookId)
+  const project=projects.find(p=>p.id===projectId)
+  useEffect(()=>{
+    setGoal(String(project?.payload.goal||''))
+    setDescription(String(project?.payload.description||''))
+  },[project?.id])
+  const saveProject=()=>{if(!project)return
+    perform(()=>api<Item>('/workspace/records/'+project.id,{
+      payload:{...project.payload,goal,description}},'PATCH'),
+      ()=>onMessage('Research project details saved'))
+  }
+  const openReport=async(item:Item)=>{
+    try{const src=await api<{content:string}>('/workspace/reports/'+item.id+'/source')
+      setEditingReport(item.id);setReportBody(src.content)}
+    catch(e){onMessage(e instanceof Error?e.message:String(e))}
+  }
+  const saveReport=()=>{if(!editingReport)return
+    perform(()=>api<Item>('/workspace/reports/'+editingReport+'/source',
+      {content:reportBody},'PUT'),()=>{setEditingReport('');onMessage('Report updated in HTML, Markdown and PDF')})}
   const projectNotebooks=notebooks.filter(n=>String(n.payload.project_id||'')===projectId)
   const pickNotebook=(item:Item)=>{
     setNotebookId(item.id);setProjectId(String(item.payload.project_id||projectId))
@@ -581,6 +604,12 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob}:{
           onClick={()=>{setProjectId(p.id);setNotebookId('');initialized.current=true}}>
           <Folder size={17}/><span><strong>{p.title}</strong><small>{p.id}</small></span></button>)}
         {!projects.length&&<Empty title="No projects yet">Create a project for a research question or thesis chapter.</Empty>}
+        {project&&<div className="rw-project-detail">
+          <Field label="Research question / goal" value={goal} onChange={setGoal}/>
+          <label className="rw-field"><span>Hypothesis and scope</span>
+            <textarea rows={4} value={description} onChange={e=>setDescription(e.target.value)}/></label>
+          <button disabled={busy} onClick={saveProject}><Save size={14}/> Save project details</button>
+        </div>}
       </Box>
       <Box title="Project notebooks">
         {(projectId?projectNotebooks:notebooks).map(item=><button className={'rw-row '+(notebookId===item.id?'active':'')}
@@ -640,9 +669,19 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob}:{
         <div className="rw-row-actions">
           <a href={'/api/workspace/reports/'+item.id+'/html'} download><ArrowDownToLine size={15}/> HTML</a>
           <a href={'/api/workspace/reports/'+item.id+'/markdown'} download><ArrowDownToLine size={15}/> MD</a>
+          <a href={'/api/workspace/reports/'+item.id+'/pdf'} download><ArrowDownToLine size={15}/> PDF</a>
+          <button title="Edit report" onClick={()=>void openReport(item)}><FileText size={15}/> Edit</button>
         </div></div>)}
       {!records.some(x=>x.kind==='report'&&!x.trashed)&&
         <Empty title="No research reports yet">Create one from a saved research notebook.</Empty>}
+      {editingReport&&<div className="rw-report-editor">
+        <label className="rw-field"><span>Edit report body (Markdown/plain text)</span>
+          <textarea rows={17} value={reportBody} onChange={e=>setReportBody(e.target.value)}/></label>
+        <div className="rw-button-group"><button className="rw-primary" disabled={busy} onClick={saveReport}>
+          <Save size={14}/> Save report</button>
+          <button onClick={()=>setEditingReport('')}><X size={14}/> Close editor</button></div>
+        <p className="rw-help">Edits update the downloaded Markdown, HTML and PDF snapshots; saved mathematical model results remain immutable.</p>
+      </div>}
     </Box>
   </div>
 }
