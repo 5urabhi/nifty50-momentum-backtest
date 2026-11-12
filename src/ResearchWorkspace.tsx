@@ -178,7 +178,10 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
   }
   const openSearch=(x:{kind:string;id:string;location:string})=>{
     setSearchOpen(false);setQuery('')
-    if(x.location==='model_catalog'){onOpenModels();return}
+    if(x.location==='model_catalog'){
+      try{window.localStorage.setItem('ql-target-model',x.id)}catch{}
+      onOpenModels();return
+    }
     if(x.location==='documentation'){
       window.open('/api/guide/'+encodeURIComponent(x.id),'_blank','noopener,noreferrer')
       return
