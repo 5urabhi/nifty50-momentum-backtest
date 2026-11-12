@@ -166,7 +166,7 @@ class RemainingResearchTests(unittest.TestCase):
         denied=self.client.post("/api/workspace/learning/run",json={
             "dataset_id":self.dataset,"asset":"A","method":"ridge","confirm":False})
         self.assertEqual(denied.status_code,400)
-        with self.assertRaisesRegex(ValueError,"Unknown"):
+        with self.assertRaisesRegex(ValueError,"Unsupported registered learning method"):
             research_learning.run(self.dataset,"A",method="pseudomagic")
         reduced=self.prices.copy()
         reduced.loc[reduced.index[50],"A"]=np.nan
