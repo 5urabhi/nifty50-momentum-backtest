@@ -94,6 +94,8 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
   const [resources,setResources]=useState<Resource[]>([])
   const [models,setModels]=useState<ModelSpec[]>([])
   const [runs,setRuns]=useState<RunOption[]>([])
+  const [runOffsets,setRunOffsets]=useState({model:100,index:100})
+  const [hasOlderRuns,setHasOlderRuns]=useState({model:false,index:false})
   const [jobs,setJobs]=useState<Job[]>([])
   const [loading,setLoading]=useState(true)
   const [busy,setBusy]=useState(false)
@@ -114,8 +116,8 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
         api<{records:Item[]}>('/workspace/records?archived=true'),
         api<{records:Item[]}>('/workspace/records?trashed=true'),
         api<{resources:Resource[]}>('/workspace/resources?include_trashed=true'),
-        api<{runs:ModelRun[]}>('/lab/runs'),
-        api<{runs:IndexRun[]}>('/runs'),
+        api<{runs:ModelRun[]}>('/lab/runs?limit=100&offset=0'),
+        api<{runs:IndexRun[]}>('/runs?limit=100&offset=0'),
         api<{models:ModelSpec[]}>('/lab/catalog'),
         api<{jobs:Job[]}>('/workspace/jobs')])
       setLibrary([...records.records,...trashedRecords.records])
@@ -126,6 +128,8 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
             label:x.title+' · '+x.id.slice(0,8),model:x.model_id,figures:x.figures})),
         ...index.runs.map(x=>({key:'research_run:'+x.id,kind:'research_run' as const,
             id:x.id,label:x.name+' · '+x.id.slice(0,8),figures:1}))])
+      setRunOffsets({model:100,index:100})
+      setHasOlderRuns({model:saved.runs.length===100,index:index.runs.length===100})
       setSavedConfigs(records.records.filter(x=>x.kind==='configuration'&&!x.trashed).length)
       setJobs(queue.jobs)
     }catch(e){setError(e instanceof Error?e.message:String(e))}
@@ -170,6 +174,34 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
     },250)
     return()=>{alive=false;window.clearTimeout(timer)}
   },[query])
+  const loadOlderRuns=async()=>{
+    setBusy(true)
+    setError(null)
+    try{
+      const [modelPage,indexPage]=await Promise.all([
+        hasOlderRuns.model?api<{runs:ModelRun[]}>(
+          '/lab/runs?limit=100&offset='+runOffsets.model):Promise.resolve({runs:[] as ModelRun[]}),
+        hasOlderRuns.index?api<{runs:IndexRun[]}>(
+          '/runs?limit=100&offset='+runOffsets.index):Promise.resolve({runs:[] as IndexRun[]}),
+      ])
+      const loaded:RunOption[]=[
+        ...modelPage.runs.map(x=>({key:'model_run:'+x.id,kind:'model_run' as const,id:x.id,
+          label:x.title+' · '+x.id.slice(0,8),model:x.model_id,figures:x.figures})),
+        ...indexPage.runs.map(x=>({key:'research_run:'+x.id,kind:'research_run' as const,
+          id:x.id,label:x.name+' · '+x.id.slice(0,8),figures:1})),
+      ]
+      setRuns(current=>{
+        const existing=new Set(current.map(x=>x.key))
+        return [...current,...loaded.filter(x=>!existing.has(x.key))]
+      })
+      setRunOffsets(old=>({model:old.model+modelPage.runs.length,
+                           index:old.index+indexPage.runs.length}))
+      setHasOlderRuns({model:hasOlderRuns.model&&modelPage.runs.length===100,
+                       index:hasOlderRuns.index&&indexPage.runs.length===100})
+      setMessage(loaded.length+' older archived experiments are available for comparison')
+    }catch(e){setError(e instanceof Error?e.message:String(e))}
+    finally{setBusy(false)}
+  }
   const perform=async<T,>(action:()=>Promise<T>,then?:(value:T)=>void)=>{
     setBusy(true);setError(null)
     try{const result=await action();then?.(result);await reload()}
@@ -251,8 +283,13 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
     {page==='library'&&<LibraryPanel items={library} resources={resources} busy={busy}
       perform={perform} onChanged={onDataChanged} onOpenModels={onOpenModels}
       onOpenDhan={onOpenDhan} onMessage={setMessage}/>}
-    {page==='compare'&&<ComparePanel runs={runs} items={library} busy={busy}
-      perform={perform} onMessage={setMessage}/>}
+    {page==='compare'&&<><ComparePanel runs={runs} items={library} busy={busy}
+      perform={perform} onMessage={setMessage}/>
+      {(hasOlderRuns.model||hasOlderRuns.index)&&<div className="rw-pagination">
+        <p className="rw-help">More older saved model/index runs are available. Archived history is paged instead of silently truncated.</p>
+        <button disabled={busy} onClick={()=>void loadOlderRuns()}>
+          <History size={14}/> Load 100 more saved runs per research family</button>
+      </div>}</>}
     {page==='plots'&&<ResearchAdvanced datasets={datasets} selectedDataset={selectedDataset}
       onSelectDataset={onSelectDataset} records={library} onMessage={setMessage}
       onError={setError} onChanged={()=>void reload()}/>}
