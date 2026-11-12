@@ -24,6 +24,8 @@ type LabResult={
   plots:ResearchPlotData[];table:Record<string,unknown>[];
   limitations:string[];notes:string[]
 }
+type SavedRun={id:string;model_id:string;group:string;title:string;mode:string;
+  generated_utc:string;dataset_id?:string|null;observations?:number|null;figures:number}
 type Readiness={dataset_id:string;frequency?:string;observed_dates?:number;
   eligible_assets_60?:number;eligible_assets_180?:number;has_prices:boolean;
   sample_start?:string;sample_end?:string;benchmark_kind?:string;warning?:string}
@@ -93,6 +95,10 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   const [result,setResult]=useState<LabResult|null>(null)
   const [error,setError]=useState<string|null>(null)
   const [working,setWorking]=useState(false)
+  const [savedRuns,setSavedRuns]=useState<SavedRun[]>([])
+  const refreshSaved=useCallback(()=>getJSON<{runs:SavedRun[]}>('/lab/runs')
+    .then(data=>setSavedRuns(data.runs)).catch(()=>setSavedRuns([])),[])
+  useEffect(()=>{void refreshSaved()},[refreshSaved])
   useEffect(()=>{
     let active=true
     getJSON<{models:ModelSpec[]}>('/lab/catalog').then(data=>{
@@ -151,7 +157,16 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
       if(!response.ok)throw new Error(await errorText(response))
       const data=await response.json() as LabResult
       setResult(data);setView('figures')
+      void refreshSaved()
     }catch(e){setError(e instanceof Error?e.message:String(e));setView('configure')}
+    finally{setWorking(false)}
+  }
+  const reopen=async(run:SavedRun)=>{
+    setError(null);setWorking(true)
+    try{
+      const data=await getJSON<LabResult>('/lab/runs/'+encodeURIComponent(run.id))
+      setGroup(run.group);setModelId(run.model_id);setResult(data);setView('figures')
+    }catch(e){setError(e instanceof Error?e.message:String(e))}
     finally{setWorking(false)}
   }
   const dataHint=useMemo(()=>{
@@ -192,6 +207,14 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
           <small>{spec.description}</small>
           {modelId===spec.id&&<CheckCircle2 size={17} className="ql-check"/>}
         </button>)}</div>
+        {savedRuns.length>0&&<div className="ql-saved-runs">
+          <div className="ql-panel-title"><Database size={15}/><h3>Saved model runs</h3><span>{savedRuns.length}</span></div>
+          {savedRuns.slice(0,8).map(run=><button type="button" key={run.id}
+            onClick={()=>void reopen(run)} disabled={working}>
+            <strong>{run.title}</strong><small>{run.mode.toUpperCase()} · {run.generated_utc?.slice(0,16).replace('T',' ')}</small>
+          </button>)}
+          <p className="ql-muted">Saved locally with exact parameters and source checksums. Reopen to compare or export.</p>
+        </div>}
         <div className="ql-sidebar-help"><ShieldCheck size={17}/><p>Every model has validated input bounds and a documented evidence type. Live broker execution is disabled.</p></div>
       </section>
       <div className="ql-main-column">
