@@ -216,6 +216,10 @@ def action(item_id: str, action_name: str, *, confirm: bool = False) -> dict:
         if previous["kind"] == "report":
             for ext in (".html", ".md", ".pdf", ".charts.json"):
                 (report_root() / (item_id + ext)).unlink(missing_ok=True)
+        if previous["kind"] == "study":
+            # Study artifacts are derived only; never touch source price data.
+            (service.RESULTS.parent / "research_studies" /
+             (item_id + ".csv")).unlink(missing_ok=True)
         with LOCK, _connect() as conn:
             conn.execute("DELETE FROM records WHERE id=? AND trashed=1", (item_id,))
         return {"id": item_id, "purged": True}
