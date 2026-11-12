@@ -809,6 +809,7 @@ function AutomationPanel({datasets,selectedDataset,onSelectDataset,models,runs,b
   const [scenarioResult,setScenarioResult]=useState<Raw|null>(null)
   const chosen=models.find(x=>x.id===modelId)
   const numeric=(chosen?.parameters||[]).filter(p=>p.type==='number'||p.type==='integer')
+  const historicalDatasets=dataOptions(datasets).filter(x=>x.value!=='synthetic')
   useEffect(()=>{window.localStorage.setItem('ql-rw-sweep-values',values)},[values])
   const chooseModel=(id:string)=>{
     setModelId(id);setMetric('')
@@ -875,8 +876,9 @@ function AutomationPanel({datasets,selectedDataset,onSelectDataset,models,runs,b
     </div>}
     {tool==='validation'&&<div className="rw-two">
       <Box title="Time-ordered portfolio validation">
-        <Select label="Dataset" value={selectedDataset} onChange={onSelectDataset}
-          options={dataOptions(datasets)}/>
+        <Select label="Observed market dataset" value={historicalDatasets.some(x=>x.value===selectedDataset)?selectedDataset:''}
+          onChange={onSelectDataset} options={[{value:'',label:'Select actual historical prices…'},...historicalDatasets]}/>
+        {selectedDataset==='synthetic'&&<p className="rw-caution">The synthetic example is excluded from historical validation. Prepare observed Dhan or uploaded prices first.</p>}
         <Select label="Portfolio allocation" value={validation.model}
           onChange={v=>setValidation({...validation,model:v})}
           options={['equal','inverse_volatility','min_variance','risk_parity','max_diversification']
@@ -895,7 +897,7 @@ function AutomationPanel({datasets,selectedDataset,onSelectDataset,models,runs,b
           <Field label="Max weight" type="number" value={String(validation.max_weight)}
             onChange={v=>setValidation({...validation,max_weight:Number(v)})}/>
         </div>
-        <button className="rw-primary" disabled={busy||!selectedDataset} onClick={runValidation}>
+        <button className="rw-primary" disabled={busy||!historicalDatasets.some(x=>x.value===selectedDataset)} onClick={runValidation}>
           <History size={15}/> Run chronological validation</button>
       </Box>
       <Box title="Built-in research protections">
@@ -968,6 +970,8 @@ function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan}:{
         {label:'Asset columns',value:Number(quality.asset_count||0)},
         {label:'Duplicate dates',value:Number(quality.duplicate_dates||0)},
         {label:'Invalid dates',value:Number(quality.invalid_dates||0)},
+        {label:'Latest date',value:String(quality.latest_observed_date||'Unavailable')},
+        {label:'Assets not checked',value:Number(quality.unassessed_assets||0)},
       ]}/>
       <div className="rw-scroll"><table><thead><tr>
         <th>Security</th><th>Prices</th><th>Missing</th><th>Non-positive</th>
