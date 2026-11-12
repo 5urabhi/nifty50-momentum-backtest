@@ -68,7 +68,7 @@ function exportResult(modelId:string,result:LabResult,format:'json'|'csv'){
   }else{
     const escape=(value:unknown)=>'"'+String(value??'').replaceAll('"','""')+'"'
     const keys=[...new Set(result.table.flatMap(row=>Object.keys(row)))]
-    const rows=result.table.length?result.table:result.metrics.map(m=>({
+    const rows:Record<string,unknown>[]=result.table.length?result.table:result.metrics.map(m=>({
       metric:m.label,value:m.value,unit:m.unit
     }))
     const headers=keys.length?keys:['metric','value','unit']
@@ -154,8 +154,6 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     }catch(e){setError(e instanceof Error?e.message:String(e));setView('configure')}
     finally{setWorking(false)}
   }
-  const selectedMode=selected?.mode
-  const modeClass=selectedMode==='historical'?'observed':selectedMode==='theoretical'?'theory':'synthetic'
   const dataHint=useMemo(()=>{
     if(!observedNeeded)return 'This experiment does not fit to a stock dataset.'
     if(!selectedDataset)return 'Select the saved NIFTY/BANK NIFTY research dataset first.'
