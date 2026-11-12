@@ -130,7 +130,16 @@ def inspect(model_id: str, dataset_id: str | None, params: dict | None = None) -
         reason = f"Automatic extension is limited to {MAX_AUTO_ASSETS} mapped securities."
     if not reason and can_download:
         reason = "Only absent Dhan date windows are requested; cache is reused first."
+    # Conservative scale preview, NOT a vendor billing quote or proof of
+    # exchange sessions. The uncovered-span planner remains the authority.
+    potential_weekdays = int(len(pd.bdate_range(start, end - timedelta(days=1)))) if start<end else 0
+    count_upper_bound = potential_weekdays * len(mapped)
     return {**req, **observed, "dataset_id": dataset_id, "status": status,
+            "estimated_calendar_weekdays": potential_weekdays,
+            "estimated_max_instrument_day_requests": count_upper_bound,
+            "request_scope_note": "Calendar weekday upper bound before cache de-duplication. "
+                                  "NSE holidays and Dhan limits reduce actual observations, "
+                                  "and existing cached dates are never fetched twice.",
             "runnable": runnable, "missing_minimum": missing_min,
             "missing_to_target": missing_target, "assets_available": len(mapped),
             "assets_missing": max(0, req["assets_requested"] - observed["assets_found"]),
