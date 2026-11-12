@@ -50,6 +50,26 @@ def _series(plot: dict):
     return kind, xs, series, low - .04*spread, high + .04*spread
 
 
+def _saved_regions(plot: dict, dates: list) -> list[tuple[int,int,str]]:
+    """Render only exact saved X values and valid, ordered regions."""
+    result=[]
+    if not isinstance(plot.get("regions"),list):
+        return result
+    for entry in plot["regions"][:3]:
+        if not isinstance(entry,dict):
+            continue
+        start,end=entry.get("start"),entry.get("end")
+        try:
+            first=next(i for i,x in enumerate(dates) if str(x)==str(start))
+            last=next(i for i,x in enumerate(dates) if str(x)==str(end))
+        except StopIteration:
+            continue
+        if last<first:
+            continue
+        result.append((first,last,str(entry.get("label","Highlighted period"))[:45]))
+    return result
+
+
 def svg(plot: dict) -> str:
     """Safe static vector chart, suitable for embedding into an HTML report."""
     if plot.get("kind") == "scatter2d":
@@ -74,6 +94,12 @@ def svg(plot: dict) -> str:
         val = high-(high-low)*t/4
         items.append(f'<line x1="{left}" y1="{y:.2f}" x2="{right}" y2="{y:.2f}" stroke="#dbe5e9"/>')
         items.append(f'<text x="51" y="{y+4:.2f}" fill="#4b6871" font-size="11" text-anchor="end">{val:.3g}</text>')
+    for first,last,label in _saved_regions(plot,xs):
+        x1,x2=xx(first),xx(last)
+        items.append(f'<rect x="{x1:.2f}" y="{top}" width="{max(1.,x2-x1):.2f}" '
+                     f'height="{h}" fill="#9dd5f6" opacity=".26"/>')
+        items.append(f'<text x="{min(right-120,x1+3):.2f}" y="{top+11}" '
+                     f'fill="#21455c" font-size="9">{html.escape(label)}</text>')
     for j, (name, ys) in enumerate(series):
         color = COLORS[j % len(COLORS)]
         if kind in {"bar2d","histogram2d"}:
@@ -135,6 +161,13 @@ def pdf_drawing(plot: dict):
     for t in range(5):
         y = bottom+(h*t/4)
         drawing.add(Line(left,y,right,y,strokeColor=HexColor("#d8e6e8")))
+    for first,last,label in _saved_regions(plot,xs):
+        x1,x2=xx(first),xx(last)
+        drawing.add(Rect(x1,bottom,max(1.,x2-x1),h,strokeColor=None,
+                         fillColor=HexColor("#e5f1ff")))
+        drawing.add(String(min(right-95,x1+3),top-11,
+                           label.encode("latin-1","replace").decode("latin-1")[:25],
+                           fontSize=7,fillColor=HexColor("#24506a")))
     for j, (name, ys) in enumerate(series):
         color = HexColor(COLORS[j%len(COLORS)])
         if kind in {"bar2d","histogram2d"}:
