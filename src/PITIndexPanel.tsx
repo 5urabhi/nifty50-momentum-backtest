@@ -22,6 +22,7 @@ type MembershipStatus = {
   message?:string
 }
 type JobStatus = {id:string;status:string;error?:string}
+type CatalogHealth = {ready:boolean;code:string;nse_equities:number;verified_nse_tickers:number;message:string;sample_major_symbols_found?:string[]}
 type Props = {
   mode:PITMode;fromDate:string;toDate:string
   onToDate:(s:string)=>void;onPlan:(plan:MembershipPlan|null)=>void
@@ -64,6 +65,9 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onPr
   const [plan,setPlan]=useState<MembershipPlan|null>(null)
   const [loading,setLoading]=useState(false)
   const [syncId,setSyncId]=useState('')
+  const [catalogJobId,setCatalogJobId]=useState('')
+  const [catalogHealth,setCatalogHealth]=useState<CatalogHealth|null>(null)
+  const [catalogEpoch,setCatalogEpoch]=useState(0)
   const [issue,setIssue]=useState('')
   const [showChanges,setShowChanges]=useState(false)
   const [showAll,setShowAll]=useState(false)
@@ -78,6 +82,12 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onPr
     void refresh().catch(e=>setIssue(e instanceof Error?e.message:String(e)))
   },[refresh])
   useEffect(()=>{setAsOf(fromDate)},[fromDate,mode])
+  useEffect(()=>{
+    let live=true
+    void get<CatalogHealth>('/dhan/catalog/health').then(h=>{if(live)setCatalogHealth(h)})
+      .catch(()=>{if(live)setCatalogHealth(null)})
+    return()=>{live=false}
+  },[catalogEpoch])
   // Preview the source-covered portion even when the requested end date is
   // newer. Do NOT authorize downloads with a silently shortened period:
   // only send a valid plan to the parent when the entire range is covered.
@@ -110,7 +120,7 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onPr
       if(!controller.signal.aborted){setPlan(null);onPlan(null);onPreview(null);setIssue(e instanceof Error?e.message:String(e))}
     }).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
     return()=>controller.abort()
-  },[mode,fromDate,toDate,asOf,status?.available,status?.covered_through,status?.source_commit,onPlan,onPreview,supportedEnd])
+  },[mode,fromDate,toDate,asOf,status?.available,status?.covered_through,status?.source_commit,onPlan,onPreview,supportedEnd,catalogEpoch])
   useEffect(()=>{
     if(!syncId)return
     onSyncBusy(true)
@@ -125,6 +135,30 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onPr
     },1500)
     return()=>{active=false;window.clearInterval(timer)}
   },[syncId,refresh,onSyncBusy])
+  useEffect(()=>{
+    if(!catalogJobId)return
+    onSyncBusy(true)
+    let live=true
+    const timer=window.setInterval(()=>{
+      void get<JobStatus>('/jobs/'+catalogJobId).then(async j=>{
+        if(!live||!['complete','error'].includes(j.status))return
+        window.clearInterval(timer);setCatalogJobId('');onSyncBusy(false)
+        if(j.status==='error'){setIssue(j.error||'Dhan catalog refresh failed');return}
+        setCatalogEpoch(n=>n+1)
+      }).catch(e=>{
+        if(live){window.clearInterval(timer);setCatalogJobId('');onSyncBusy(false)
+          setIssue(e instanceof Error?e.message:String(e))}
+      })
+    },1500)
+    return()=>{live=false;window.clearInterval(timer)}
+  },[catalogJobId,onSyncBusy])
+  const refreshCatalog=async()=>{
+    setIssue('')
+    try{
+      const response=await get<{job_id:string}>('/dhan/instruments/refresh',{method:'POST'})
+      setCatalogJobId(response.job_id);onSyncBusy(true)
+    }catch(e){setIssue(e instanceof Error?e.message:String(e))}
+  }
   const sync=async()=>{
     setIssue('')
     try{
@@ -166,6 +200,14 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onPr
       <button className="dh-primary" disabled={!!syncId} onClick={()=>void sync()}>
         <ArrowDownToLine size={15}/> {syncId?'Syncing records…':'Load NIFTY constituent history'}
       </button></div>}
+    {catalogHealth&&!catalogHealth.ready&&<div className="dh-pit-alert">
+      <AlertTriangle size={18}/><div><strong>The local Dhan instrument catalog is not usable for NIFTY matching</strong>
+        <p>{catalogHealth.message} This is a catalog issue, not evidence that historical NIFTY constituents are delisted. Current NSE equities found: {catalogHealth.nse_equities}; verified trading symbols: {catalogHealth.verified_nse_tickers}.</p>
+        <button type="button" className="dh-small-btn" disabled={!!catalogJobId}
+          onClick={()=>void refreshCatalog()}>{catalogJobId?'Refreshing Dhan master…':'Refresh Dhan catalog and rematch constituents'}</button>
+      </div>
+    </div>}
+    {catalogHealth?.ready&&<div className="dh-pit-coverage"><span><Check size={13}/> Verified current Dhan NSE ticker catalog ({catalogHealth.verified_nse_tickers} symbols)</span></div>}
     {issue&&<div className="dh-pit-alert"><AlertTriangle size={17}/><p>{issue}</p></div>}
     {loading&&<div className="dh-pit-loading"><LoaderCircle size={17} className="dh-spin"/> Reconstructing membership across the selected dates…</div>}
     {plan&&<>
@@ -212,6 +254,11 @@ export default function PITIndexPanel({mode,fromDate,toDate,onToDate,onPlan,onPr
           <span className={'dh-pit-action '+change.action}>{change.action.toUpperCase()}</span>
           {change.source_url?<a href={change.source_url} target="_blank" rel="noreferrer">Source ↗</a>:
             <small>{change.source}</small>}</div>):<p>No effective membership changes in this range.</p>}</div>}
+      {plan.resolved_count===0&&catalogHealth?.ready&&<div className="dh-pit-alert">
+        <AlertTriangle size={18}/><div><strong>No index members matched despite a valid Dhan catalog.</strong>
+          <p>This is a symbol-normalization or source-identity issue, not proof all constituents are unavailable. Stop rather than downloading an empty or incomplete dataset.</p>
+          <button type="button" className="dh-small-btn" disabled={!!catalogJobId}
+            onClick={()=>void refreshCatalog()}>Reload and rematch Dhan catalog</button></div></div>}
       <div className="dh-pit-resolve"><div><span className="dh-led"/><strong>{plan.resolved_count} matched Dhan securities</strong></div>
         <div className={plan.unresolved_count?'issue':''}><span className="dh-led"/><strong>{plan.unresolved_count} missing/ambiguous Security IDs</strong></div></div>
       {plan.unresolved_count>0&&<div className="dh-pit-unresolved">
