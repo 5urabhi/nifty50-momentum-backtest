@@ -10,6 +10,8 @@ from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 import hashlib
 import json
+import csv
+from collections import deque
 import os
 from pathlib import Path
 import re
@@ -64,8 +66,8 @@ def _catalog_cached(filename: str, modified_ns: int, size: int) -> tuple[dict, .
     segment = _column(columns, "SEGMENT", "SEM_SEGMENT")
     security_id = _column(columns, "SECURITY_ID", "SEM_SMST_SECURITY_ID")
     instrument = _column(columns, "INSTRUMENT", "SEM_INSTRUMENT_NAME")
-    symbol = _column(columns, "SYMBOL_NAME", "SM_SYMBOL_NAME", "SEM_TRADING_SYMBOL", "TRADING_SYMBOL", "SYMBOL")
-    display = _column(columns, "DISPLAY_NAME", "SEM_CUSTOM_SYMBOL", "SYMBOL_NAME", "SM_SYMBOL_NAME")
+    symbol = _column(columns, "SEM_TRADING_SYMBOL", "TRADING_SYMBOL", "SYMBOL", "DISPLAY_NAME", "SEM_CUSTOM_SYMBOL", "SYMBOL_NAME", "SM_SYMBOL_NAME")
+    display = _column(columns, "SYMBOL_NAME", "SM_SYMBOL_NAME", "DISPLAY_NAME", "SEM_CUSTOM_SYMBOL")
     series = _column(columns, "SERIES", "SEM_SERIES")
     isin = _column(columns, "ISIN")
     if not all([exchange, segment, security_id, instrument]) or not (symbol or display):
@@ -97,7 +99,7 @@ def _catalog_cached(filename: str, modified_ns: int, size: int) -> tuple[dict, .
             "security_id": ident, "exchange_segment": exchange_segment,
             "instrument": "EQUITY", "series": trade_series or "UNSPECIFIED",
             "isin": str(row[isin]).strip()[:20] if isin else "",
-            "regular_eq": trade_series in ("", "EQ"),
+            "regular_eq": exch == "BSE" or trade_series in ("", "EQ"),
             "series_supplied": bool(series),
         })
     return tuple(sorted(items, key=lambda row: (row["exchange_segment"], row["symbol"], row["security_id"])))
@@ -211,7 +213,7 @@ def _summarize(data: dict) -> dict:
     status = data["status"]
     with ACTIVE_LOCK:
         active = data["id"] in ACTIVE_BATCHES
-    if status == "running" and not active:
+    if status in ("running", "queued") and not active:
         status = "interrupted"
     return {
         "id": data["id"], "status": status, "created_utc": data["created_utc"],
@@ -456,3 +458,38 @@ def prepare_batch(batch_id: str) -> dict:
             "ready_for_backtesting": False,
             "missing": ["membership.csv", "benchmark.csv"],
             "warning": "This price matrix is incomplete for survivorship-free index research."}
+
+
+def preview_history(instrument_id: str, interval: int | None = None,
+                    limit: int = 140) -> dict:
+    match = KEY.fullmatch(instrument_id)
+    if not match or not 1 <= limit <= 300:
+        raise ValueError("Unknown instrument or invalid candle preview limit")
+    if interval is not None and interval not in {1, 5, 15, 25, 60}:
+        raise ValueError("Unknown candle resolution")
+    row = {"exchange_segment": match.group(1), "security_id": match.group(2)}
+    path = _history_file(row, interval)
+    sidecar = path.with_suffix(".json")
+    if not path.is_file() or not sidecar.is_file() or path.is_symlink() or sidecar.is_symlink():
+        raise FileNotFoundError("No locally downloaded candles for this instrument and interval")
+    metadata = json.loads(sidecar.read_text())
+    if metadata.get("instrument_id") != instrument_id:
+        raise ValueError("Cached instrument identity does not match")
+    if hashlib.sha256(path.read_bytes()).hexdigest() != metadata.get("sha256"):
+        raise ValueError("Cached candles failed SHA-256 integrity check")
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        if not {"datetime", "open", "high", "low", "close", "volume"}.issubset(reader.fieldnames or []):
+            raise ValueError("Cached OHLCV columns are incomplete")
+        rows = list(deque(reader, maxlen=limit))
+    return {
+        "symbol": metadata.get("display_symbol", instrument_id),
+        "instrument_id": instrument_id, "interval": interval,
+        "total_rows": metadata.get("rows", 0),
+        "rows": [{name: (float(value) if name in ("open", "high", "low", "close", "volume")
+                          and value not in ("", None) else value)
+                  for name, value in item.items() if name in
+                  ("datetime", "open", "high", "low", "close", "volume", "open_interest")}
+                 for item in rows],
+        "warning": metadata.get("warning"),
+    }
