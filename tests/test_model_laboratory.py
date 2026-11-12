@@ -158,7 +158,7 @@ class ModelLaboratoryTests(unittest.TestCase):
             with patch.object(model_lab.service,"dataset_path",return_value=(folder,record)):
                 r=self.run_model("evt")
                 self.assertEqual(r.status_code,400,r.text)
-                self.assertIn("at least",r.text.lower())
+                self.assertIn("180 observed common",r.text.lower())
 
     def test_documentation_routes_have_only_allowlisted_text(self):
         for topic in ("user-guide","model-catalog","reproducibility"):
