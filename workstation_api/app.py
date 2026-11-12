@@ -18,7 +18,7 @@ import uuid
 import pandas as pd
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from index_research.dhan_data import (
@@ -297,6 +297,23 @@ class LabRunRequest(BaseModel):
     model_id: str = Field(min_length=2, max_length=45, pattern=r"^[a-z_]+$")
     dataset_id: str | None = Field(default=None, max_length=120)
     params: dict[str, float | int | str] = Field(default_factory=dict)
+
+
+GUIDE_FILES = {
+    "user-guide": "QUANTLAB_USER_GUIDE.md",
+    "model-catalog": "MODEL_LABORATORY_GUIDE.md",
+    "reproducibility": "QUANTLAB_REPRODUCIBILITY.md",
+}
+
+
+@app.get("/api/guide/{topic}", response_class=PlainTextResponse)
+def research_guide_document(topic: Literal["user-guide", "model-catalog", "reproducibility"]):
+    """Read one allowlisted repository document; no filesystem path input."""
+    doc=service.ROOT / "docs" / GUIDE_FILES[topic]
+    if not doc.is_file() or doc.is_symlink():
+        raise HTTPException(404, "QuantLab guide document not installed")
+    return PlainTextResponse(doc.read_text(encoding="utf-8"),
+                             media_type="text/plain; charset=utf-8")
 
 
 @app.get("/api/lab/catalog")
