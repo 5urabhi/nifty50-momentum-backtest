@@ -317,8 +317,10 @@ def job(job_id: str):
 
 
 @app.get("/api/runs")
-def runs():
-    return {"runs": service.runs()}
+def runs(limit: int = 100, offset: int = 0):
+    if not 1<=limit<=500 or not 0<=offset<=100000:
+        raise HTTPException(400,"Invalid research-run page")
+    return {"runs": service.runs(limit=limit,offset=offset)}
 
 
 @app.get("/api/runs/{run_id}")
@@ -462,8 +464,10 @@ def reuse_research_lab_cache():
 
 
 @app.get("/api/lab/runs")
-def research_model_runs():
-    return {"runs": model_lab.list_saved_models()}
+def research_model_runs(limit: int = 30, offset: int = 0):
+    if not 1<=limit<=500 or not 0<=offset<=100000:
+        raise HTTPException(400,"Invalid model-run page")
+    return {"runs": model_lab.list_saved_models(limit=limit,offset=offset)}
 
 
 @app.get("/api/lab/runs/{run_id}")
