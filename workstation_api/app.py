@@ -560,3 +560,16 @@ def prepare_dhan_batch(batch_id: str):
     if not state["counts"]["complete"] + state["counts"]["cached"]:
         raise HTTPException(400, "No successfully downloaded daily candles")
     return _spawn("dhan_prepare_batch", dhan_workspace.prepare_batch, batch_id)
+
+
+@app.get("/api/dhan/history")
+def downloaded_candle_preview(instrument_id: str, interval: str = "daily",
+                              limit: int = 140):
+    if interval not in {"daily", "1", "5", "15", "25", "60"}:
+        raise HTTPException(400, "Unknown candle interval")
+    try:
+        return dhan_workspace.preview_history(
+            instrument_id, None if interval == "daily" else int(interval), limit,
+        )
+    except Exception as exc:
+        bad(exc)
