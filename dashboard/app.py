@@ -6,6 +6,13 @@ import streamlit as st
 
 st.set_page_config(page_title="Equity Index Quant Research",page_icon="📈",layout="wide",
                    initial_sidebar_state="expanded")
+# Ensure project packages resolve when Streamlit runs a page by file path.
+import sys
+from pathlib import Path as _ProjectPath
+_PROJECT_ROOT = str(_ProjectPath(__file__).resolve().parents[1])
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
 from dashboard.workstation_nav import show_workflow_nav
 show_workflow_nav()
 st.title("Equity Index Quantitative Research")
