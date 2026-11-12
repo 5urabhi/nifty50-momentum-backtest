@@ -1,0 +1,196 @@
+"""Model-aware sample audits and user-approved, read-only Dhan backfills."""
+from __future__ import annotations
+
+from datetime import date, timedelta
+import math
+import pandas as pd
+
+from index_research.data import read_matrix
+from . import dhan_workspace, model_registry, service, shared_market_data
+
+EXTRA_FRACTION = 0.20
+MAX_AUTO_ASSETS = 18
+MAX_BACKFILL_YEARS = 15
+
+
+def requirement(model_id: str, params: dict | None = None) -> dict:
+    settings = model_registry.validate_parameters(model_id, params or {})
+    spec = model_registry.CATALOG[model_id]
+    minimum = int(spec["min_observations"])
+    if model_id == "rolling_vol":
+        # Walk-forward needs training observations PLUS meaningful out-of-sample diagnostics.
+        minimum = max(minimum, int(settings["train_window"]) + 30)
+    target = math.ceil(minimum * (1 + EXTRA_FRACTION))
+    return {"model_id": model_id, "mode": spec["mode"], "min_returns": minimum,
+            "buffer_fraction": EXTRA_FRACTION, "buffer_returns": target - minimum,
+            "target_returns": target, "assets_requested": int(settings.get("assets", 8)),
+            "frequency": "observed returns"}
+
+
+def _observed(dataset_id: str, assets: int, required: int) -> dict:
+    folder, record = service.dataset_path(dataset_id)
+    source = "daily_prices.csv" if record.get("has_daily_prices") else "prices.csv"
+    if not record.get("has_prices"):
+        return {"has_prices": False, "common_returns": 0,
+                "frequency": None, "assets_found": 0, "selected_assets": []}
+    prices = read_matrix(folder / source, positive=True)
+    returns = prices.pct_change(fill_method=None).replace([float("inf"), float("-inf")], float("nan"))
+    ordered = sorted(returns.columns, key=lambda x: (-int(returns[x].notna().sum()), x))
+    # Select the requested number, without silently dropping illiquid members.
+    selection = ordered[:assets]
+    common = returns[selection].dropna() if selection else returns.iloc[0:0]
+    return {"has_prices": True, "frequency": "daily" if source == "daily_prices.csv" else "monthly",
+            "price_dates": len(prices), "assets_found": len(ordered),
+            "assets_with_required_history": int((returns.notna().sum() >= required).sum()),
+            "selected_assets": selection, "common_returns": len(common),
+            "oldest_date": prices.index.min().date().isoformat(),
+            "latest_date": prices.index.max().date().isoformat(),
+            "source": source}
+
+
+def _mapping(dataset_id: str, selected_assets: list[str]) -> tuple[list[dict], str | None]:
+    folder, record = service.dataset_path(dataset_id)
+    if record["kind"] != "dhan":
+        return [], "Automatic extension requires a Dhan dataset with instrument mappings."
+    if dataset_id == shared_market_data.SHARED_ID:
+        meta_path = folder / "SHARED_MARKET_PROVENANCE.json"
+        field = "columns"
+    else:
+        meta_path = folder / "DHAN_BATCH_PROVENANCE.json"
+        field = "columns"
+    if not meta_path.is_file() or meta_path.is_symlink():
+        return [], "Instrument-to-Dhan identity provenance is not available."
+    import json
+    metadata = json.loads(meta_path.read_text())
+    mappings = {row["column"]: row for row in metadata.get(field, [])}
+    try:
+        catalog = {row["id"]: row for row in dhan_workspace.catalog()}
+    except (FileNotFoundError, ValueError):
+        return [], "Refresh the Dhan instrument master before requesting more history."
+    result = []
+    unresolved = []
+    for column in selected_assets:
+        row = mappings.get(column)
+        if not row:
+            unresolved.append(column)
+            continue
+        key = f"{row['exchange_segment']}:{row['security_id']}"
+        item = catalog.get(key)
+        if item is None:
+            unresolved.append(column)
+        else:
+            result.append(item)
+    if unresolved:
+        return [], "Current Dhan catalog cannot safely resolve: " + ", ".join(unresolved[:6])
+    return result, None
+
+
+def inspect(model_id: str, dataset_id: str | None, params: dict | None = None) -> dict:
+    req = requirement(model_id, params)
+    if req["mode"] != "historical":
+        return {**req, "status": "not_applicable", "runnable": True,
+                "message": "This model does not require observed market data.",
+                "can_download": False}
+    if not dataset_id:
+        return {**req, "status": "select_dataset", "runnable": False,
+                "message": "Select a historical dataset to inspect its coverage.",
+                "can_download": False}
+    observed = _observed(dataset_id, req["assets_requested"], req["min_returns"])
+    found = observed["common_returns"]
+    missing_min = max(0, req["min_returns"] - found)
+    missing_target = max(0, req["target_returns"] - found)
+    has_assets = observed["assets_found"] >= req["assets_requested"]
+    runnable = observed["has_prices"] and has_assets and missing_min == 0
+    status = "ready_with_buffer" if runnable and missing_target == 0 else (
+        "ready_minimum" if runnable else "insufficient")
+    mapped, reason = _mapping(dataset_id, observed["selected_assets"]) if observed["has_prices"] else ([], "Price data unavailable.")
+    if len(mapped) != req["assets_requested"] and reason is None:
+        reason = "The selected dataset lacks the requested number of mapped Dhan stocks."
+    # Estimate a date window conservatively; the broker and NSE calendar decide
+    # actual sessions. Never claim estimated sessions as observed returns.
+    end = date.today() + timedelta(days=1)
+    latest = observed.get("latest_date")
+    if latest:
+        end = max(end, date.fromisoformat(latest) + timedelta(days=1))
+    desired_sessions = req["target_returns"] + 1
+    lookback_days = math.ceil(desired_sessions * 7 / 5 * 1.20) + 18
+    oldest = observed.get("oldest_date")
+    start = end - timedelta(days=lookback_days)
+    if oldest:
+        # Expand backwards when the existing window is shorter than required.
+        start = min(start, date.fromisoformat(oldest) - timedelta(
+            days=math.ceil(missing_target * 7 / 5 * 1.25) + 15))
+    floor = date.today() - timedelta(days=365 * MAX_BACKFILL_YEARS)
+    start = max(start, floor)
+    can_download = bool(mapped) and missing_target > 0 and req["assets_requested"] <= MAX_AUTO_ASSETS
+    if observed.get("frequency") == "monthly":
+        can_download = False
+        reason = "Select a daily Dhan dataset for automatic historical extension; monthly-only inputs need a separately audited reconstruction."
+    if req["assets_requested"] > MAX_AUTO_ASSETS:
+        reason = f"Automatic extension is limited to {MAX_AUTO_ASSETS} mapped securities."
+    if not reason and can_download:
+        reason = "Only absent Dhan date windows are requested; cache is reused first."
+    return {**req, **observed, "dataset_id": dataset_id, "status": status,
+            "runnable": runnable, "missing_minimum": missing_min,
+            "missing_to_target": missing_target, "assets_available": len(mapped),
+            "assets_missing": max(0, req["assets_requested"] - observed["assets_found"]),
+            "can_download": can_download, "download_explanation": reason,
+            "suggested_start": start.isoformat(), "suggested_end_exclusive": end.isoformat(),
+            "message": (
+                f"{found} aligned observed returns; {req['min_returns']} minimum, "
+                f"{req['target_returns']} preferred (+20%)."
+            )}
+
+
+def execute(model_id: str, dataset_id: str, params: dict | None = None) -> dict:
+    """Run only after a distinct UI-confirmed POST; append to existing master.
+
+    Cached OHLCV is imported even if no network call is necessary. Dhan's
+    existing SHA manifests and uncovered-window planner prevent refetching
+    dates previously downloaded for NIFTY, BANK NIFTY or any other universe.
+    """
+    plan = inspect(model_id, dataset_id, params)
+    if plan["mode"] != "historical":
+        raise ValueError("Selected model has no empirical price-data requirement")
+    if not plan.get("can_download"):
+        raise ValueError(plan.get("download_explanation") or "No additional Dhan download is available")
+    from . import dhan_auth
+    rows, reason = _mapping(dataset_id, plan["selected_assets"])
+    if reason:
+        raise ValueError(reason)
+    events = []
+    # Explicitly prefer the canonical shared set; existing batch-specific
+    # datasets remain immutable snapshots and PIT members remain separate.
+    for row in rows:
+        reused = shared_market_data.reuse_cached(row)
+        events.append({"instrument_id": row["id"], "cache_rows_added": reused["rows_appended"]})
+    before = inspect(model_id, shared_market_data.SHARED_ID, params)
+    if before["status"] == "ready_with_buffer":
+        return {"status": "ready", "dataset_id": shared_market_data.SHARED_ID,
+                "message": "Shared dataset already has sufficient observations.",
+                "before": plan, "after": before, "instruments": events}
+    # Auth preflight is required only if there are uncovered download windows.
+    start, stop = plan["suggested_start"], plan["suggested_end_exclusive"]
+    needs_network = any(dhan_workspace._uncovered(date.fromisoformat(start),
+                          date.fromisoformat(stop), [(a.isoformat(), b.isoformat())
+                          for interval, a, b in shared_market_data.cached_spans(row) if interval is None])
+                        for row in rows)
+    if needs_network:
+        state = dhan_auth.check_profile()
+        if not state["ok"]:
+            raise ValueError(state["message"])
+    for row, event in zip(rows, events):
+        if needs_network:
+            downloaded = dhan_workspace._fetch_history(row, start, stop, None)
+            event.update(status=downloaded["status"], windows=downloaded["windows_completed"],
+                         rows_added=downloaded["rows_added"])
+        imported = shared_market_data.reuse_cached(row)
+        event["shared_rows_appended"] = imported["rows_appended"]
+    after = inspect(model_id, shared_market_data.SHARED_ID, params)
+    return {"status": "ready" if after["runnable"] else "incomplete",
+            "dataset_id": shared_market_data.SHARED_ID, "before": plan,
+            "after": after, "instruments": events,
+            "message": ("Shared dataset updated; model minimum satisfied." if after["runnable"]
+                        else "History updated, but available observed sessions are still insufficient. "
+                             "No missing observations were fabricated."),
+            "warning": "An adequate sample length does not imply total-return or PIT investability."}
