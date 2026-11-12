@@ -599,8 +599,8 @@ def list_saved_models(include_archived: bool = False, limit: int = 30) -> list[d
             "figures":len(result.get("plots",[]))})
     if not include_archived:
         from . import research_library
-        rows = [r for r in rows if not research_library.resource_status(
-            "model_run", r["id"])["archived"]]
+        states = research_library.resource_state_map()
+        rows = [r for r in rows if not states.get("model_run:"+r["id"],{}).get("archived",False)]
     return rows[:limit]
 
 
