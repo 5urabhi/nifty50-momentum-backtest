@@ -246,7 +246,9 @@ def _run_path(run_id: str) -> Path:
     return path
 
 
-def runs(include_archived: bool = False, limit: int = 100):
+def runs(include_archived: bool = False, limit: int = 100, offset: int = 0):
+    if not 1<=limit<=1000 or not 0<=offset<=100000:
+        raise ValueError("Invalid research-run paging")
     if not RESULTS.is_dir():
         return []
     output = []
@@ -273,7 +275,7 @@ def runs(include_archived: bool = False, limit: int = 100):
         states = research_library.resource_state_map()
         output = [r for r in output if not states.get(
             "research_run:"+r["id"],{}).get("archived",False)]
-    return output[:limit]
+    return output[offset:offset+limit]
 
 
 def run_details(run_id: str) -> dict:
