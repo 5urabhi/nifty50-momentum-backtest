@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from fastapi.testclient import TestClient
 
-from workstation_api import (model_lab, project_bundles, research_advanced,
+from workstation_api import (model_lab, project_bundles, report_charts, research_advanced,
                              research_insights, research_library, service)
 from workstation_api.app import app
 
@@ -188,6 +188,68 @@ class AdvancedResearchTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"Protected source"):
             research_library.resource_action("dataset","dhan_shared","trash",confirm=True)
         self.assertTrue((shared/"daily_prices.csv").exists())
+
+    def test_click_to_add_chart_and_result_to_notebook(self):
+        note=research_library.create("notebook","Indexed research report",{"cells":[]})
+        chart=research_library.create("chart","Observed source chart",{
+            "plot":{"kind":"line2d","title":"Source view","x":[0,1,2],
+                    "traces":[{"name":"Series","y":[1.,2.,3.]}]}})
+        run=model_lab.save_result(model_lab.run_model("gbm",raw_parameters={
+            "paths":24,"steps":18,"seed":5}))
+        chart_response=self.client.post("/api/workspace/notebooks/"+note["id"]+"/attach",
+                                        json={"kind":"chart","source_id":chart["id"]})
+        self.assertEqual(chart_response.status_code,200,chart_response.text)
+        run_response=self.client.post("/api/workspace/notebooks/"+note["id"]+"/attach",
+                                      json={"kind":"run","source_id":run["run_id"]})
+        self.assertEqual(run_response.status_code,200,run_response.text)
+        updated=research_library.get(note["id"])
+        self.assertEqual([c["type"] for c in updated["payload"]["cells"]],["chart","run"])
+        report=research_library.render_notebook_report(note["id"])
+        self.assertEqual(report["figures"],1)
+        html=research_library.report_path(report["id"],"html").read_text()
+        self.assertIn("<svg",html)
+
+    def test_scatter_and_heatmap_have_real_report_vectors(self):
+        for kind,fields,tag in [
+            ("scatter",["A","B"],"<circle"),
+            ("correlation",["A","B","C"],"<rect")]:
+            with self.subTest(kind=kind):
+                result=research_advanced.build_plot(self.id,fields,kind=kind)
+                chart=result["plot"]
+                self.assertIn(tag,report_charts.svg(chart))
+                self.assertIsNotNone(report_charts.pdf_drawing(chart))
+                saved=research_library.create("chart","Vector "+kind,{"plot":chart})
+                note=research_library.create("notebook","Figure "+kind,{
+                    "cells":[{"type":"chart","chart_id":saved["id"]}]})
+                report=research_library.render_notebook_report(note["id"])
+                self.assertTrue(research_library.report_path(report["id"],"pdf").read_bytes().startswith(b"%PDF"))
+
+    def test_code_version_provenance_and_real_recomputation(self):
+        saved=model_lab.save_result(model_lab.run_model("gbm",raw_parameters={
+            "paths":24,"steps":18,"seed":23}))
+        self.assertIn("execution_environment",saved)
+        self.assertIn("python",saved["execution_environment"])
+        self.assertIn("numpy",saved["execution_environment"])
+        self.assertIn("code_commit",saved["execution_environment"])
+        first=research_insights.verify_reproducibility(saved["run_id"],recompute=False)
+        self.assertFalse(first["reproducible"])
+        self.assertEqual(first["verification_status"],"not_recomputed")
+        second=research_insights.verify_reproducibility(saved["run_id"],recompute=True)
+        self.assertTrue(second["reproducible"])
+        self.assertEqual(second["verification_status"],"charts_recomputed")
+        self.assertTrue(second["environment_unchanged"])
+
+    def test_extended_quality_and_catalog_search(self):
+        q=research_insights.inspect_quality(self.id)
+        self.assertEqual(q["asset_count"],5)
+        self.assertEqual(q["issues"]["duplicate_dates"],0)
+        self.assertIsInstance(q["weekdays_since_latest"],int)
+        self.assertIsInstance(q["recent_market_data"],bool)
+        model_results=research_library.global_search("Heston")
+        self.assertTrue(any(x["kind"]=="registered_model" and x["id"]=="heston"
+                            for x in model_results))
+        docs=research_library.global_search("formula reference")
+        self.assertTrue(any(x["kind"]=="documentation" for x in docs))
 
     def test_portable_project_excludes_market_data_and_remaps_chart_ids(self):
         project=research_library.create("project","Factor thesis",{"goal":"style analysis"})
