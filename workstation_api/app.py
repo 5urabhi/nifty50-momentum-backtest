@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, pit_index, service
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_lab, model_registry, pit_index, service
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -288,6 +288,36 @@ def file(run_id: str, file_name: str):
 def portfolio_model(body: ModelRequest):
     try:
         return service.portfolio_model(body.dataset_id, body.method, body.max_weight)
+    except Exception as exc:
+        bad(exc)
+
+
+class LabRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model_id: str = Field(min_length=2, max_length=45, pattern=r"^[a-z_]+$")
+    dataset_id: str | None = Field(default=None, max_length=120)
+    params: dict[str, float | int | str] = Field(default_factory=dict)
+
+
+@app.get("/api/lab/catalog")
+def research_model_catalog():
+    return {"models": model_registry.MODELS,
+            "version": "model-laboratory-v1",
+            "warning": "Synthetic experiments, theoretical curves and observed fits are separately labeled."}
+
+
+@app.get("/api/lab/readiness")
+def research_model_readiness(dataset_id: str):
+    try:
+        return model_lab.readiness(dataset_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/lab/run")
+def research_model_run(body: LabRunRequest):
+    try:
+        return model_lab.run_model(body.model_id, body.dataset_id, body.params)
     except Exception as exc:
         bad(exc)
 
