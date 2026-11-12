@@ -69,11 +69,11 @@ function interpretMode(mode:SelectionMode){
 }
 const options:Array<{mode:SelectionMode;title:string;description:string;icon:typeof Database}>=[
   {mode:'selected',title:'Choose stocks',description:'Search and add any combination of securities',icon:Search},
+  {mode:'nifty50_pit',title:'NIFTY 50 · Historical',description:'Members as they actually changed through the selected years',icon:History},
+  {mode:'banknifty_pit',title:'BANK NIFTY · Historical',description:'Historical bank constituents at each effective date',icon:Clock3},
   {mode:'all_nse',title:'All NSE stocks',description:'Every current NSE EQ-series equity in the Dhan catalog',icon:Layers3},
   {mode:'all_bse',title:'All BSE stocks',description:'Current BSE cash-market equities in the Dhan catalog',icon:Database},
   {mode:'watchlist',title:'Paste a ticker list',description:'Import symbols from CSV or paste them directly',icon:FileSpreadsheet},
-  {mode:'nifty50_pit',title:'NIFTY 50 · Historical',description:'Stocks belonging to the index at each date, including past removals',icon:History},
-  {mode:'banknifty_pit',title:'BANK NIFTY · Historical',description:'Date-accurate banking index constituents, not just today’s banks',icon:Clock3},
 ]
 
 export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}){
