@@ -86,12 +86,23 @@ def datasets():
                 aggregation = json.loads(aggregation_path.read_text())
             except (ValueError, OSError, TypeError):
                 missing.append("unreadable_daily_aggregation_provenance")
+        benchmark_evidence = {}
+        benchmark_meta_path = folder / "BENCHMARK_PROVENANCE.json"
+        if benchmark_meta_path.is_file() and not benchmark_meta_path.is_symlink():
+            try:
+                benchmark_evidence = json.loads(benchmark_meta_path.read_text())
+            except (OSError, ValueError, TypeError):
+                missing.append("invalid_benchmark_provenance")
         output.append({
             "id": dataset_id,
             "label": (str(historical.get("index_name")) + " · " + label) if historical else label,
             "kind": kind,
             "ready": not missing, "missing": missing,
             "has_prices": "prices.csv" in items,
+            "benchmark_kind": benchmark_evidence.get("basis") or
+                              ("unclassified" if "benchmark.csv" in items else "missing"),
+            "benchmark_is_total_return": benchmark_evidence.get("is_total_return_index", False),
+            "independently_verified": benchmark_evidence.get("is_independently_verified", False),
             "has_daily_prices": "daily_prices.csv" in items,
             "source_interval_minutes": aggregation.get("source_interval_minutes"),
             "daily_session_count": aggregation.get("total_daily_observed_dates"),
