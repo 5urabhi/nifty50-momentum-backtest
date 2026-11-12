@@ -189,6 +189,18 @@ function App(){
     try {const value=await f();callback?.(value)}catch(e){notify(errorMessage(e),true)}finally{setBusy(false)}
   }
   const begin=(id:Tab)=>{setTab(id);setMenu(false);window.scrollTo(0,0)}
+  useEffect(()=>{
+    const navigate=(event:KeyboardEvent)=>{
+      if((event.ctrlKey||event.metaKey)&&event.altKey&&
+         !event.shiftKey&&/^[1-8]$/.test(event.key)){
+        event.preventDefault()
+        const target=primarySections[Number(event.key)-1]
+        if(target){setTab(target.id);setMenu(false);window.scrollTo(0,0)}
+      }
+    }
+    window.addEventListener('keydown',navigate)
+    return()=>window.removeEventListener('keydown',navigate)
+  },[])
   const startRun=()=>execute(()=>post<{job_id:string;status:Job['status']}>('/experiments',{...config,dataset_id:selectedDataset}),r=>{setJob({id:r.job_id,kind:'experiment',status:'queued'});notify('Python research job queued.')})
   const synthetic=()=>execute(()=>post<Dataset>('/datasets/synthetic',{}),r=>{void refresh();setSelectedDataset(r.id);notify('Synthetic fixture created. This is not historical market evidence.')})
   const upload=async(file:File)=>{
@@ -210,7 +222,8 @@ function App(){
       <div className="ws-env"><span className={'ws-status-dot '+(health?.ok?'':'offline')}/><div><strong>{health?.ok?'LOCAL ENGINE CONNECTED':'ENGINE DISCONNECTED'}</strong><small>127.0.0.1 · NO BROKER EXECUTION</small></div></div>
       <nav aria-label="Primary QuantLab navigation">
         <div className="ws-nav-group"><span className="ws-nav-label">RESEARCH DESTINATIONS</span>
-          {primarySections.map(section=><button type="button" key={section.id}
+          {primarySections.map((section,index)=><button type="button" key={section.id}
+            title={'Ctrl+Alt+'+(index+1)+' · '+section.label}
             onClick={()=>begin(section.id)}
             aria-current={section.tabs.includes(tab)?'page':undefined}
             className={'ws-nav-item '+(section.tabs.includes(tab)?'active':'')}>
