@@ -9,6 +9,13 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+# Ensure project packages resolve when Streamlit runs a page by file path.
+import sys
+from pathlib import Path as _ProjectPath
+_PROJECT_ROOT = str(_ProjectPath(__file__).resolve().parents[2])
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
 from dashboard.workstation_nav import show_workflow_nav
 
 from index_research.data import load_research_inputs
