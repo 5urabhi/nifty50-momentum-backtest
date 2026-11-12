@@ -502,7 +502,7 @@ function ComparePanel({runs,items,busy,perform,onMessage}:{
             value={plotIndices[r.key]||0}
             onChange={e=>{setPlotIndices(p=>({...p,[r.key]:Number(e.target.value)}));setPlot(null);setPanels([])}}>
             {Array.from({length:r.figures},(_,i)=><option key={i} value={i}>Figure {i+1}</option>)}</select>}
-        </label>)}}
+        </label>)}
           {!runs.length&&<Empty title="No saved results">First run a mathematical model or index experiment.</Empty>}
         </div>
         <div className="rw-form-grid">
