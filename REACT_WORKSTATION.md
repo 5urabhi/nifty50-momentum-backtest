@@ -58,8 +58,8 @@ There is no multi-user authentication, account isolation, or broker order API.
 | --- | --- | --- |
 | Overview | Live API status, local dataset inventory, saved run metrics and cumulative wealth plot | Connected |
 | Data manager | Synthetic demo fixture, validated research ZIP import, readiness and dataset audit | Connected |
-| DhanHQ | Token status, instrument-master refresh/search, validated read-only daily/intraday OHLCV download | Connected |
-| Dhan monthly prepare | Convert a daily downloaded dataset to month-end observed closes | Connected; still missing benchmark and PIT membership |
+| DhanHQ market-data terminal | Search and multiselect stocks, all current NSE/BSE EQ cash-market instruments, ticker-list CSV, daily/intraday batch download, pause/resume, status per instrument, verified cache and candle preview | Connected |
+| Dhan monthly prepare | Convert cached daily download batches to month-end observed closes, restricted to requested date range | Connected; still missing benchmark and PIT membership |
 | Index research | Real Python backtest with factor mix, top-N, cap, cost, execution lag, holdout dates | Connected |
 | Factor laboratory | Saved rank IC and exposure tables from executed runs | Connected where artifacts exist |
 | Index construction | Post-rebalance portfolio weights and HHI/concentration | Connected where artifacts exist |
@@ -94,11 +94,54 @@ saved under `results/workstation_runs/<UTC-id>/`. Each run retains its
 `research_manifest.json`, CSV result tables, source input SHA-256 hashes,
 and internal data quality diagnostics.
 
-Dhan downloads are saved under `data/dhan/raw/download_<id>/`.
-Use the returned download ID on the same Dhan page to prepare a separate
-monthly price dataset. That dataset will remain **incomplete** for backtesting
-until separately sourced historical membership and benchmark evidence exist.
-No attempt is made to fabricate those files.
+### Bulk Dhan data downloads
+
+Open **Dhan Market Data** in the left sidebar. Press **Refresh instrument
+catalog** after configuring a valid `DHAN_ACCESS_TOKEN` in root `.env`.
+You do not need to enter numeric Security IDs manually.
+
+You can choose **Choose stocks** (search and multi-select), **All NSE stocks**
+(current Dhan NSE EQ-series equity instruments), **All BSE stocks**
+(current BSE cash-market equity instruments), or **Paste a ticker list**
+(including a plain one-column CSV). The server resolves the exact Dhan
+Security IDs. Current master membership is NOT historical Nifty 50, Nifty 500
+or any other past index constituent membership.
+
+Choose the inclusive start date, exclusive end date and candle resolution
+(daily/1/5/15/60-minute). Batches above 100 instruments require a clear
+acknowledgement; intraday batches are limited to 100 instruments. The
+workstation shows approximate API calls, progress, successful/cached/failed/
+no-data counts, optional cancellation after the current request, and
+**Resume/retry**. A restarted workstation retains manifests and previously
+completed candles.
+
+Persistent paths:
+
+- `data/dhan/instrument_master.csv` — official Dhan master snapshot.
+- `data/dhan/history/<exchange>/<security_id>/<resolution>.csv` — canonical
+  locally cached, de-duplicated candles with SHA-256 provenance sidecar.
+- `data/dhan/batches/batch_<id>/manifest.json` — batch selection, source
+  master SHA-256, dates, counts and each security's download status.
+- `data/dhan/monthly_research/batch_<id>/prices.csv` — optional, unadjusted
+  observed month-end closing prices. The matrix is restricted to the
+  selected batch's date window, even if other history is in the shared cache.
+
+Only candles in missing requested date windows are fetched. Previously saved
+covered ranges are reused after validating the file digest and instrument
+identity, and new candles are merged chronologically. A failed instrument
+doesn't discard successfully fetched instruments. Failed/empty names are
+explicitly reported instead of silently represented as zero prices.
+
+The Python Dhan adapter only calls historical-data endpoints. Its existing
+read-only single-instrument route is retained for backward compatibility
+but is no longer used by the main React page.
+
+**Research limitation:** Dhan's current instrument master is NOT survivorship-
+free historical index membership. Daily candles are not independently
+verified dividend-adjusted total returns, benchmark returns or corporate-
+action evidence. Prepared `prices.csv` is intentionally marked incomplete
+until those datasets are supplied separately.
+
 
 ## Verification on your Ubuntu machine
 
