@@ -164,26 +164,33 @@ def execute(model_id: str, dataset_id: str, params: dict | None = None) -> dict:
     for row in rows:
         reused = shared_market_data.reuse_cached(row)
         events.append({"instrument_id": row["id"], "cache_rows_added": reused["rows_appended"]})
-    before = inspect(model_id, shared_market_data.SHARED_ID, params)
+    try:
+        before = inspect(model_id, shared_market_data.SHARED_ID, params)
+    except ValueError:
+        before = {"status": "insufficient", "runnable": False}
     if before["status"] == "ready_with_buffer":
         return {"status": "ready", "dataset_id": shared_market_data.SHARED_ID,
                 "message": "Shared dataset already has sufficient observations.",
                 "before": plan, "after": before, "instruments": events}
-    # Auth preflight is required only if there are uncovered download windows.
-    start, stop = plan["suggested_start"], plan["suggested_end_exclusive"]
-    needs_network = any(dhan_workspace._uncovered(date.fromisoformat(start),
-                          date.fromisoformat(stop), [(a.isoformat(), b.isoformat())
-                          for interval, a, b in shared_market_data.cached_spans(row) if interval is None])
-                        for row in rows)
-    if needs_network:
+    # Consider covered dates at ALL cached resolutions (daily and intraday).
+    # That is what makes a 1-minute NIFTY download reusable for a daily
+    # BANK NIFTY research model without another vendor request.
+    start, stop = date.fromisoformat(plan["suggested_start"]), date.fromisoformat(plan["suggested_end_exclusive"])
+    uncovered = {}
+    for row in rows:
+        spans = [(a.isoformat(), b.isoformat()) for _, a, b in shared_market_data.cached_spans(row)]
+        uncovered[row["id"]] = dhan_workspace._uncovered(start, stop, spans)
+    if any(uncovered.values()):
         state = dhan_auth.check_profile()
         if not state["ok"]:
             raise ValueError(state["message"])
     for row, event in zip(rows, events):
-        if needs_network:
-            downloaded = dhan_workspace._fetch_history(row, start, stop, None)
-            event.update(status=downloaded["status"], windows=downloaded["windows_completed"],
-                         rows_added=downloaded["rows_added"])
+        event["missing_windows"] = len(uncovered[row["id"]])
+        event["rows_added"] = 0
+        for first, last in uncovered[row["id"]]:
+            downloaded = dhan_workspace._fetch_history(
+                row, first.isoformat(), last.isoformat(), None)
+            event["rows_added"] += downloaded["rows_added"]
         imported = shared_market_data.reuse_cached(row)
         event["shared_rows_appended"] = imported["rows_appended"]
     after = inspect(model_id, shared_market_data.SHARED_ID, params)
