@@ -150,7 +150,7 @@ class DatedIndexMembershipTests(unittest.TestCase):
 
     def test_never_extrapolate_after_source_cover_date_or_before_start(self):
         self._sync()
-        with self.assertRaisesRegex(ValueError, "verified only through"):
+        with self.assertRaisesRegex(ValueError, "documents coverage only through"):
             pit.query("nifty50_pit", "2026-01-01", "2026-11-13", dw.catalog())
         with self.assertRaisesRegex(ValueError, "begins at"):
             pit.query("nifty50_pit", "2010-01-01", "2015-01-01", dw.catalog())
