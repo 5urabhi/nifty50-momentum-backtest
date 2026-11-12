@@ -112,7 +112,18 @@ class AdvancedResearchTests(unittest.TestCase):
         row=result["studies"][0]
         self.assertEqual(row["observations"],study["test_observations"])
         self.assertEqual(len(row["bootstrap_mean_ci95"]),2)
-        self.assertAlmostEqual(row["holm_adjusted_p_value"],row["nominal_p_value"])
+        # Equal allocation against an equal-weight comparator can have
+        # identically zero active returns. P-values are correctly unavailable.
+        self.assertIsNone(row["nominal_p_value"])
+        self.assertNotIn("holm_adjusted_p_value",row)
+        other=research_insights.validate_out_of_sample(self.id,model="min_variance",
+            assets=3,train_window=80,test_step=25,max_weight=.5,mode="single_holdout")
+        corrected=research_advanced.significance([study["study_id"],other["study_id"]])
+        self.assertEqual(len(corrected["studies"]),2)
+        available=[x for x in corrected["studies"] if x["nominal_p_value"] is not None]
+        self.assertTrue(available)
+        self.assertTrue(all(x["holm_adjusted_p_value"]>=x["nominal_p_value"]
+                            for x in available))
         request=self.client.post("/api/workspace/significance",
             json={"study_ids":[study["study_id"]]})
         self.assertEqual(request.status_code,200,request.text)
@@ -168,8 +179,15 @@ class AdvancedResearchTests(unittest.TestCase):
         research_library.set_resource_info("dataset",self.id,title="Observed daily stock sample")
         self.assertTrue(any(x["id"]==self.id and x["title"]=="Observed daily stock sample"
                             for x in research_library.resource_listing()))
+        shared=service.DATA/"dhan"/"monthly_research"/"shared"
+        shared.mkdir(parents=True,exist_ok=True)
+        (shared/"daily_prices.csv").write_bytes((self.folder/"daily_prices.csv").read_bytes())
+        (shared/"prices.csv").write_bytes((self.folder/"prices.csv").read_bytes())
+        (shared/"membership.csv").write_bytes((self.folder/"membership.csv").read_bytes())
+        (shared/"benchmark.csv").write_bytes((self.folder/"benchmark.csv").read_bytes())
         with self.assertRaisesRegex(ValueError,"Protected source"):
             research_library.resource_action("dataset","dhan_shared","trash",confirm=True)
+        self.assertTrue((shared/"daily_prices.csv").exists())
 
     def test_portable_project_excludes_market_data_and_remaps_chart_ids(self):
         project=research_library.create("project","Factor thesis",{"goal":"style analysis"})
