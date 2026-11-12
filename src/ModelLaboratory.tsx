@@ -1,6 +1,6 @@
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Activity, ArrowRight, BookOpen, CheckCircle2, CircleAlert, Database,
-  Download, FlaskConical, Layers, LoaderCircle, Play, ShieldCheck, SlidersHorizontal} from 'lucide-react'
+  Copy, Download, FlaskConical, Heart, Layers, LoaderCircle, Play, Save, ShieldCheck, SlidersHorizontal, Trash2} from 'lucide-react'
 import ResearchPlot, {type ResearchPlotData} from './ResearchPlots'
 import './model-lab.css'
 
@@ -34,13 +34,16 @@ type DataPlan={model_id:string;mode:string;status:string;runnable:boolean;min_re
   missing_minimum?:number;missing_to_target?:number;can_download?:boolean;download_explanation?:string;
   suggested_start?:string;suggested_end_exclusive?:string;message:string}
 type ExtensionJob={id:string;status:string;kind:string;error?:string;result?:{dataset_id?:string;status:string;message:string;after?:DataPlan}}
+type ConfigRecord={id:string;title:string;payload:{model_id?:string;dataset_id?:string;params?:Record<string,number|string>};
+  favorite:boolean;tags:string[]}
 type Props={
   section:'mathematics'|'models';
   datasets:Datum[];
   selectedDataset:string;
   onSelectDataset:(id:string)=>void;
   onOpenGuide:()=>void;
-  onDataChanged?:()=>void
+  onDataChanged?:()=>void;
+  onOpenWorkspace?:()=>void
 }
 type ResultView='configure'|'figures'|'numbers'|'method'
 const SECTIONS=['Stochastic Processes','Volatility & Econometrics','Derivatives & Options',
@@ -89,7 +92,7 @@ function exportResult(modelId:string,result:LabResult,format:'json'|'csv'){
   document.body.appendChild(link);link.click();link.remove()
   URL.revokeObjectURL(url)
 }
-export default function ModelLaboratory({section,datasets,selectedDataset,onSelectDataset,onOpenGuide,onDataChanged}:Props){
+export default function ModelLaboratory({section,datasets,selectedDataset,onSelectDataset,onOpenGuide,onDataChanged,onOpenWorkspace}:Props){
   const [catalog,setCatalog]=useState<ModelSpec[]>([])
   const [catalogError,setCatalogError]=useState<string|null>(null)
   const [group,setGroup]=useState(section==='mathematics'?SECTIONS[0]:SECTIONS[3])
@@ -102,6 +105,15 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   const [error,setError]=useState<string|null>(null)
   const [working,setWorking]=useState(false)
   const [savedRuns,setSavedRuns]=useState<SavedRun[]>([])
+  const [configs,setConfigs]=useState<ConfigRecord[]>([])
+  const [configMessage,setConfigMessage]=useState<string|null>(null)
+  const [configBusy,setConfigBusy]=useState(false)
+  const pendingPreset=useRef<{model_id:string;params:Record<string,number|string>}|null>(null)
+  const refreshConfigs=useCallback(()=>getJSON<{records:ConfigRecord[]}>(
+    '/workspace/records?kind=configuration')
+      .then(r=>setConfigs(r.records)).catch(()=>setConfigs([])),[])
+  useEffect(()=>{void refreshConfigs()},[refreshConfigs])
+
   const [dataPlan,setDataPlan]=useState<DataPlan|null>(null)
   const [planError,setPlanError]=useState<string|null>(null)
   const [planLoading,setPlanLoading]=useState(false)
@@ -130,10 +142,65 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     spec.parameters.map(p=>[p.key,p.default])
   ),[])
   useEffect(()=>{
-    if(selected){
-      setParams(result?.model_id===selected.id?{...result.params}:defaultParams(selected))
-    }
+    if(!selected)return
+    const preset=pendingPreset.current
+    pendingPreset.current=null
+    if(preset&&preset.model_id===selected.id){setParams({...preset.params});return}
+    let draft:Record<string,number|string>|null=null
+    try{const raw=window.localStorage.getItem('ql-model-draft-'+selected.id)
+      if(raw)draft=JSON.parse(raw) as Record<string,number|string>}catch{/* no prior draft */}
+    const validKeys=new Set(selected.parameters.map(x=>x.key))
+    if(draft&&Object.keys(draft).every(key=>validKeys.has(key)))
+      setParams({...defaultParams(selected),...draft})
+    else setParams(result?.model_id===selected.id?{...result.params}:defaultParams(selected))
   },[selected?.id,defaultParams])
+  useEffect(()=>{
+    if(!selected||!Object.keys(params).length)return
+    try{window.localStorage.setItem('ql-model-draft-'+selected.id,JSON.stringify(params))}
+    catch{/* browser may restrict persistent storage */}
+  },[selected?.id,params])
+  const applyConfig=(entry:ConfigRecord)=>{
+    const modelId=entry.payload.model_id
+    const model=catalog.find(m=>m.id===modelId)
+    if(!model||!entry.payload.params){setConfigMessage('Saved model is no longer registered');return}
+    const preset={model_id:model.id,params:entry.payload.params}
+    pendingPreset.current=preset
+    if(entry.payload.dataset_id&&datasets.some(d=>d.id===entry.payload.dataset_id))
+      onSelectDataset(entry.payload.dataset_id)
+    setGroup(model.group)
+    setResult(null);setError(null);setView('configure')
+    if(model.id===selected?.id){setParams({...preset.params});pendingPreset.current=null}
+    else setModelId(model.id)
+    setConfigMessage('Loaded '+entry.title)
+  }
+  const storeConfig=async(copy?:ConfigRecord)=>{
+    if(!selected||configBusy)return
+    const title=copy?copy.title+' (copy)':window.prompt('Name your reusable model configuration',selected.title+' — baseline')
+    if(!title?.trim())return
+    setConfigBusy(true);setConfigMessage(null)
+    try{
+      const body={kind:'configuration',title:title.trim(),
+        payload:copy?copy.payload:{model_id:selected.id,dataset_id:selectedDataset,params},
+        tags:['model-configuration']}
+      const response=await fetch('/api/workspace/records',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      if(!response.ok)throw new Error(await errorText(response))
+      await refreshConfigs();setConfigMessage('Configuration saved to Research Workspace')
+    }catch(e){setConfigMessage(e instanceof Error?e.message:String(e))}
+    finally{setConfigBusy(false)}
+  }
+  const configAction=async(entry:ConfigRecord,action:'trash'|'favorite'|'unfavorite')=>{
+    setConfigBusy(true)
+    try{
+      const response=await fetch('/api/workspace/records/'+entry.id+'/action',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action})})
+      if(!response.ok)throw new Error(await errorText(response))
+      await refreshConfigs();setConfigMessage('Saved configuration updated')
+    }catch(e){setConfigMessage(e instanceof Error?e.message:String(e))}
+    finally{setConfigBusy(false)}
+  }
+
   useEffect(()=>{
     setReadiness(null);setReadinessError(null)
     if(!selectedDataset)return
@@ -356,6 +423,31 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
               onChange={e=>setParams({...params,[spec.key]:e.target.value===''?NaN:Number(e.target.value)})}/>}
             {spec.description&&<small>{spec.description}</small>}
           </label>)}</div>
+          <div className="ql-config-library">
+            <div className="ql-panel-title"><Save size={17}/><h3>Reusable model configurations</h3>
+              <span>{configs.filter(x=>x.payload.model_id===selected.id).length} saved</span></div>
+            <p className="ql-note">Presets store the exact parameters and selected dataset reference. Draft edits are also saved locally as you type.</p>
+            <div className="ql-actions">
+              <button type="button" disabled={configBusy} onClick={()=>void storeConfig()}>
+                <Save size={15}/> Save current configuration</button>
+              {onOpenWorkspace&&<button type="button" onClick={onOpenWorkspace}>
+                <ArrowRight size={14}/> Open Research Workspace</button>}
+            </div>
+            {configs.filter(item=>item.payload.model_id===selected.id).map(item=>
+              <div className="ql-config-row" key={item.id}>
+                <div><strong>{item.title}</strong><small>{item.payload.dataset_id||'No historical dataset'}</small></div>
+                <button type="button" title="Load configuration" disabled={configBusy}
+                  onClick={()=>applyConfig(item)}><ArrowRight size={14}/> Load</button>
+                <button type="button" aria-label={'Duplicate '+item.title} disabled={configBusy}
+                  onClick={()=>void storeConfig(item)}><Copy size={14}/></button>
+                <button type="button" aria-label={'Favorite '+item.title} disabled={configBusy}
+                  onClick={()=>void configAction(item,item.favorite?'unfavorite':'favorite')}>
+                  <Heart size={14} fill={item.favorite?'currentColor':'none'}/></button>
+                <button type="button" aria-label={'Delete '+item.title} disabled={configBusy}
+                  onClick={()=>void configAction(item,'trash')}><Trash2 size={14}/></button>
+              </div>)}
+            {configMessage&&<p className="ql-note" role="status">{configMessage}</p>}
+          </div>
           {insufficient&&<p className="ql-alert warning"><CircleAlert size={16}/> {dataHint}
             {readiness?.has_prices!==false?' Use a longer history or a theoretical model.':''}</p>}
           {error&&<p className="ql-alert bad" role="alert"><CircleAlert size={16}/>{error}</p>}
@@ -412,6 +504,8 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
           <strong>{result.title} calculated</strong>
           <span>{result.mode.toUpperCase()} · {new Date(result.generated_utc).toLocaleString()}</span>
           <button type="button" onClick={()=>setView('numbers')}>Review results <ArrowRight size={13}/></button>
+          {onOpenWorkspace&&<button type="button" onClick={onOpenWorkspace}>
+            Compare in Research Workspace <ArrowRight size={13}/></button>}
         </div>}
         </>:<section className="ql-card ql-empty">Select a registered model to begin.</section>}
       </div>
