@@ -1078,8 +1078,11 @@ function JobsPanel({jobs,busy,perform,onPage}:{
         label:k.replaceAll('_',' '),value:typeof v==='number'?fmt(v):String(v)
       }))}/>}
       {plot&&<ResearchPlot plot={plot}/>}
-      {typeof item.result.returns_csv_url==='string'&&
-        <a className="rw-download-link" href={item.result.returns_csv_url as string} download>
+      {(typeof item.result.returns_csv_url==='string'||
+        (item.kind==='workspace_validation'&&typeof item.result.study_id==='string'))&&
+        <a className="rw-download-link"
+          href={(typeof item.result.returns_csv_url==='string'?item.result.returns_csv_url:
+            '/api/workspace/studies/'+item.result.study_id+'/returns.csv') as string} download>
           <Download size={15}/> Download complete holdout-return CSV</a>}
       {typeof item.result.message==='string'&&<p className="rw-success">{item.result.message}</p>}
       {item.result.warning&&<p className="rw-caution">{String(item.result.warning)}</p>}
