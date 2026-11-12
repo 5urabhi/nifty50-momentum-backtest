@@ -192,7 +192,8 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     return()=>{active=false;window.clearTimeout(timer)}
   },[extensionJob,onSelectDataset,onDataChanged])
   const extendHistory=async()=>{
-    if(!selected||!selectedDataset||!dataPlan?.can_download||extensionJob)return
+    if(!selected||!selectedDataset||!dataPlan?.can_download||
+      (extensionJob&&['queued','running'].includes(extensionJob.status)))return
     setExtensionError(null);setExtensionMessage(null)
     const request={model_id:selected.id,dataset_id:selectedDataset,params,confirm_download:true}
     try{
