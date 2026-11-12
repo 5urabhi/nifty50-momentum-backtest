@@ -1171,7 +1171,7 @@ function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan}:{
         That may be intentional for an older research window. If current market prices are needed,
         check the shared Dhan coverage and download only missing observations.
       </p>}
-      {quality.issues&&<div className="rw-stats">
+      {typeof quality.issues==='object'&&quality.issues!==null&&<div className="rw-stats">
         {Object.entries(quality.issues as Record<string,number>).map(([name,count])=>
           <div key={name}><small>{name.replaceAll('_',' ')}</small><strong>{count}</strong></div>)}
       </div>}
