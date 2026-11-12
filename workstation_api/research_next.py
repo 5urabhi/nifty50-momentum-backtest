@@ -71,7 +71,7 @@ def passport(dataset_id: str) -> dict:
         "available_files":items,
         "evidence":integrity["evidence"],"missing_data":source.get("missing",[]),
         "blockers":blockers,
-        "observed_prices_available":integrity["ready_for_descriptive_prices"],
+        "observed_prices_available":bool(integrity["ready_for_descriptive_prices"] and source["kind"]!="synthetic"),
         "investability_certified":False,"publication_dated_fundamentals_certified":False,
         "prospective_trading_certified":False,
         "study_status":"demonstration" if source["kind"]=="synthetic"
@@ -246,7 +246,7 @@ def explain_saved(kind: str, run_id: str, level: str = "researcher") -> dict:
         saved=model_lab.read_saved_model(run_id)
         spec=model_registry.CATALOG[saved["model_id"]]
         source=saved.get("source") or {}
-        metrics=[{"name":m.get("name"),"value":m.get("value"),"unit":m.get("unit","")}
+        metrics=[{"name":m.get("label") or m.get("name"),"value":m.get("value"),"unit":m.get("unit","")}
                  for m in saved.get("metrics",[])[:35]]
         statements={
             "beginner":spec["description"],
