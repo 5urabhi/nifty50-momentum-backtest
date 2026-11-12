@@ -457,6 +457,7 @@ class DhanBatchCreate(BaseModel):
     interval: Literal[1, 5, 15, 25, 60] | None = None
     acknowledged_bulk: bool = False
     acknowledged_gaps: bool = False
+    include_index_spot: bool = True
 
 
 BATCH_CANCEL_EVENTS: dict[str, Event] = {}
