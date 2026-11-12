@@ -140,7 +140,7 @@ try {
   })
   await step('guided research and two-parameter grid preflight',async()=>{
     await researchTab('Guided & Grids').click()
-    await page.getByText(/Compare portfolio allocation methods/).first().waitFor()
+    await page.getByRole('heading',{name:/Guided Research/}).waitFor()
     await page.getByRole('button',{name:/Multi-parameter grids/}).click()
     await page.getByRole('button',{name:/Validate complete experiment grid/}).click()
     await page.getByText(/3 model executions/).waitFor()
