@@ -3,8 +3,12 @@ name: Verify React quant research workstation
 on:
   push:
     branches:
+      - main
       - workstation/quant-research-development-20261112
       - feature/quantlab-model-laboratory-and-guide-20261113
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
