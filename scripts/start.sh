@@ -6,6 +6,8 @@ set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+# Keep in-repository Python packages importable from Streamlit and helper scripts.
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 MODE="${1:-research}"
 case "$MODE" in
   web|research|both|check|setup|evaluate) ;;
