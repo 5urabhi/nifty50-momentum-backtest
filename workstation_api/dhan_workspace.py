@@ -11,6 +11,7 @@ from functools import lru_cache
 import hashlib
 import json
 import csv
+import logging
 from collections import deque
 import os
 from pathlib import Path
@@ -30,6 +31,7 @@ SAFE_SYMBOL = re.compile(r"^[A-Za-z0-9&_.-]{1,80}$")
 ACTIVE_BATCHES: set[str] = set()
 ACTIVE_LOCK = threading.Lock()
 MAX_INSTRUMENTS = 6000
+LOG = logging.getLogger("quantlab.dhan.batch")
 
 
 def _now() -> str:
@@ -500,6 +502,8 @@ def run_batch(batch_id: str, cancel_event: threading.Event | None = None) -> dic
         ACTIVE_BATCHES.add(batch_id)
     data["status"] = "running"
     _save_batch(data)
+    LOG.info("Dhan batch started: batch_id=%s instruments=%d interval=%s from=%s to=%s",
+             batch_id, len(data["items"]), data["interval"], data["from_date"], data["to_date"])
     try:
         for item in data["items"]:
             if item["status"] in ("complete", "cached"):
@@ -510,12 +514,16 @@ def run_batch(batch_id: str, cancel_event: threading.Event | None = None) -> dic
                 _save_batch(data)
                 return _summarize(data)
             item["status"] = "downloading"
+            LOG.info("Dhan batch instrument started: batch_id=%s symbol=%s security_id=%s",
+                     batch_id, item["symbol"], item["security_id"])
             data["current_symbol"] = item["symbol"]
             _save_batch(data)
             try:
                 def window_progress(done: int, total: int, cached_rows: int):
                     item.update(windows_completed=done, windows_total=total,
                                 rows=cached_rows)
+                    LOG.info("Dhan batch progress: batch_id=%s symbol=%s windows=%d/%d cached_rows=%d",
+                             batch_id, item["symbol"], done, total, cached_rows)
                     data["current_window"] = (f"{done}/{total}" if total else None)
                     _save_batch(data)
                 result = _fetch_history(
@@ -524,8 +532,11 @@ def run_batch(batch_id: str, cancel_event: threading.Event | None = None) -> dic
                     should_stop=(cancel_event.is_set if cancel_event is not None else None),
                 )
                 item.update(**result, error=None)
+                LOG.info("Dhan instrument completed: batch_id=%s symbol=%s status=%s rows=%s",
+                         batch_id, item["symbol"], result.get("status"), result.get("rows"))
                 data["current_window"] = None
             except InterruptedError:
+                LOG.info("Dhan batch pause requested: batch_id=%s symbol=%s", batch_id, item["symbol"])
                 item.update(status="pending", error=None)
                 data["status"] = "paused"
                 data["current_symbol"] = None
@@ -538,8 +549,12 @@ def run_batch(batch_id: str, cancel_event: threading.Event | None = None) -> dic
                 token = os.getenv("DHAN_ACCESS_TOKEN", "")
                 if token:
                     error = error.replace(token, "[REDACTED]")
+                LOG.error("Dhan instrument failed: batch_id=%s symbol=%s security_id=%s detail=%s",
+                          batch_id, item["symbol"], item["security_id"], error[:220])
                 item.update(status="failed", rows_added=0, error=error[:220])
                 if "HTTP 401" in error or "HTTP 403" in error:
+                    LOG.warning("Dhan batch paused due to authentication/entitlement error: batch_id=%s status=%s",
+                                batch_id, "401" if "HTTP 401" in error else "403")
                     data["status"] = "paused"
                     _save_batch(data)
                     return _summarize(data)
@@ -549,6 +564,7 @@ def run_batch(batch_id: str, cancel_event: threading.Event | None = None) -> dic
                 data["index_spot"] = index_spot.download(data)
                 _save_batch(data)
         data["status"] = "completed"
+        LOG.info("Dhan batch completed: batch_id=%s total=%d", batch_id, len(data["items"]))
         data["current_symbol"] = None
         _save_batch(data)
         return _summarize(data)
