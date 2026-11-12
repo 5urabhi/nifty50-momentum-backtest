@@ -82,7 +82,8 @@ class DatedIndexMembershipTests(unittest.TestCase):
 
     def _fetch_mock(self, url, *_args):
         if url == pit.SOURCE_API:
-            return json.dumps({"sha": self.sha}).encode("utf-8")
+            return json.dumps({"ref": "refs/heads/main",
+                               "object": {"type": "commit", "sha": self.sha}}).encode("utf-8")
         if url.endswith(pit.MEMBERS_FILE):
             return self.csv
         if url.endswith(pit.COVERAGE_FILE):
@@ -111,6 +112,22 @@ class DatedIndexMembershipTests(unittest.TestCase):
             "close": [101.0] * len(days),
             "volume": [1000] * len(days),
         })
+
+    def test_large_git_commit_not_requested_during_sync(self):
+        # GitHub's /commits/main response can exceed the former 200 KiB cap.
+        # Only lightweight /git/ref/heads/main is allowed for SHA resolution;
+        # no request may retrieve the full commit detail.
+        urls = []
+        def pinned(url, *args):
+            urls.append(url)
+            self.assertNotIn("/commits/main", url)
+            return self._fetch_mock(url, *args)
+        with patch.object(pit, "_fetch", side_effect=pinned):
+            result = pit.sync()
+        self.assertTrue(result["available"])
+        self.assertEqual(urls[0], pit.SOURCE_API)
+        self.assertIn("/git/ref/heads/main", urls[0])
+        self.assertEqual(len(urls), 3)
 
     def test_index_history_sync_has_a_checksum_and_official_date_reconciliation(self):
         synced = self._sync()
