@@ -322,7 +322,7 @@ def _fetch_history(row: dict, start: str, stop: str, interval: int | None) -> di
     if not missing:
         return {"status": "cached", "rows": len(existing) if existing is not None else 0,
                 "rows_added": 0}
-    inst = Instrument(label=row["symbol"][:75].replace("/", "_"),
+    inst = Instrument(label="EQUITY_" + row["security_id"],
                       security_id=row["security_id"],
                       exchange_segment=row["exchange_segment"], instrument="EQUITY")
     chunks, covered = [], list(previous.get("coverage", []))
