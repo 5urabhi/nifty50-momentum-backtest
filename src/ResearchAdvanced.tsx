@@ -132,13 +132,14 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,records,onMessage
   },[selectedDataset,onError])
   useEffect(()=>{void request<{records:{id:string;title:string}[]}>('records?kind=project')
     .then(r=>setProjects(r.records)).catch(()=>{})},[])
-  const toggle=(v:string)=>setFields(s=>{
-    const next=s.includes(v)?s.filter(k=>k!==v):s.length<18?[...s,v]:s
+  const toggle=(v:string)=>{
+    const next=fields.includes(v)?fields.filter(k=>k!==v):
+      fields.length<18?[...fields,v]:fields
+    setFields(next)
     if((['histogram','kde','qq'].includes(kind)&&next.length!==1)||
        (kind==='scatter'&&next.length!==2)||
        (kind==='correlation'&&next.length<2))setKind('line')
-    return next
-  })
+  }
   const allowedKinds=['line','scatter','histogram','kde','qq','drawdown','cumulative',
     'rolling_volatility','correlation'].filter(v=>
       ['histogram','kde','qq'].includes(v)?fields.length===1:
