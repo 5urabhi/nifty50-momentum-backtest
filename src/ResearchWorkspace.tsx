@@ -27,7 +27,7 @@ type ModelSpec={id:string;title:string;group:string;mode:string;parameters:{
   key:string;default:number|string;type:string;min?:number;max?:number}[]}
 type NotebookCell={id:string;type:'markdown'|'run'|'chart'|'table';content?:string;run_id?:string;chart_id?:string;previous_run_ids?:string[]}
 type Props={datasets:Datum[];selectedDataset:string;onSelectDataset:(id:string)=>void;
-  onOpenDhan:()=>void;onOpenModels:()=>void;onDataChanged:()=>void}
+  onOpenDhan:()=>void;onOpenModels:()=>void;onDataChanged:()=>void;initialPage?:Page}
 const PAGES:{id:Page;label:string;sub:string}[]=[
   {id:'home',label:'Start',sub:'Resume and guided workflows'},
   {id:'library',label:'Library',sub:'Datasets, models, results'},
@@ -88,8 +88,8 @@ const dataOptions=(datasets:Datum[])=>datasets.filter(d=>d.has_prices)
   .map(d=>({value:d.id,label:d.label}))
 
 export default function ResearchWorkspace({datasets,selectedDataset,onSelectDataset,
-  onOpenDhan,onOpenModels,onDataChanged}:Props){
-  const [page,setPage]=useState<Page>('home')
+  onOpenDhan,onOpenModels,onDataChanged,initialPage='home'}:Props){
+  const [page,setPage]=useState<Page>(initialPage)
   const [library,setLibrary]=useState<Item[]>([])
   const [resources,setResources]=useState<Resource[]>([])
   const [models,setModels]=useState<ModelSpec[]>([])
