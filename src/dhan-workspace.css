@@ -207,3 +207,9 @@
 .dh-pit-head-actions>button{display:inline-flex;align-items:center;gap:6px;border:1px solid #31555c;background:#142e3a;color:#8be5c7;padding:7px 9px;border-radius:6px}
 .dh-pit-unresolved button{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 @media(max-width:680px){.dh-pit-chip-head{flex-wrap:wrap}.dh-pit-head-actions{width:100%;justify-content:flex-start}}
+
+/* Inline verification result: visible where paused 401/403 is reported. */
+.dh-credential-result{margin-top:12px;padding:13px 15px;border:1px solid #6c6750;background:#192d31;border-radius:8px;max-width:740px;color:#d9e9e6}
+.dh-credential-result strong{font-size:12px}
+.dh-credential-result p{font-size:11px;line-height:1.5;margin:8px 0 0;color:#c8d8d5}
+.dh-credential-brief{font-size:10px;line-height:1.45;color:#e0c38b;max-width:270px}
