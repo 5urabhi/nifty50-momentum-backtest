@@ -642,3 +642,248 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob}:{
     </Box>
   </div>
 }
+
+function AutomationPanel({datasets,selectedDataset,onSelectDataset,models,runs,busy,perform,startJob}:{
+  datasets:Datum[];selectedDataset:string;onSelectDataset:(id:string)=>void;
+  models:ModelSpec[];runs:RunOption[];busy:boolean;
+  perform:<T,>(action:()=>Promise<T>,done?:(r:T)=>void)=>Promise<void>;
+  startJob:(job:{job_id:string;status:string},caption:string)=>void
+}){
+  const [tool,setTool]=useState<'sweep'|'validation'|'scenario'>('sweep')
+  const [modelId,setModelId]=useState('gbm')
+  const [parameter,setParameter]=useState('volatility')
+  const [values,setValues]=useState(loadDraft('ql-rw-sweep-values','0.10, 0.20, 0.30'))
+  const [metric,setMetric]=useState('')
+  const [validation,setValidation]=useState({
+    model:'min_variance',assets:8,train_window:180,test_step:20,
+    max_weight:0.3,mode:'walk_forward',seed:2026})
+  const [scenarioRun,setScenarioRun]=useState('')
+  const [shocks,setShocks]=useState('RELIANCE=-0.05, TCS=-0.03')
+  const [scenarioResult,setScenarioResult]=useState<Raw|null>(null)
+  const chosen=models.find(x=>x.id===modelId)
+  const numeric=(chosen?.parameters||[]).filter(p=>p.type==='number'||p.type==='integer')
+  const datasetChoices=[{value:'',label:'No dataset (synthetic / theoretical only)'},...dataOptions(datasets)]
+  useEffect(()=>{window.localStorage.setItem('ql-rw-sweep-values',values)},[values])
+  const chooseModel=(id:string)=>{
+    setModelId(id);setMetric('')
+    const m=models.find(x=>x.id===id)
+    const p=m?.parameters.find(x=>x.type==='number')||m?.parameters.find(x=>x.type==='integer')
+    if(p){
+      setParameter(p.key)
+      const val=Number(p.default)
+      setValues([val*.8,val,val*1.2].map(x=>Number(x.toFixed(4))).join(', '))
+    }
+  }
+  const runSweep=()=>{
+    const nums=values.split(/[,\n]/).map(s=>Number(s.trim())).filter(v=>Number.isFinite(v))
+    if(nums.length<2||nums.length>16||!chosen)return
+    const params=Object.fromEntries(chosen.parameters.map(p=>[p.key,p.default]))
+    perform(()=>api<{job_id:string;status:string}>('/workspace/sweep',{
+      model_id:modelId,dataset_id:chosen.mode==='historical'?selectedDataset:null,
+      params,parameter,values:nums,metric_label:metric},'POST'),
+      r=>startJob(r,'Parameter sweep · '+chosen.title))
+  }
+  const runValidation=()=>perform(()=>api<{job_id:string;status:string}>('/workspace/validate',{
+    dataset_id:selectedDataset,...validation},'POST'),r=>startJob(r,'Chronological validation'))
+  const stress=()=>{
+    const pairs=shocks.split(/[,\n]/).map(s=>s.trim()).filter(Boolean)
+    const parsed:Record<string,number>={}
+    for(const pair of pairs){
+      const chunks=pair.split('=')
+      if(chunks.length!==2||!chunks[0].trim()||!Number.isFinite(Number(chunks[1]))){
+        window.alert('Use SYMBOL=-0.05, OTHER=-0.03 (decimal returns)');return}
+      parsed[chunks[0].trim()]=Number(chunks[1])
+    }
+    perform(()=>api<Raw>('/workspace/scenario',{run_id:scenarioRun,shocks:parsed},'POST'),
+      setScenarioResult)
+  }
+  return <div className="rw-stack">
+    <Box title="Reproducible research automation">
+      <div className="rw-segments">{(['sweep','validation','scenario'] as const).map(v=>
+        <button key={v} className={tool===v?'active':''} onClick={()=>setTool(v)}>
+          {v==='sweep'?'Parameter sweeps':v==='validation'?'Walk-forward / holdout':'Scenario analysis'}
+        </button>)}</div>
+      <p className="rw-help">Research jobs run inside the local Python process using saved market data. They never place orders or submit broker requests.</p>
+    </Box>
+    {tool==='sweep'&&<div className="rw-two">
+      <Box title="Parameter sweep">
+        <Select label="Mathematical model" value={modelId} onChange={chooseModel}
+          options={models.map(x=>({value:x.id,label:x.title+' · '+x.group}))}/>
+        {chosen?.mode==='historical'&&<Select label="Observed dataset" value={selectedDataset}
+          onChange={onSelectDataset} options={dataOptions(datasets)}/>}
+        <Select label="Parameter to vary" value={parameter} onChange={setParameter}
+          options={numeric.map(p=>({value:p.key,label:p.key.replaceAll('_',' ')}))}/>
+        <Field label="2–16 distinct values, separated by commas" value={values} onChange={setValues}
+          placeholder="0.10, 0.20, 0.30"/>
+        <Field label="Metric name (leave blank to choose first common metric)"
+          value={metric} onChange={setMetric}/>
+        <button className="rw-primary" disabled={busy||!parameter} onClick={runSweep}>
+          <Workflow size={16}/> Run model sweep</button>
+        <p className="rw-caution">This is a parameter-sensitivity study. Comparing in-sample results does not demonstrate out-of-sample alpha.</p>
+      </Box>
+      <Box title="What QuantLab runs">
+        <p>Every requested parameter value creates a real Python model execution with validated bounds, source lineage and saved outputs.</p>
+        <p>Numerical outcomes are collected on a parameter-response graph, and each run is recorded in the results library for later comparison.</p>
+        <div className="rw-insight">Suggested use: compare stochastic volatility, mean-reversion parameters, simulation horizons, portfolio constraints or statistical assumptions.</div>
+      </Box>
+    </div>}
+    {tool==='validation'&&<div className="rw-two">
+      <Box title="Time-ordered portfolio validation">
+        <Select label="Dataset" value={selectedDataset} onChange={onSelectDataset}
+          options={dataOptions(datasets)}/>
+        <Select label="Portfolio allocation" value={validation.model}
+          onChange={v=>setValidation({...validation,model:v})}
+          options={['equal','inverse_volatility','min_variance','risk_parity','max_diversification']
+            .map(v=>({value:v,label:v.replaceAll('_',' ')}))}/>
+        <Select label="Validation design" value={validation.mode}
+          onChange={v=>setValidation({...validation,mode:v})}
+          options={[{value:'walk_forward',label:'Rolling recalibration and forward evaluation'},
+            {value:'single_holdout',label:'One untouched chronological holdout'}]}/>
+        <div className="rw-form-grid">
+          <Field label="Assets (2–18)" type="number" value={String(validation.assets)}
+            onChange={v=>setValidation({...validation,assets:Number(v)})}/>
+          <Field label="Train observations" type="number" value={String(validation.train_window)}
+            onChange={v=>setValidation({...validation,train_window:Number(v)})}/>
+          <Field label="Test step" type="number" value={String(validation.test_step)}
+            onChange={v=>setValidation({...validation,test_step:Number(v)})}/>
+          <Field label="Max weight" type="number" value={String(validation.max_weight)}
+            onChange={v=>setValidation({...validation,max_weight:Number(v)})}/>
+        </div>
+        <button className="rw-primary" disabled={busy||!selectedDataset} onClick={runValidation}>
+          <History size={15}/> Run chronological validation</button>
+      </Box>
+      <Box title="Built-in research protections">
+        <div className="rw-checks">
+          <p><Check size={15}/> Training observations strictly precede holdout observations.</p>
+          <p><Check size={15}/> Portfolio weights are computed only from the training window.</p>
+          <p><Check size={15}/> Equal-weight benchmark is calculated on the same holdout dates.</p>
+          <p><Check size={15}/> Block-bootstrap confidence interval on active returns.</p>
+          <p><Check size={15}/> Returns, fold dates, allocations and uncertainty are saved.</p>
+        </div>
+        <p className="rw-caution">Corporate actions, dividends, PIT selection, transaction costs and prospective fills still need independent evidence before investment-performance claims.</p>
+      </Box>
+    </div>}
+    {tool==='scenario'&&<div className="rw-two">
+      <Box title="Hypothetical portfolio stress">
+        <Select label="Saved empirical model" value={scenarioRun} onChange={setScenarioRun}
+          options={[{value:'',label:'Choose empirical model result'},...runs
+            .filter(r=>r.kind==='model_run').map(r=>({value:r.id,label:r.label}))]}/>
+        <Field label="Scenario shocks, decimal return by symbol" value={shocks} onChange={setShocks}
+          placeholder="SYMBOL=-0.05, ANOTHER=-0.10"/>
+        <button className="rw-primary" disabled={busy||!scenarioRun}
+          onClick={stress}><SlidersHorizontal size={15}/> Calculate scenario</button>
+        <p className="rw-help">Symbols must exactly match the asset names recorded in the saved model run. If optimized portfolio weights are unavailable, the tool transparently uses an illustrative equal-weight basket.</p>
+      </Box>
+      <Box title="Computed shock decomposition">
+        {scenarioResult?<><NumberStats data={[{label:'Portfolio shock',
+          value:(Number(scenarioResult.portfolio_shock_return)*100).toFixed(2)+'%'},
+          {label:'Basis',value:String(scenarioResult.basis)}]}/>
+          <div className="rw-scroll"><table><thead><tr><th>Asset</th><th>Weight</th><th>Shock</th><th>Contribution</th></tr></thead>
+            <tbody>{(scenarioResult.rows as {asset:string;weight:number;hypothetical_return:number;contribution:number}[]).map(r=>
+            <tr key={r.asset}><td>{r.asset}</td><td>{fmt(r.weight)}</td>
+              <td>{fmt(r.hypothetical_return)}</td><td>{fmt(r.contribution)}</td></tr>)}</tbody>
+          </table></div><p className="rw-caution">{String(scenarioResult.warning)}</p></>:
+          <Empty title="Choose shocks and run the model">No hypothetical scenario has been calculated.</Empty>}
+      </Box>
+    </div>}
+  </div>
+}
+
+function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan}:{
+  datasets:Datum[];selectedDataset:string;onSelectDataset:(id:string)=>void;onOpenDhan:()=>void
+}){
+  const [quality,setQuality]=useState<Raw|null>(null)
+  const [disk,setDisk]=useState<{bytes:Record<string,number>;total_bytes:number}|null>(null)
+  const [busy,setBusy]=useState(false)
+  const [error,setError]=useState('')
+  const inspect=async()=>{
+    if(!selectedDataset)return
+    setBusy(true);setError('')
+    try{
+      const [q,s]=await Promise.all([api<Raw>('/workspace/quality/'+encodeURIComponent(selectedDataset)),
+        api<{bytes:Record<string,number>;total_bytes:number}>('/workspace/storage')])
+      setQuality(q);setDisk(s)
+    }catch(e){setError(e instanceof Error?e.message:String(e))}
+    finally{setBusy(false)}
+  }
+  return <div className="rw-stack">
+    <Box title="Market-data evidence audit">
+      <p className="rw-help">Inspect actual observations and possible quality issues. No missing sessions are manufactured and extreme moves are marked for review rather than automatically corrected.</p>
+      <div className="rw-form-grid"><Select label="Observed dataset" value={selectedDataset}
+        onChange={v=>{onSelectDataset(v);setQuality(null)}} options={dataOptions(datasets)}/>
+        <div className="rw-inline-actions"><button className="rw-primary" disabled={busy||!selectedDataset} onClick={()=>void inspect()}>
+          {busy?<LoaderCircle size={15}/>:<ShieldCheck size={15}/>} Audit dataset</button>
+          <button onClick={onOpenDhan}><Database size={15}/> Open data manager</button></div></div>
+      {error&&<p className="rw-error">{error}</p>}
+    </Box>
+    {quality&&<Box title={'Data-quality findings · '+String(quality.label||quality.dataset_id)}>
+      <NumberStats data={[
+        {label:'Observed dates',value:Number(quality.price_dates||0)},
+        {label:'Asset columns',value:Number(quality.asset_count||0)},
+        {label:'Duplicate dates',value:Number(quality.duplicate_dates||0)},
+        {label:'Invalid dates',value:Number(quality.invalid_dates||0)},
+      ]}/>
+      <div className="rw-scroll"><table><thead><tr>
+        <th>Security</th><th>Prices</th><th>Missing</th><th>Non-positive</th>
+        <th>Extreme returns</th><th>Last 10 flat</th></tr></thead><tbody>
+          {(quality.assets as {symbol:string;prices:number;missing_prices:number;
+          invalid_prices:number;returns_gt_40pct:number;last_10_constant:boolean}[]||[]).map(row=>
+            <tr key={row.symbol}><td>{row.symbol}</td><td>{row.prices}</td>
+              <td>{row.missing_prices}</td><td>{row.invalid_prices}</td>
+              <td>{row.returns_gt_40pct}</td><td>{row.last_10_constant?'Review':'No'}</td></tr>)}
+        </tbody></table></div>
+      <p className="rw-caution">{String(quality.warning||'This audit does not establish investability.')}</p>
+      <button onClick={()=>safeDownload('quantlab_quality_'+selectedDataset+'.json',
+        JSON.stringify(quality,null,2),'application/json')}><Download size={15}/> Export audit JSON</button>
+    </Box>}
+    {disk&&<Box title="Local disk usage">
+      <NumberStats data={[{label:'Total measured',value:(disk.total_bytes/(1024*1024)).toFixed(1)+' MB'}]}/>
+      <div className="rw-list">{Object.entries(disk.bytes).map(([label,bytes])=><div className="rw-list-item" key={label}>
+        <div><strong>{label.replaceAll('_',' ')}</strong></div><span>{(bytes/(1024*1024)).toFixed(2)} MB</span>
+      </div>)}</div>
+      <p className="rw-help">Trash consumes disk space until permanently purged. Raw Dhan history is protected and reused across index universes.</p>
+    </Box>}
+  </div>
+}
+
+function JobsPanel({jobs,busy,perform,onPage}:{
+  jobs:Job[];busy:boolean;
+  perform:<T,>(action:()=>Promise<T>,done?:(r:T)=>void)=>Promise<void>;
+  onPage:(page:Page)=>void
+}){
+  const [selected,setSelected]=useState('')
+  const item=jobs.find(j=>j.id===selected)||jobs[0]
+  const cancel=(job:Job)=>perform(()=>api<Raw>('/workspace/jobs/'+job.id+'/cancel',{},'POST'))
+  const plot=item?.result?.plot as ResearchPlotData|undefined
+  const stats=item?.result?.metrics as Raw|undefined
+  return <div className="rw-stack">
+    <Box title="Local computation queue" side={<span className="rw-pill">
+      {jobs.filter(j=>['running','queued'].includes(j.status)).length} active</span>}>
+      <p className="rw-help">QuantLab runs data downloads, reports and research calculations in the local Python engine. Queued jobs may be cancelled; running jobs cannot be safely interrupted in the middle of a numerical solver.</p>
+      <div className="rw-list">{jobs.map(j=><div className={'rw-list-item '+(j.id===item?.id?'active':'')}
+        key={j.id}><button className="rw-plain" onClick={()=>setSelected(j.id)}>
+          <strong>{j.kind.replaceAll('_',' ')}</strong><small>{j.id} · {j.created_utc?.slice(0,16)||''}</small></button>
+        <span className={'rw-pill '+j.status}>{j.status}</span>
+        {j.status==='queued'&&<button disabled={busy} onClick={()=>cancel(j)}><X size={14}/> Cancel</button>}
+      </div>)}
+      {!jobs.length&&<Empty title="No jobs recorded">Download history, parameter sweeps, and report creation will appear here.</Empty>}</div>
+    </Box>
+    {item&&<Box title="Selected job details">
+      <NumberStats data={[{label:'Status',value:item.status},
+        {label:'Operation',value:item.kind},{label:'Job ID',value:item.id}]}/>
+      {item.error&&<p className="rw-error">{item.error}</p>}
+      {item.result&&<><div className="rw-button-group">
+        <button onClick={()=>safeDownload(item.id+'.json',JSON.stringify(item.result,null,2),'application/json')}>
+          <Download size={15}/> Download results JSON</button>
+        <button onClick={()=>onPage('library')}><Folder size={15}/> Saved library</button>
+      </div>
+      {stats&&<NumberStats data={Object.entries(stats).slice(0,8).map(([k,v])=>({
+        label:k.replaceAll('_',' '),value:typeof v==='number'?fmt(v):String(v)
+      }))}/>}
+      {plot&&<ResearchPlot plot={plot}/>}
+      {typeof item.result.message==='string'&&<p className="rw-success">{item.result.message}</p>}
+      {item.result.warning&&<p className="rw-caution">{String(item.result.warning)}</p>}
+      </>}
+    </Box>}
+  </div>
+}
