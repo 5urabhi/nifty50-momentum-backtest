@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -46,6 +46,7 @@ app = FastAPI(title="Local Quantitative Research Workstation", version="0.1.0",
 RUNNER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="research")
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = Lock()
+JOB_FUTURES: dict[str, object] = {}
 MAX_UPLOAD = 30 * 1024 * 1024
 
 # Enforce local-only Host and Origin, including against DNS-rebinding. Vite
@@ -77,7 +78,7 @@ def bad(exc: Exception):
     raise exc
 
 
-def _spawn(kind: str, action, *args):
+def _spawn(kind: str, action, *args, **kwargs):
     task_id = uuid.uuid4().hex[:16]
     with JOBS_LOCK:
         active = any(task["status"] in {"queued", "running"} for task in JOBS.values())
@@ -96,7 +97,7 @@ def _spawn(kind: str, action, *args):
         with JOBS_LOCK:
             JOBS[task_id]["status"] = "running"
         try:
-            result = action(*args)
+            result = action(*args, **kwargs)
         except Exception as exc:
             # Do not expose vendor responses or secrets in browser logs.
             message = str(exc)
@@ -111,7 +112,9 @@ def _spawn(kind: str, action, *args):
             LOG.info("QuantLab background job completed: kind=%s job_id=%s", kind, task_id)
             with JOBS_LOCK:
                 JOBS[task_id].update(status="complete", result=result)
-    RUNNER.submit(work)
+    future = RUNNER.submit(work)
+    with JOBS_LOCK:
+        JOB_FUTURES[task_id] = future
     return {"job_id": task_id, "status": "queued"}
 
 
@@ -411,6 +414,255 @@ def research_model_run_details(run_id: str):
         return model_lab.read_saved_model(run_id)
     except Exception as exc:
         bad(exc)
+
+
+# ---------------------- Research workspace ----------------------
+# All files remain local. Only allowlisted metadata is exchanged with React.
+class LibraryCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["configuration","project","notebook","chart","comparison","dashboard","note","report","study"]
+    title: str = Field(min_length=1, max_length=120)
+    payload: dict = Field(default_factory=dict)
+    tags: list[str] = Field(default_factory=list, max_length=20)
+
+
+class LibraryUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str | None = None
+    payload: dict | None = None
+    tags: list[str] | None = None
+    favorite: bool | None = None
+    archived: bool | None = None
+
+
+class LibraryAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: Literal["archive","unarchive","trash","restore","favorite","unfavorite","purge"]
+    confirm: bool = False
+
+
+class LibraryBatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[str] = Field(min_length=1, max_length=50)
+    action: Literal["archive","unarchive","trash","restore","favorite","unfavorite"]
+
+
+class ResourceAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["dataset","model_run","research_run"]
+    item_id: str = Field(min_length=1, max_length=90)
+    action: Literal["archive","unarchive","trash","restore","purge"]
+    confirm: bool = False
+
+
+class SavedComparison(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    selections: list[dict] = Field(min_length=2, max_length=8)
+    normalize: Literal["none","base100","zscore"] = "none"
+    alignment: Literal["intersection","union"] = "intersection"
+    title: str = Field(default="Saved model comparison", max_length=120)
+
+
+class SweepRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model_id: str = Field(pattern=r"^[a-z_]+$")
+    dataset_id: str | None = None
+    params: dict = Field(default_factory=dict)
+    parameter: str
+    values: list[float] = Field(min_length=2, max_length=16)
+    metric_label: str = Field(default="", max_length=120)
+
+
+class ValidationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    dataset_id: str
+    model: Literal["equal","inverse_volatility","min_variance","risk_parity","max_diversification"] = "min_variance"
+    assets: int = Field(default=8, ge=2, le=18)
+    train_window: int = Field(default=180, ge=30, le=1500)
+    test_step: int = Field(default=20, ge=1, le=252)
+    max_weight: float = Field(default=.3, gt=0, le=1)
+    mode: Literal["walk_forward","single_holdout"] = "walk_forward"
+    seed: int = Field(default=2026, ge=0, le=2147483647)
+
+
+class ScenarioRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    run_id: str
+    shocks: dict[str, float]
+
+
+class ReportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    notebook_id: str
+    format: Literal["html","markdown"] = "html"
+
+
+@app.get("/api/workspace/records")
+def workspace_records(kind: str | None = None, q: str = "",
+                      archived: bool = False, trashed: bool = False):
+    try:
+        return {"records": research_library.list_items(kind, q, archived=archived, trashed=trashed)}
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/records")
+def workspace_create(body: LibraryCreate):
+    try:
+        return research_library.create(**body.model_dump())
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/records/{item_id}")
+def workspace_get(item_id: str):
+    try:
+        return research_library.get(item_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.patch("/api/workspace/records/{item_id}")
+def workspace_update(item_id: str, body: LibraryUpdate):
+    try:
+        return research_library.update(item_id, **body.model_dump(exclude_unset=True))
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/records/{item_id}/action")
+def workspace_record_action(item_id: str, body: LibraryAction):
+    try:
+        return research_library.action(item_id, body.action, confirm=body.confirm)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/batch")
+def workspace_batch(body: LibraryBatch):
+    try:
+        return research_library.batch_action(body.ids, body.action)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/resources")
+def workspace_resources(include_trashed: bool = False):
+    return {"resources": research_library.resource_listing(include_trashed=include_trashed)}
+
+
+@app.get("/api/workspace/resources/dependencies")
+def workspace_dependencies(kind: Literal["dataset","model_run","research_run"], item_id: str):
+    try:
+        return {"dependencies": research_library.resource_dependencies(kind, item_id)}
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/resources/action")
+def workspace_resource_action(body: ResourceAction):
+    try:
+        return research_library.resource_action(body.kind, body.item_id, body.action,
+                                                confirm=body.confirm)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/storage")
+def workspace_disk_usage():
+    return research_library.disk_usage()
+
+
+@app.get("/api/workspace/search")
+def workspace_search(q: str):
+    try:
+        return {"results": research_library.global_search(q)}
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/quality/{dataset_id}")
+def workspace_data_quality(dataset_id: str):
+    try:
+        return research_insights.inspect_quality(dataset_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/compare")
+def workspace_compare(body: SavedComparison):
+    try:
+        return research_insights.compare(**body.model_dump())
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/sweep")
+def workspace_sweep(body: SweepRequest):
+    if body.model_id not in model_registry.CATALOG:
+        raise HTTPException(400, "Unknown registered research model")
+    return _spawn("workspace_parameter_sweep", research_insights.sweep,
+                  body.model_id, body.dataset_id, body.params, body.parameter, body.values,
+                  metric_label=body.metric_label)
+
+
+@app.post("/api/workspace/validate")
+def workspace_validate(body: ValidationRequest):
+    return _spawn("workspace_validation", research_insights.validate_out_of_sample,
+                  **body.model_dump())
+
+
+@app.post("/api/workspace/scenario")
+def workspace_scenario(body: ScenarioRequest):
+    try:
+        return research_insights.scenario(body.run_id, body.shocks)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/reproducibility/{run_id}")
+def workspace_reproducibility(run_id: str, recompute: bool = False):
+    try:
+        return research_insights.verify_reproducibility(run_id, recompute=recompute)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/reports")
+def workspace_reports(body: ReportRequest):
+    return _spawn("workspace_report", research_library.render_notebook_report,
+                  body.notebook_id, format=body.format)
+
+
+@app.get("/api/workspace/reports/{report_id}/{format}")
+def workspace_report_file(report_id: str, format: Literal["html","markdown"]):
+    try:
+        path = research_library.report_path(report_id, format)
+        return FileResponse(path, filename=path.name)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/jobs")
+def workspace_jobs():
+    with JOBS_LOCK:
+        return {"jobs": [dict(row) for row in list(JOBS.values())[-75:][::-1]]}
+
+
+@app.post("/api/workspace/jobs/{job_id}/cancel")
+def workspace_cancel_job(job_id: str):
+    with JOBS_LOCK:
+        status = JOBS.get(job_id)
+        if not status:
+            raise HTTPException(404, "Unknown research job")
+        if status["status"] != "queued":
+            raise HTTPException(409, "Only queued jobs can be safely cancelled. "
+                                     "Running calculations finish their current operation.")
+        future = JOB_FUTURES.get(job_id)
+        if future is None or not future.cancel():
+            raise HTTPException(409, "Job is already starting")
+        status["status"] = "cancelled"
+        return dict(status)
 
 
 @app.get("/api/dhan/credentials/check")
