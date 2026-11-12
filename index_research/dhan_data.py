@@ -35,6 +35,46 @@ BASE = "https://api.dhan.co/v2"
 MASTER_URL = "https://images.dhan.co/api-data/api-scrip-master-detailed.csv"
 ALLOWED_INTERVALS = {1, 5, 15, 25, 60}
 
+# Only explicitly allowlisted vendor error codes, never raw vendor response
+# text or headers (which may contain account details or bearer credentials).
+DHAN_ERROR_HINTS = {
+    "DH-901": "Access token is invalid or expired: regenerate it in Dhan.",
+    "DH-902": "Dhan Data API subscription or entitlement is missing.",
+    "DH-903": "Dhan account or exchange segment is not enabled.",
+    "DH-904": "Dhan rate limit reached: reduce request frequency.",
+    "DH-905": "Invalid request fields: verify Security ID, NSE_EQ/EQUITY, and date range.",
+    "DH-907": "No data or an invalid instrument/date combination.",
+    "806": "Dhan Data APIs are not subscribed.",
+    "807": "Dhan access token expired.",
+    "808": "Dhan credentials failed authentication.",
+    "809": "Dhan token is invalid.",
+    "810": "Dhan client ID is invalid.",
+    "811": "Invalid expiry date.",
+    "812": "Invalid date format.",
+    "813": "Invalid Security ID: recheck the instrument master mapping.",
+    "814": "Invalid Dhan request: check the selected instrument and dates.",
+}
+
+def dhan_error_diagnostic(response: bytes | str) -> str:
+    """Return only known public error codes and canned, token-safe guidance."""
+    try:
+        payload=json.loads(response)
+        if not isinstance(payload, dict):
+            return "No recognized Dhan error code."
+        remarks=payload.get("remarks")
+        if not isinstance(remarks, dict):
+            remarks={}
+        codes=[payload.get("errorCode"), payload.get("error_code"),
+               remarks.get("error_code"), remarks.get("errorCode"),
+               payload.get("code")]
+        for code in codes:
+            key=str(code).strip().upper()
+            if key in DHAN_ERROR_HINTS:
+                return f"{key}: {DHAN_ERROR_HINTS[key]}"
+    except (ValueError, TypeError, UnicodeDecodeError):
+        pass
+    return "No recognized Dhan error code; check Security ID, segment, dates and Data API entitlement."
+
 
 @dataclass(frozen=True)
 class Instrument:
@@ -110,13 +150,15 @@ def _post_json(path: str, payload: dict, token: str, *, attempts: int=4,
                 raise ValueError("Unexpected Dhan API response")
             if result.get("status") == "failure" or result.get("errorCode"):
                 # Vendor messages might contain account context; do not print body.
-                raise RuntimeError("Dhan returned an error: verify token, instrument, subscription and dates")
+                raise RuntimeError("Dhan rejected request: "+dhan_error_diagnostic(body))
             return result
         except HTTPError as exc:
             if exc.code in (429,500,502,503,504) and attempt < attempts-1:
                 sleeper(min(30,2**attempt+random.random()))
                 continue
-            raise RuntimeError(f"Dhan HTTP {exc.code} (response body hidden)") from None
+            # Read at most 4 KiB; only known error codes are exposed.
+            detail=dhan_error_diagnostic(exc.read(4096))
+            raise RuntimeError(f"Dhan HTTP {exc.code}: {detail}") from None
         except (URLError, TimeoutError):
             if attempt < attempts-1:
                 sleeper(min(30,2**attempt+random.random()))
