@@ -95,6 +95,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const [acknowledgedGaps,setAcknowledgedGaps]=useState(false)
   const [includeIndexSpot,setIncludeIndexSpot]=useState(true)
   const [pitPlan,setPitPlan]=useState<MembershipPlan|null>(null)
+  const [pitPreview,setPitPreview]=useState<MembershipPlan|null>(null)
   const [pitSyncBusy,setPitSyncBusy]=useState(false)
   const [batches,setBatches]=useState<BatchSummary[]>([])
   const [batchId,setBatchId]=useState('')
@@ -195,7 +196,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
     tell('Refreshing the official instrument list in Python.')
   })
   const selectMode=(next:SelectionMode)=>{
-    setMode(next);setAcknowledged(false);setAcknowledgedGaps(false);setPitPlan(null);setPreview(null)
+    setMode(next);setAcknowledged(false);setAcknowledgedGaps(false);setPitPlan(null);setPitPreview(null);setPreview(null)
     if(next==='all_nse')setExchange('NSE')
     if(next==='all_bse')setExchange('BSE')
   }
@@ -306,8 +307,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
       {mode===item.mode&&<span className="dh-mode-selected"><Check size={13}/></span>}</button>)}</div>
 
     <div className="dh-grid">
-      <Section title={pitMode?'Historical index membership':mode==='watchlist'?'Your ticker list':'Find and select stocks'} aside={<Pill tone="blue">{pitMode?'Union: '+fmt(selectionCount):fmt(selectionCount)+' in selection'}</Pill>}>
-        {pitMode?<PITIndexPanel mode={mode as PITMode} fromDate={fromDate} toDate={toDate} onToDate={setToDate} onPlan={setPitPlan} onSyncBusy={setPitSyncBusy}/>:mode==='watchlist'?<div className="dh-paste">
+      <Section title={pitMode?'Historical index membership':mode==='watchlist'?'Your ticker list':'Find and select stocks'} aside={<Pill tone="blue">{pitMode?(pitPlan?'Union: '+fmt(selectionCount):pitPreview?'Preview: '+fmt(pitPreview.union_count):'Awaiting membership') :fmt(selectionCount)+' in selection'}</Pill>}>
+        {pitMode?<PITIndexPanel mode={mode as PITMode} fromDate={fromDate} toDate={toDate} onToDate={setToDate} onPlan={setPitPlan} onPreview={setPitPreview} onSyncBusy={setPitSyncBusy}/>:mode==='watchlist'?<div className="dh-paste">
           <p>Paste exact NSE tickers, separated by commas or lines. Or upload a CSV with symbols in the first column.</p>
           <textarea rows={11} spellCheck={false} value={watchlist} onChange={e=>setWatchlist(e.target.value)}
             placeholder={'RELIANCE\nTCS\nINFY\nHDFCBANK\nICICIBANK'} aria-label="NSE ticker list"/>
@@ -344,7 +345,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
       <Section title="Download settings" aside={<Pill tone="good"><ShieldCheck size={13}/> Read-only historical data</Pill>}>
         <div className="dh-settings">
           <div className="dh-picked-head"><span>Selected universe</span><strong>{interpretMode(mode)}</strong></div>
-          <div className="dh-selection-count"><strong>{fmt(downloadCount)}</strong><span>{pitMode?'Dhan-mapped historical stocks': 'instruments'}</span></div>
+          <div className="dh-selection-count"><strong>{fmt(pitPlan?downloadCount:pitPreview?.resolved_count||downloadCount)}</strong><span>{pitMode?(pitPlan?'Dhan-mapped historical stocks':'Covered-period preview · not downloadable yet'): 'instruments'}</span></div>
+          {pitMode&&pitPreview&&!pitPlan&&<p className="dh-error-note">The full selected range extends beyond documented index membership. The preview covers {pitPreview.from_date} to {pitPreview.to_date} (exclusive). Click the supported end-date button or update the membership source before downloading.</p>
           {pitMode&&pitPlan&&<p className="dh-hint">{fmt(pitPlan.union_count)} distinct index constituents during this period; {fmt(pitPlan.resolved_count)} have unambiguous current Dhan IDs. The downloaded set is their historical union, not today’s constituents.</p>}
           {mode==='selected'&&<div className="dh-selected-pills">
             {Object.values(selected).slice(0,18).map(item=><button key={item.id} onClick={()=>toggleStock(item)} title={'Remove '+item.symbol}>{item.symbol}<X size={12}/></button>)}
