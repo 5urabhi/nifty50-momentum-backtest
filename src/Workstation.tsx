@@ -5,12 +5,13 @@ import {
   FileText, FlaskConical, Gauge, Layers3, LineChart, LoaderCircle,
   LockKeyhole, Menu, Play, RefreshCw, Settings2, ShieldAlert,
   ShieldCheck, Sigma, SlidersHorizontal, TrendingUp, Upload,
-  Wallet, X
+  Wallet, Workflow, X
 } from 'lucide-react'
 import './workstation.css'
 import DhanDataManager from './DhanDataManager'
 import ModelLaboratory from './ModelLaboratory'
 import ResearchGuide from './ResearchGuide'
+import ResearchWorkspace from './ResearchWorkspace'
 
 type Dict = Record<string, unknown>
 type Dataset = {id:string; label:string; kind:string; ready:boolean; monthly_price_observations?:number; missing:string[]; files:string[]; has_prices:boolean; has_daily_prices?:boolean; has_daily_ohlcv?:boolean; source_interval_minutes?:number|null; daily_session_count?:number; benchmark_kind?:string; benchmark_is_total_return?:boolean; independently_verified?:boolean; has_fundamentals:boolean; has_sectors:boolean; basis:string}
@@ -26,16 +27,16 @@ type RunConfig = {
   validation_start:string;final_test_start:string;sector_cap:number|null
 }
 const defaultConfig:RunConfig = {name:'quant_research_v1', factor_weights:{momentum:1,low_volatility:0,value:0,quality:0,size:0},top_n:10,weighting:'equal',max_weight:.2,rebalance_every:3,cost_bps:10,execution_lag:1,momentum_formation:12,momentum_skip:1,volatility_lookback:12,validation_start:'',final_test_start:'',sector_cap:null}
-type Tab = 'overview'|'data'|'dhan'|'research'|'factors'|'construction'|'comparisons'|'mathematics'|'rolling'|'models'|'risk'|'robustness'|'visual'|'reports'|'history'|'settings'|'guide'
+type Tab = 'overview'|'workspace'|'data'|'dhan'|'research'|'factors'|'construction'|'comparisons'|'mathematics'|'rolling'|'models'|'risk'|'robustness'|'visual'|'reports'|'history'|'settings'|'guide'
 type NavItem = {id:Tab;label:string;icon:typeof Activity}
 const sections:{label:string;items:NavItem[]}[]=[
- {label:'COMMAND CENTER',items:[{id:'overview',label:'Overview',icon:Gauge},{id:'history',label:'Saved Runs',icon:Clock3}]},
+ {label:'COMMAND CENTER',items:[{id:'overview',label:'Overview',icon:Gauge},{id:'history',label:'Saved Runs',icon:Clock3},{id:'workspace',label:'Research Workspace',icon:Workflow}]},
  {label:'DATA OPERATIONS',items:[{id:'data',label:'Data Manager',icon:Database},{id:'dhan',label:'Dhan Market Data',icon:Wallet}]},
  {label:'RESEARCH DESK',items:[{id:'research',label:'Index Research',icon:FlaskConical},{id:'factors',label:'Factor Laboratory',icon:Layers3},{id:'construction',label:'Index Construction',icon:SlidersHorizontal},{id:'comparisons',label:'Index Comparisons',icon:BarChart3}]},
  {label:'MODEL & RISK LAB',items:[{id:'mathematics',label:'Advanced Mathematics',icon:Sigma},{id:'rolling',label:'Rolling Validation',icon:LineChart},{id:'models',label:'Quantitative Models',icon:Beaker},{id:'risk',label:'Risk Attribution',icon:ShieldAlert},{id:'robustness',label:'Robustness',icon:Activity},{id:'visual',label:'Visual Validation',icon:TrendingUp}]},
  {label:'OUTPUT',items:[{id:'reports',label:'Research Reports',icon:FileText},{id:'guide',label:'User Guide & Documentation',icon:BookOpen},{id:'settings',label:'Workstation Settings',icon:Settings2}]},
 ]
-const titles:Record<Tab,string>={overview:'Research command center',data:'Data manager',dhan:'DhanHQ market-data terminal',research:'Index research engine',factors:'Factor laboratory',construction:'Index construction',comparisons:'Index comparisons',mathematics:'Advanced mathematics',rolling:'Rolling validation',models:'Quantitative models',risk:'Risk attribution',robustness:'Robustness & sensitivity',visual:'Visual validation',reports:'Research reports',history:'Saved research runs',settings:'Workstation settings',guide:'How to use QuantLab'}
+const titles:Record<Tab,string>={overview:'Research command center',workspace:'Research workspace',data:'Data manager',dhan:'DhanHQ market-data terminal',research:'Index research engine',factors:'Factor laboratory',construction:'Index construction',comparisons:'Index comparisons',mathematics:'Advanced mathematics',rolling:'Rolling validation',models:'Quantitative models',risk:'Risk attribution',robustness:'Robustness & sensitivity',visual:'Visual validation',reports:'Research reports',history:'Saved research runs',settings:'Workstation settings',guide:'How to use QuantLab'}
 const factors=[['momentum','Momentum'],['low_volatility','Low volatility'],['value','Value'],['quality','Quality'],['size','Size']] as const
 const number=(v:unknown,d=2)=>typeof v==='number' && Number.isFinite(v) ? v.toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d}) : '—'
 const percent=(v:unknown,d=2)=>typeof v==='number' && Number.isFinite(v) ? (v*100).toFixed(d)+'%' : '—'
@@ -113,7 +114,7 @@ function Select({label:caption,value,options,onChange}:{label:string;value:strin
 }
 const weighted=(metric:Dict|undefined,key:string)=>metric?.[key]
 function App(){
-  const [tab,setTab]=useState<Tab>('overview')
+  const [tab,setTab]=useState<Tab>('workspace')
   const [menu,setMenu]=useState(false)
   const [health,setHealth]=useState<Health|null>(null)
   const [datasets,setDatasets]=useState<Dataset[]>([])
@@ -226,6 +227,11 @@ function App(){
           <Card title="Imported dataset library"><Table rows={datasets.map(d=>({name:d.label,kind:d.kind,ready:d.ready,benchmark:d.benchmark_kind==='price_index_spot_only'?'PRICE INDEX (not TRI)':d.benchmark_kind||'missing',daily_prices:d.has_daily_prices?'yes':'no',source_resolution:d.source_interval_minutes===null?'daily':d.source_interval_minutes?d.source_interval_minutes+' min':'unreported',missing:d.missing.join(', ')||'none',basis:d.basis}))}/></Card>
         </>}
         {tab==='dhan'&&<DhanDataManager onDataChanged={refresh}/>}
+        {tab==='workspace'&&<ResearchWorkspace datasets={datasets}
+          selectedDataset={selectedDataset} onSelectDataset={setSelectedDataset}
+          onDataChanged={refresh} onOpenDhan={()=>begin('dhan')}
+          onOpenModels={()=>begin('models')}/>}
+
         {tab==='research'&&<>
           <div className="ws-grid two-thirds"><Card title="Experiment configuration" extra={<Tag tone="blue">BACKED BY PYTHON</Tag>}><div className="ws-setup-row"><span>Source dataset</span>{dataPicker}<Tag tone={dataset?.ready?'good':'warn'}>{dataset?.ready?'READY':'NEEDS INPUTS'}</Tag></div><div className="ws-form-grid"><Field label="Experiment name" value={config.name} onChange={v=>setConfig({...config,name:v})}/><Select label="Portfolio weighting" value={config.weighting} onChange={v=>setConfig({...config,weighting:v})} options={['equal','score','inverse_volatility','minimum_variance','risk_parity'].map(v=>({value:v,label:label(v)}))}/><NumberInput label="Constituents (top N)" value={config.top_n} min={2} max={300} onChange={v=>setConfig({...config,top_n:v})}/><NumberInput label="Maximum holding weight" value={config.max_weight} min={.01} max={1} step={.01} onChange={v=>setConfig({...config,max_weight:v})}/><NumberInput label="Rebalance frequency (months)" value={config.rebalance_every} min={1} max={12} onChange={v=>setConfig({...config,rebalance_every:v})}/><NumberInput label="Transaction costs (bps)" value={config.cost_bps} min={0} max={500} step={5} onChange={v=>setConfig({...config,cost_bps:v})}/><Select label="Execution lag" value={String(config.execution_lag)} onChange={v=>setConfig({...config,execution_lag:Number(v)})} options={[{value:'1',label:'One month (conservative)'},{value:'0',label:'Same-close idealization'}]}/><NumberInput label="Formation months" value={config.momentum_formation} min={2} max={60} onChange={v=>setConfig({...config,momentum_formation:v})}/><NumberInput label="Months to skip" value={config.momentum_skip} min={0} max={12} onChange={v=>setConfig({...config,momentum_skip:v})}/><NumberInput label="Volatility lookback (months)" value={config.volatility_lookback} min={3} max={60} onChange={v=>setConfig({...config,volatility_lookback:v})}/><Field label="Validation start (optional)" type="date" value={config.validation_start} onChange={v=>setConfig({...config,validation_start:v})}/><Field label="Frozen test start (optional)" type="date" value={config.final_test_start} onChange={v=>setConfig({...config,final_test_start:v})}/></div><label className="ws-checkbox"><input type="checkbox" checked={config.sector_cap!==null} onChange={e=>setConfig({...config,sector_cap:e.target.checked ? 0.4 : null})}/> Apply historical sector concentration cap</label>{config.sector_cap!==null&&<NumberInput label="Sector allocation cap" value={config.sector_cap} min={.1} max={1} step={.05} onChange={v=>setConfig({...config,sector_cap:v})}/>}{dataset?.has_prices&&monthlyCount>0&&availableTestMonths<12&&
               <div className="ws-rule" role="status"><CircleAlert size={16}/>
