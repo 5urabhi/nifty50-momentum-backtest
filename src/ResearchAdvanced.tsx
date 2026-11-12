@@ -115,6 +115,9 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,records,onMessage
   const [yAxis,setYAxis]=useState('')
   const [marker,setMarker]=useState('')
   const [markerLabel,setMarkerLabel]=useState('')
+  const [regionStart,setRegionStart]=useState('')
+  const [regionEnd,setRegionEnd]=useState('')
+  const [regionLabel,setRegionLabel]=useState('')
   const [projects,setProjects]=useState<{id:string;title:string}[]>([])
   const [project,setProject]=useState('')
   const [savedChart,setSavedChart]=useState('')
@@ -129,7 +132,20 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,records,onMessage
   },[selectedDataset,onError])
   useEffect(()=>{void request<{records:{id:string;title:string}[]}>('records?kind=project')
     .then(r=>setProjects(r.records)).catch(()=>{})},[])
-  const toggle=(v:string)=>setFields(s=>s.includes(v)?s.filter(k=>k!==v):s.length<18?[...s,v]:s)
+  const toggle=(v:string)=>setFields(s=>{
+    const next=s.includes(v)?s.filter(k=>k!==v):s.length<18?[...s,v]:s
+    if((['histogram','kde','qq'].includes(kind)&&next.length!==1)||
+       (kind==='scatter'&&next.length!==2)||
+       (kind==='correlation'&&next.length<2))setKind('line')
+    return next
+  })
+  const allowedKinds=['line','scatter','histogram','kde','qq','drawdown','cumulative',
+    'rolling_volatility','correlation'].filter(v=>
+      ['histogram','kde','qq'].includes(v)?fields.length===1:
+      v==='scatter'?fields.length===2:v==='correlation'?fields.length>=2:true)
+  const suggested=fields.length===1?['line','histogram','kde','qq','rolling_volatility']:
+    fields.length===2?['line','scatter','correlation','rolling_volatility']:
+    ['line','correlation','rolling_volatility']
   const build=async()=>{
     setBusy(true)
     try{
@@ -148,8 +164,14 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,records,onMessage
         y:t.y.map(v=>!logY?v:v!==null&&v>0?Math.log10(v):null)}))
     return {...plot.plot,title,x_label:xAxis||plot.plot.x_label,
       y_label:logY?'log10('+yAxis+')':yAxis||plot.plot.y_label,
-      traces,annotations:marker&&markerLabel?[{x:marker,label:markerLabel}]:[]}
-  },[plot,title,xAxis,yAxis,hidden,colors,logY,marker,markerLabel])
+      traces,
+      annotations:marker&&markerLabel&&plot.plot.x?.some(x=>String(x)===marker)?
+        [{x:marker,label:markerLabel}]:[],
+      regions:regionStart&&regionEnd&&regionLabel&&plot.plot.x?.some(x=>String(x)===regionStart)&&
+        plot.plot.x?.some(x=>String(x)===regionEnd)?
+        [{start:regionStart,end:regionEnd,label:regionLabel}]:[]}
+  },[plot,title,xAxis,yAxis,hidden,colors,logY,marker,markerLabel,
+      regionStart,regionEnd,regionLabel])
   const persist=async()=>{
     if(!display||!plot)return
     setBusy(true)
@@ -186,8 +208,10 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,records,onMessage
           <div className="ra-column-picker">{columns.columns.map(c=><label key={c}>
             <input type="checkbox" checked={fields.includes(c)} onChange={()=>toggle(c)}/>{c}</label>)}</div></>}
         <div className="rw-form-grid">
-          <Choice title="Graph type" value={kind} onChange={setKind} options={opt(
-            ['line','scatter','histogram','kde','qq','drawdown','cumulative','rolling_volatility','correlation'])}/>
+          <Choice title="Graph type" value={kind} onChange={setKind} options={opt(allowedKinds)}/>
+          <p className="rw-help">Recommended for {fields.length} selected series: {suggested
+            .filter(x=>allowedKinds.includes(x)).map(x=>x.replaceAll('_',' ')).join(', ')}.
+            Incompatible plot types are disabled.</p>
           <Choice title="Transformation" value={transform} onChange={setTransform}
             options={opt(['price','return','log_return','base100','zscore'])}/>
           <Field title="Start date" value={first} onChange={setFirst} type="date"/>
@@ -207,6 +231,12 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,records,onMessage
           <Field title="Y-axis label" value={yAxis} onChange={setYAxis}/>
           <Field title="X marker (actual observed date/value)" value={marker} onChange={setMarker}/>
           <Field title="Marker caption" value={markerLabel} onChange={setMarkerLabel}/>
+          <Field title="Highlight region first observed X value" value={regionStart}
+            onChange={setRegionStart}/>
+          <Field title="Highlight region last observed X value" value={regionEnd}
+            onChange={setRegionEnd}/>
+          <Field title="Highlighted region caption" value={regionLabel}
+            onChange={setRegionLabel}/>
         </div>
         <label className="rw-inline"><input type="checkbox" checked={logY} onChange={e=>setLogY(e.target.checked)}/>
           Log10 transform positive Y; omit nonpositive points</label>
