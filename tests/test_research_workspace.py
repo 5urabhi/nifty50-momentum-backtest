@@ -117,6 +117,12 @@ class ResearchWorkspaceTests(unittest.TestCase):
         for run in study["runs"]:
             self.assertEqual(model_lab.read_saved_model(run["run_id"])["model_id"],"gbm")
 
+    def test_invalid_final_sweep_value_creates_no_partial_runs(self):
+        with self.assertRaises(ValueError):
+            research_insights.sweep("gbm",None,{"steps":24,"paths":30},
+                                    "volatility",[.1,-.2])
+        self.assertEqual(model_lab.list_saved_models(),[])
+
     def test_oos_train_end_strictly_precedes_test_start(self):
         result = research_insights.validate_out_of_sample(self.dataset_id,
                    model="min_variance",assets=4,train_window=75,test_step=20,
