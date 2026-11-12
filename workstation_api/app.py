@@ -27,6 +27,17 @@ from index_research.dhan_data import (
 from . import dhan_auth, dhan_workspace, pit_index, service
 
 load_dotenv(service.ROOT / ".env", override=False)
+# Explicit terminal sink for QuantLab diagnostics. It logs operation names,
+# status codes and instrument IDs only; never dump tokens or vendor bodies.
+quantlab_logger = logging.getLogger("quantlab")
+quantlab_logger.setLevel(logging.INFO)
+if not any(getattr(h, "_quantlab_terminal", False) for h in quantlab_logger.handlers):
+    terminal_handler = logging.StreamHandler()
+    terminal_handler.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)s [%(name)s] %(message)s"))
+    terminal_handler._quantlab_terminal = True
+    quantlab_logger.addHandler(terminal_handler)
+quantlab_logger.propagate = False
 LOG = logging.getLogger("quantlab.api")
 
 app = FastAPI(title="Local Quantitative Research Workstation", version="0.1.0",
