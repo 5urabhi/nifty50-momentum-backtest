@@ -97,7 +97,7 @@ function FigureDownload({plot,source}:{plot:ResearchPlotData;source:Source}){
     <button onClick={html} disabled={plot.kind==='surface3d'}><Download size={14}/> Interactive HTML</button>
   </div>
 }
-function PlotBuilder({datasets,selectedDataset,onSelectDataset,onMessage,onError,onChanged}:Props){
+function PlotBuilder({datasets,selectedDataset,onSelectDataset,records,onMessage,onError,onChanged}:Props){
   const [columns,setColumns]=useState<Columns|null>(null)
   const [fields,setFields]=useState<string[]>([])
   const [kind,setKind]=useState('line')
@@ -117,6 +117,8 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,onMessage,onError
   const [markerLabel,setMarkerLabel]=useState('')
   const [projects,setProjects]=useState<{id:string;title:string}[]>([])
   const [project,setProject]=useState('')
+  const [savedChart,setSavedChart]=useState('')
+  const [notebook,setNotebook]=useState('')
   const [busy,setBusy]=useState(false)
   useEffect(()=>{
     let active=true;setColumns(null);setPlot(null);setFields([])
@@ -152,11 +154,22 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,onMessage,onError
     if(!display||!plot)return
     setBusy(true)
     try{
-      await request('records',{kind:'chart',title,
+      const item=await request<{id:string}>('records',{kind:'chart',title,
         payload:{plot:display,annotation:caption,project_id:project||null,
           source:plot.source,settings:plot.settings,sample_observations:plot.sample_observations},
         tags:['plot-builder']})
-      onChanged();onMessage('Graph and verified source checksum saved to the research library.')
+      setSavedChart(item.id)
+      onChanged();onMessage('Graph and source checksum saved to the research library.')
+    }catch(e){onError(e instanceof Error?e.message:String(e))}
+    finally{setBusy(false)}
+  }
+  const attach=async()=>{
+    if(!savedChart||!notebook)return
+    setBusy(true)
+    try{
+      await request('notebooks/'+encodeURIComponent(notebook)+'/attach',
+        {kind:'chart',source_id:savedChart})
+      onChanged();onMessage('Saved graph added directly to your report notebook.')
     }catch(e){onError(e instanceof Error?e.message:String(e))}
     finally{setBusy(false)}
   }
@@ -206,7 +219,15 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,onMessage,onError
           value={caption} onChange={e=>setCaption(e.target.value)}/></label>
         <Choice title="Save under research project" value={project} onChange={setProject}
           options={[{id:'',name:'Unassigned'},...projects.map(p=>({id:p.id,name:p.title}))]}/>
-        <button className="rw-primary" disabled={busy} onClick={()=>void persist()}><Save size={15}/> Save chart</button></>}
+        <button className="rw-primary" disabled={busy} onClick={()=>void persist()}><Save size={15}/> Save chart</button>
+        {savedChart&&<div className="rw-form-grid">
+          <Choice title="Add saved chart to report notebook" value={notebook} onChange={setNotebook}
+            options={[{id:'',name:'Choose notebook'},...records
+              .filter(x=>x.kind==='notebook'&&!x.trashed)
+              .map(x=>({id:x.id,name:x.title}))]}/>
+          <div className="rw-inline-actions"><button disabled={busy||!notebook}
+            onClick={()=>void attach()}><Save size={14}/> Add to report</button></div>
+        </div>}</>}
       </section>
     </div>
     {display&&plot&&<section className="rw-box ra-result">
