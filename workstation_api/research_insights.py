@@ -453,13 +453,19 @@ def sweep(model_id: str, dataset_id: str | None, params: dict,
     spec_param = next((p for p in spec["parameters"] if p["key"] == parameter), None)
     if spec_param is None or spec_param["type"] not in {"number","integer"}:
         raise ValueError("Parameter must be numeric and registered for this model")
-    if len({float(v) for v in values if isinstance(v, (float,int)) and not isinstance(v,bool)}) != len(values):
+    if (any(not isinstance(v,(float,int)) or isinstance(v,bool) or
+            not math.isfinite(float(v)) for v in values) or
+            len({float(v) for v in values}) != len(values)):
         raise ValueError("Values must be distinct finite numbers")
-    results = []
+    # Validate the entire requested grid before running or saving anything.
+    # A bad final value must not leave a partially completed sweep.
+    validated_grid = []
     for value in values:
         current = dict(params or {})
         current[parameter] = value
-        validated = model_registry.validate_parameters(model_id, current)
+        validated_grid.append(model_registry.validate_parameters(model_id, current))
+    results = []
+    for value, validated in zip(values, validated_grid):
         result = model_lab.run_model(model_id, dataset_id, validated)
         archived = model_lab.save_result(result)
         entries = {x["label"]: x["value"] for x in result["metrics"]
