@@ -4,15 +4,17 @@ import {Archive,ArrowDownToLine,ArrowLeft,ArrowRight,BarChart3,BookOpen,Check,
   History,Layers3,LoaderCircle,Plus,RefreshCw,RotateCcw,Save,Search,
   Settings2,ShieldCheck,SlidersHorizontal,Trash2,Undo2,Upload,Workflow,X} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
+import ResearchAdvanced from './ResearchAdvanced'
+import ResearchGuided from './ResearchGuided'
 import './research-workspace.css'
 
 type Raw = Record<string,unknown>
-type Page='home'|'library'|'compare'|'projects'|'automation'|'quality'|'jobs'
+type Page='home'|'library'|'compare'|'plots'|'guided'|'projects'|'automation'|'quality'|'jobs'
 type RecordKind='configuration'|'project'|'notebook'|'chart'|'comparison'|'dashboard'|'note'|'report'|'study'
 type ResourceKind='dataset'|'model_run'|'research_run'
 type Item={id:string;kind:RecordKind;title:string;payload:Raw;tags:string[];
   favorite:boolean;archived:boolean;trashed:boolean;updated_utc:string;created_utc:string}
-type Resource={id:string;kind:ResourceKind;title:string;summary:string;
+type Resource={id:string;kind:ResourceKind;title:string;summary:string;tags?:string[];favorite?:boolean;
   protected:boolean;archived:boolean;trashed:boolean}
 type Datum={id:string;label:string;has_prices:boolean;ready:boolean}
 type ModelRun={id:string;model_id:string;title:string;group:string;mode:string;
@@ -23,13 +25,15 @@ type Job={id:string;kind:string;status:string;result?:Raw;error?:string;
   created_utc?:string}
 type ModelSpec={id:string;title:string;group:string;mode:string;parameters:{
   key:string;default:number|string;type:string;min?:number;max?:number}[]}
-type NotebookCell={id:string;type:'markdown'|'run'|'chart'|'table';content?:string;run_id?:string;chart_id?:string}
+type NotebookCell={id:string;type:'markdown'|'run'|'chart'|'table';content?:string;run_id?:string;chart_id?:string;previous_run_ids?:string[]}
 type Props={datasets:Datum[];selectedDataset:string;onSelectDataset:(id:string)=>void;
   onOpenDhan:()=>void;onOpenModels:()=>void;onDataChanged:()=>void}
 const PAGES:{id:Page;label:string;sub:string}[]=[
   {id:'home',label:'Start',sub:'Resume and guided workflows'},
   {id:'library',label:'Library',sub:'Datasets, models, results'},
-  {id:'compare',label:'Compare & Graph',sub:'Overlay and chart studio'},
+  {id:'compare',label:'Compare & Graph',sub:'Saved model overlays'},
+  {id:'plots',label:'Plot Builder',sub:'2D / 3D and statistics'},
+  {id:'guided',label:'Guided & Grids',sub:'Goals and optimization'},
   {id:'projects',label:'Projects & Notes',sub:'Notebooks and reports'},
   {id:'automation',label:'Research Tools',sub:'Sweeps, validation, shocks'},
   {id:'quality',label:'Data Quality',sub:'Coverage and provenance'},
@@ -205,6 +209,11 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
     {loading?<div className="rw-working"><LoaderCircle className="ql-spinning"/> Loading research library…</div>:null}
     {page==='home'&&<div className="rw-stack"><div className="rw-two">
       <Box title="Resume research">
+        <div className="rw-button-group">
+          <button className="rw-primary" onClick={()=>setPage('guided')}>
+            <BookOpen size={15}/> Start a guided research workflow</button>
+          <button onClick={()=>setPage('plots')}><BarChart3 size={15}/> Build a graph</button>
+        </div>
         <NumberStats data={[
           {label:'Saved model results',value:runs.filter(x=>x.kind==='model_run').length},
           {label:'Research projects',value:library.filter(x=>x.kind==='project'&&!x.trashed).length},
@@ -236,6 +245,14 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
       onOpenDhan={onOpenDhan} onMessage={setMessage}/>}
     {page==='compare'&&<ComparePanel runs={runs} items={library} busy={busy}
       perform={perform} onMessage={setMessage}/>}
+    {page==='plots'&&<ResearchAdvanced datasets={datasets} selectedDataset={selectedDataset}
+      onSelectDataset={onSelectDataset} records={library} onMessage={setMessage}
+      onError={setError} onChanged={()=>void reload()}/>}
+    {page==='guided'&&<ResearchGuided models={models} datasets={datasets}
+      selectedDataset={selectedDataset} onSelectDataset={onSelectDataset}
+      onOpenModels={onOpenModels} onOpenDhan={onOpenDhan} runs={runs}
+      onStartJob={start} onMessage={setMessage} onError={setError}
+      onDataChanged={()=>{void reload();onDataChanged()}}/>}
     {page==='projects'&&<ProjectsPanel records={library} runs={runs} busy={busy}
       perform={perform} onMessage={setMessage} startJob={start}
       onOpenCompare={()=>setPage('compare')}/>}
