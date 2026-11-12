@@ -20,7 +20,7 @@ type CatalogPage = {
 type BatchSummary = {
   id:string;status:string;created_utc:string;updated_utc?:string;selection:SelectionMode;
   interval:number|null;from_date:string;to_date:string;total:number;processed:number;
-  counts:Record<string,number>;current_symbol:string|null;current_window?:string|null;prepared_dataset_id?:string|null;
+  counts:Record<string,number>;current_symbol:string|null;current_window?:string|null;prepared_dataset_id?:string|null;has_price_benchmark?:boolean;
   errors:number;warning:string
   historical_index_name?:string|null;historical_union_count?:number
   historical_unresolved?:Array<{symbol:string;reason:string}>
@@ -456,11 +456,12 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
               <FileSpreadsheet size={16}/> Prepare research dataset from {details.interval===null?'daily':details.interval+'-minute'} candles
             </button>}
           {details.prepared_dataset_id&&<Pill tone="good">Prepared dataset: {details.prepared_dataset_id}</Pill>}
-          {details.prepared_dataset_id&&details.historical_index_name&&details.index_spot?.status==='complete'&&
+          {details.prepared_dataset_id&&!details.has_price_benchmark&&details.historical_index_name&&details.index_spot?.status==='complete'&&
             <button className="dh-small-btn primary" type="button"
               disabled={working||Boolean(task)} onClick={prepareBenchmark}>
               <FileSpreadsheet size={16}/> Prepare price-index benchmark from saved index spot
             </button>}
+          {details.has_price_benchmark&&<Pill tone="good">PRICE-INDEX benchmark ready · not dividend TRI</Pill>}
           {details.historical_index_name&&<div className="dh-pit-in-batch"><strong>{details.historical_index_name} · dated membership</strong><span>Universe: {details.historical_union_count} unique symbols · {details.historical_unresolved?.length||0} have no Dhan ID. Preparing cached minute or daily candles produces daily_prices.csv, monthly prices.csv and date-accurate membership.csv without re-downloading. An independent benchmark remains required.</span>
           {details.index_spot&&<span>Index spot OHLCV: {details.index_spot.status} · {details.index_spot.rows||0} rows{details.index_spot.file?" · saved to data/"+details.index_spot.file:""}{details.index_spot.error?" · "+details.index_spot.error:""}. Spot prices are not dividend-adjusted TRI.
           {details.index_spot.identity_source&&<> · ID source: {details.index_spot.identity_source==="verified_unique_dhan_scrip_master_match"?"Current Dhan instrument master":"Published Dhan IDX_I reference"}{details.index_spot.reference&&<> (<a href={details.index_spot.reference} target="_blank" rel="noreferrer">source ↗</a>)</>}</>}</span>}</div>}
