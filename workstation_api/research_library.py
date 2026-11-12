@@ -277,6 +277,14 @@ def _stored_resource(conn, key):
     return dict(row) if row else None
 
 
+def resource_state_map() -> dict[str, dict]:
+    """Read all archive/Trash flags in one SQLite query for large libraries."""
+    with _connect() as conn:
+        rows = conn.execute("SELECT key,archived,trashed FROM resources").fetchall()
+    return {key: {"archived": bool(archived), "trashed": bool(trashed)}
+            for key, archived, trashed in rows}
+
+
 def resource_status(kind, item_id):
     key = _resource_key(kind, item_id)
     with _connect() as conn:
@@ -382,8 +390,10 @@ def resource_action(kind: str, item_id: str, operation: str, *,
 
 def resource_listing(*, include_trashed: bool = False) -> list[dict]:
     rows = []
+    states = resource_state_map()
     for dataset in service.datasets(include_archived=True):
-        status = resource_status("dataset", dataset["id"])
+        status = states.get("dataset:" + dataset["id"],
+                            {"archived": False, "trashed": False})
         if not include_trashed and (status["archived"] or status["trashed"]):
             continue
         rows.append({"kind": "dataset", "id": dataset["id"], "title": dataset["label"],
@@ -394,7 +404,8 @@ def resource_listing(*, include_trashed: bool = False) -> list[dict]:
     for group, data in (("model_run", model_lab.list_saved_models(include_archived=True, limit=1000)),
                         ("research_run", service.runs(include_archived=True, limit=1000))):
         for result in data:
-            status = resource_status(group, result["id"])
+            status = states.get(group + ":" + result["id"],
+                                {"archived": False, "trashed": False})
             if not include_trashed and (status["archived"] or status["trashed"]):
                 continue
             rows.append({"kind": group, "id": result["id"],
