@@ -37,8 +37,8 @@ show_workflow_nav()
 st.title("Equity Factor Index Construction")
 st.caption("Custom index research · Point-in-time evidence gates · Offline/local-first")
 
-st.page_link("dashboard/pages/12_Dhan_Data_Setup.py",label="Get historical Dhan data →",icon="📊")
-st.page_link("dashboard/pages/13_Empirical_Readiness.py",label="Verify source evidence →",icon="🧾")
+st.page_link("pages/12_Dhan_Data_Setup.py",label="Get historical Dhan data →",icon="📊")
+st.page_link("pages/13_Empirical_Readiness.py",label="Verify source evidence →",icon="🧾")
 st.info("The repository's historic optimized results are not independently audited. "
         "This page does not claim to reproduce official Nifty or MSCI indexes.")
 
@@ -281,7 +281,7 @@ See `docs/LOCAL_RUN.md` for data formats and validation policies.
     st.stop()
 
 st.success("Research experiment generated. Local outputs saved under results/workstation_runs/.")
-st.page_link("dashboard/pages/11_Run_History.py",label="Open saved run history →",icon="🗂️")
+st.page_link("pages/11_Run_History.py",label="Open saved run history →",icon="🗂️")
 saved=st.session_state["index_research_result"]
 meta=saved["metadata"]
 if saved["demo"]:
