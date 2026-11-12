@@ -720,7 +720,7 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompa
           <Plus size={14}/> Saved model run</button>
         <button onClick={()=>addCell('chart')} disabled={!charts.length}><Plus size={14}/> Saved chart figure</button>
         {!charts.length&&<button onClick={onOpenCompare}>
-          <BarChart3 size={14}/> Create chart first</button>
+          <BarChart3 size={14}/> Create chart first</button>}
         <button onClick={()=>addCell('table')}><Plus size={14}/> Findings table</button>
       </div>
       <div className="rw-cell-stack">{cells.map((cell,i)=><div key={cell.id} className="rw-cell">
