@@ -655,11 +655,12 @@ function ProjectsPanel({records,runs,busy,perform,onMessage,startJob,onOpenCompa
   const projectNotebooks=notebooks.filter(n=>String(n.payload.project_id||'')===projectId)
   const pickNotebook=(item:Item)=>{
     revision.current+=1
-    let draft:{title:string;project_id:string;cells:NotebookCell[]}|null=null
+    type NotebookDraft={title:string;project_id:string;cells:NotebookCell[]}
+    let draft:NotebookDraft|null=null
     try{
       const stored=window.localStorage.getItem('ql-notebook-draft-'+item.id)
       if(stored){
-        const parsed=JSON.parse(stored) as typeof draft
+        const parsed=JSON.parse(stored) as NotebookDraft|null
         if(parsed&&typeof parsed.title==='string'&&Array.isArray(parsed.cells)&&parsed.cells.length<=100)
           draft=parsed
       }
