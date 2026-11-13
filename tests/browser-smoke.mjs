@@ -100,6 +100,20 @@ try {
     await page.locator('.rw-top h2').waitFor()
     assert.equal(await researchTab('Plot Builder').count(),1)
   })
+  await step('Results Studio source-classified evidence audit and export',async()=>{
+    await nav('Results Studio').click()
+    await page.locator('.rs-identity h3').waitFor()
+    await page.locator('.rs-tabs').getByRole('button',{name:'Evidence audit'}).click()
+    await page.getByRole('heading',{name:'Research Evidence Audit'}).waitFor()
+    await page.locator('.rs-check-gates .rs-gate').first().waitFor({timeout:20000})
+    const saved=await apiJson('/api/lab/runs?limit=30')
+    const audit=await apiJson('/api/workspace/results/model_run/'+saved.runs[0].id+'/evidence')
+    assert.equal(audit.evidence_class,'synthetic_demo','GBM is synthetic, not historical')
+    assert.equal(audit.readiness,'research_diagnostic_only')
+    assert.ok(audit.checks.some(check=>check.status==='blocked'))
+    assert.ok(await page.getByRole('button',{name:'Evidence JSON'}).isEnabled())
+    await screenshot('02-results-evidence-audit')
+  })
   await step('Dhan download uses an accessible four-step guided flow',async()=>{
     await nav('Data Library').click()
     await page.locator('.ws-context-tabs').getByRole('button',{
