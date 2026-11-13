@@ -197,7 +197,8 @@ def build_research_total_returns(raw_folder: str | Path, instruments,
     pd.DataFrame({
         "calendar_month_end":matrix.index,
         "observed_market_session":market_session.to_numpy(),
-        "calendar_days_between":(matrix.index-market_session).days
+        "calendar_days_between":(pd.Series(matrix.index,index=matrix.index)
+                                 -market_session).dt.days.to_numpy()
     }).to_csv(out/"OBSERVED_MARKET_SESSIONS.csv",index=False)
     last_sessions.to_csv(out/"PER_SECURITY_LAST_OBSERVED_SESSIONS.csv",
                          index_label="date")
