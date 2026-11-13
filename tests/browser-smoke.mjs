@@ -182,6 +182,10 @@ try {
     await errorCard.getByRole('button',{name:'Copy error details'}).waitFor()
     await errorCard.getByRole('button',{name:'Verify token and Data API subscription'}).waitFor()
     assert.ok(!(await errorCard.innerText()).includes('SECRET_API_TOKEN'))
+    // Past downloads is intentionally an optional disclosure in the guided
+    // UI. Open it before testing the batch-row View errors action.
+    const past=page.locator('.dh-previous-downloads')
+    if(!(await past.evaluate(el=>el.open)))await past.locator('summary').click()
     const row=page.getByRole('button',{
       name:'View BANK NIFTY · Historical members download details and errors',
     })
