@@ -72,6 +72,32 @@ jobs:
       - name: Exercise actual Chromium UI -> API -> local research data -> files
         run: node tests/browser-smoke.mjs
 
+      - name: Validate source-labeled demo recorder
+        run: node --check scripts/record_quantlab_demo.mjs
+
+      - name: Record real-browser synthetic research tour
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Review PRs use shorter validation. The exact merged main
+          # records a complete three-minute research walkthrough.
+          SECONDS_REQUESTED=180
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            SECONDS_REQUESTED=100
+          fi
+          node scripts/record_quantlab_demo.mjs \
+            --seconds "${SECONDS_REQUESTED}" \
+            --output artifacts/research-demo
+          test -s artifacts/research-demo/quantlab-synthetic-research-tour.webm
+          test -s artifacts/research-demo/quantlab-synthetic-research-tour.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quantlab-synthetic-three-minute-research-demo
+          path: artifacts/research-demo
+          retention-days: 14
+
       - name: Archive screenshots, API logs, and browser assertions
         if: always()
         run: |
