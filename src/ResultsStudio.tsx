@@ -507,7 +507,7 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
                 key={i} mode={selectedForCompare[i]?.mode||'unknown'} runKey="comparison"
                 figure={{group:'Independent panel',plot,insight:'Separate scale and provenance. Do not compare raw heights across units.'}}/>)}</div>}
               <p className="rs-warning">{comparison.warning}</p>
-              {!!comparison.sources?.length&&<DataTable rows={comparison.sources} name="quantlab_comparison_sources"/></section>}
+              {!!comparison.sources?.length&&<DataTable rows={comparison.sources} name="quantlab_comparison_sources"/>}</section>}
             <button onClick={onWorkspace} className="rs-link">Advanced Compare & Graph Studio <ArrowRight size={14}/></button>
           </div>}
         </>}</>}
