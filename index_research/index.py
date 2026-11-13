@@ -5,6 +5,7 @@ import pandas as pd
 from scipy.optimize import minimize
 from .math_models import minimum_variance
 from .portfolio_theory import risk_parity
+from .institutional_index import benchmark_asof, optimize_active_index
 
 
 @dataclass(frozen=True)
@@ -23,7 +24,12 @@ def construct_weights(scores: pd.DataFrame, membership: pd.DataFrame,
                       cap: float = 0.15, rebalance_every: int = 3,
                       prices: pd.DataFrame | None = None, vol_lookback: int = 12,
                       sectors: dict[str, str] | pd.DataFrame | None = None,
-                      sector_cap: float | None = None) -> pd.DataFrame:
+                      sector_cap: float | None = None,
+                      benchmark_history: pd.DataFrame | None = None,
+                      optimizer_risk_aversion: float = 3.,
+                      optimizer_turnover_penalty: float = .02,
+                      optimizer_tracking_error_limit: float | None = None,
+                      optimizer_max_trade_weight: float | None = None) -> pd.DataFrame:
     """Rank scores at decision close; reconstitution at every k-th observation.
 
     The 'score' method uses shifted positive z-score values, not predictive alpha.
@@ -33,15 +39,17 @@ def construct_weights(scores: pd.DataFrame, membership: pd.DataFrame,
         raise ValueError("scores/membership alignment required")
     if top_n < 1 or rebalance_every < 1 or cap <= 0 or cap > 1:
         raise ValueError("invalid index construction parameters")
-    if weighting not in {"equal", "score", "inverse_volatility", "minimum_variance", "risk_parity"}:
+    if weighting not in {"equal", "score", "inverse_volatility", "minimum_variance", "risk_parity", "benchmark_relative"}:
         raise ValueError("unsupported weighting")
     if sector_cap is not None and (sectors is None or not 0 < sector_cap <= 1):
         raise ValueError("sector cap requires valid sector mapping")
-    if weighting in {"inverse_volatility", "minimum_variance", "risk_parity"} and prices is None:
+    if weighting == "benchmark_relative" and benchmark_history is None:
+        raise ValueError("Benchmark-relative weighting requires real, dated benchmark_weights.csv")
+    if weighting in {"inverse_volatility", "minimum_variance", "risk_parity", "benchmark_relative"} and prices is None:
         raise ValueError("historical prices required for inverse volatility")
     vol = None
     lagged_returns = None
-    if prices is not None and weighting in {"inverse_volatility", "minimum_variance", "risk_parity"}:
+    if prices is not None and weighting in {"inverse_volatility", "minimum_variance", "risk_parity", "benchmark_relative"}:
         if not prices.index.equals(scores.index) or not prices.columns.equals(scores.columns):
             raise ValueError("historical price panel must align")
         lagged_returns=prices.pct_change(fill_method=None).shift(1)
@@ -59,6 +67,39 @@ def construct_weights(scores: pd.DataFrame, membership: pd.DataFrame,
             continue
         if selected.size * cap < 1 - 1e-10:
             raise ValueError(f"infeasible cap: {len(selected)} eligible names * {cap} < 1")
+        if weighting == "benchmark_relative":
+            benchmark=benchmark_asof(benchmark_history,date,scores.columns)
+            active_names=set(selected.index)|set(benchmark[benchmark>0].index)
+            risk_names=pd.Index([t for t in scores.columns if t in active_names])
+            # Source evidence must cover all benchmark exposures, including
+            # securities excluded from the active index. Never set missing
+            # variance observations to zero.
+            history=lagged_returns.loc[:date,risk_names].tail(max(12,vol_lookback))
+            if len(history)<12 or history.isna().any().any():
+                raise ValueError("Benchmark-relative risk requires >=12 complete PRIOR monthly returns "
+                                 "for all selected and benchmark-held securities")
+            risk_cov=history.cov()*12
+            forecast=pd.Series(np.nan,index=risk_names)
+            forecast.loc[selected.index]=selected
+            old_targets=output.iloc[:i].dropna(how="all")
+            previous=(old_targets.iloc[-1].reindex(risk_names).fillna(0)
+                      if not old_targets.empty else pd.Series(0.,index=risk_names))
+            identities=None
+            if sector_cap is not None:
+                if isinstance(sectors,pd.DataFrame):
+                    identities=sectors.loc[date].reindex(risk_names)
+                else:
+                    identities=pd.Series(sectors).reindex(risk_names)
+            optimized=optimize_active_index(
+                forecast,benchmark.reindex(risk_names),risk_cov,previous,
+                max_weight=cap,risk_aversion=optimizer_risk_aversion,
+                turnover_penalty=optimizer_turnover_penalty,
+                tracking_error_limit=optimizer_tracking_error_limit,
+                sector_labels=identities,sector_cap=sector_cap,
+                max_trade_weight=optimizer_max_trade_weight)
+            weights.loc[risk_names]=optimized.weights
+            output.loc[date]=weights
+            continue
         if weighting == "equal":
             raw = pd.Series(1.0, index=selected.index)
         elif weighting == "score":

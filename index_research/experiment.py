@@ -32,6 +32,14 @@ class ExperimentConfig:
     benchmark_name: str = "user_supplied"
     source_note: str = "No source note provided"
     sector_cap: float | None = None
+    optimizer_risk_aversion: float = 3.
+    optimizer_turnover_penalty: float = .02
+    optimizer_tracking_error_limit: float | None = None
+    optimizer_max_trade_weight: float | None = None
+    liquidity_aum: float | None = None
+    liquidity_max_participation: float = .05
+    liquidity_execution_days: int = 3
+    liquidity_impact_coefficient_bps: float = 50.
 
     def __post_init__(self):
         if self.dataset_status not in {"verified_point_in_time", "static_universe_demo", "unverified"}:
@@ -42,6 +50,27 @@ class ExperimentConfig:
             raise ValueError("sector cap must be in (0,1]")
         if self.top_n < 1 or self.rebalance_every < 1 or not 0 < self.max_weight <= 1:
             raise ValueError("invalid index configuration")
+        if self.weighting not in {"equal","score","inverse_volatility",
+                                 "minimum_variance","risk_parity","benchmark_relative"}:
+            raise ValueError("Unsupported index weighting methodology")
+        if not np.isfinite(self.optimizer_risk_aversion) or self.optimizer_risk_aversion<0:
+            raise ValueError("Risk aversion must be finite and nonnegative")
+        if not np.isfinite(self.optimizer_turnover_penalty) or self.optimizer_turnover_penalty<0:
+            raise ValueError("Optimizer turnover penalty must be finite and nonnegative")
+        if (self.optimizer_tracking_error_limit is not None and
+            not 0<self.optimizer_tracking_error_limit<=5):
+            raise ValueError("Tracking error cap must be positive")
+        if (self.optimizer_max_trade_weight is not None and
+            not 0<self.optimizer_max_trade_weight<=1):
+            raise ValueError("Maximum trade weight must be positive")
+        if self.liquidity_aum is not None and (
+            not np.isfinite(self.liquidity_aum) or self.liquidity_aum<=0):
+            raise ValueError("Liquidity AUM must be finite, positive and in ADV's currency")
+        if (not 0<self.liquidity_max_participation<=1 or
+            not 1<=self.liquidity_execution_days<=30 or
+            not np.isfinite(self.liquidity_impact_coefficient_bps) or
+            self.liquidity_impact_coefficient_bps<0):
+            raise ValueError("Liquidity scenario parameters must be valid")
 
 
 def performance_metrics(returns: pd.Series, benchmark: pd.Series,
@@ -96,7 +125,9 @@ def _split_mask(dates: pd.DatetimeIndex, cfg: ExperimentConfig) -> dict[str,pd.S
 def run_experiment(prices: pd.DataFrame, membership: pd.DataFrame,
                    benchmark: pd.Series, fundamentals: pd.DataFrame | None,
                    config: ExperimentConfig,
-                   sectors: pd.DataFrame | None = None) -> tuple[IndexBacktest, pd.DataFrame, dict]:
+                   sectors: pd.DataFrame | None = None,
+                   benchmark_history: pd.DataFrame | None = None,
+                   liquidity_records: pd.DataFrame | None = None) -> tuple[IndexBacktest, pd.DataFrame, dict]:
     factors = config.factor_weights or {"momentum":1.0}
     scores = composite_scores(
         prices, membership, factors, fundamentals,
@@ -108,9 +139,24 @@ def run_experiment(prices: pd.DataFrame, membership: pd.DataFrame,
         weighting=config.weighting,cap=config.max_weight,
         rebalance_every=config.rebalance_every,prices=prices,
         vol_lookback=config.volatility_lookback,
-        sectors=sectors,sector_cap=config.sector_cap)
+        sectors=sectors,sector_cap=config.sector_cap,
+        benchmark_history=benchmark_history,
+        optimizer_risk_aversion=config.optimizer_risk_aversion,
+        optimizer_turnover_penalty=config.optimizer_turnover_penalty,
+        optimizer_tracking_error_limit=config.optimizer_tracking_error_limit,
+        optimizer_max_trade_weight=config.optimizer_max_trade_weight)
     result = backtest_index(prices, targets, benchmark,
                             cost_bps=config.cost_bps,execution_lag=config.execution_lag)
+    liquidity_details=None
+    if config.liquidity_aum is not None:
+        if liquidity_records is None:
+            raise ValueError("Capacity scenario requires source liquidity.csv; no volume is fabricated")
+        from .liquidity import capacity_overlay
+        result,liquidity_details=capacity_overlay(
+            result,prices.index,liquidity_records,capital=config.liquidity_aum,
+            max_participation=config.liquidity_max_participation,
+            execution_days=config.liquidity_execution_days,
+            impact_coefficient_bps=config.liquidity_impact_coefficient_bps)
     ic = information_coefficient(scores, prices, membership)
     parts={}
     for name,mask in _split_mask(result.returns.index,config).items():
@@ -139,6 +185,11 @@ def run_experiment(prices: pd.DataFrame, membership: pd.DataFrame,
               "Factor score definitions are transparent research approximations, not MSCI methodologies.",
               "No historical result is independently validated by this program."
           ]}
+    if liquidity_details is not None:
+        meta["liquidity_costs_by_period"]=liquidity_details.to_dict(orient="records")
+        meta["liquidity_disclosure"]=(
+            "Dated source ADV/spreads and square-root impact scenario; fixed base cost "
+            "must exclude spread to prevent double charging. Not realized fills or market capacity certification.")
     return result,scores,meta
 
 
@@ -163,6 +214,9 @@ def save_experiment(result: IndexBacktest, scores: pd.DataFrame,
         "transaction_cost_fraction":result.costs,
     })
     frame.to_csv(out/"monthly_results.csv",index_label="date",float_format="%.12g")
+    if "liquidity_costs_by_period" in meta:
+        pd.DataFrame(meta["liquidity_costs_by_period"]).to_csv(
+            out/"liquidity_capacity.csv",index=False)
     result.weights.to_csv(out/"post_rebalance_weights.csv",index_label="date")
     result.pre_trade_weights.to_csv(out/"pre_trade_weights.csv",index_label="date")
     scores.to_csv(out/"factor_scores.csv",index_label="decision_date")
@@ -202,7 +256,17 @@ def run_from_directory(input_dir: str | Path, output_dir: str | Path,
     sectors_file=Path(input_dir)/"sectors.csv"
     if sectors_file.exists():
         sectors=asof_sectors(read_sector_history(str(sectors_file)),prices.index,prices.columns)
-    result,scores,meta=run_experiment(prices,membership,benchmark,fundamentals,config,sectors=sectors)
+    benchmark_history=None
+    if config.weighting=="benchmark_relative":
+        from .institutional_index import read_benchmark_history
+        benchmark_history=read_benchmark_history(Path(input_dir)/"benchmark_weights.csv")
+    liquidity_records=None
+    if config.liquidity_aum is not None:
+        from .liquidity import read_liquidity
+        liquidity_records=read_liquidity(Path(input_dir)/"liquidity.csv")
+    result,scores,meta=run_experiment(prices,membership,benchmark,fundamentals,config,
+                                     sectors=sectors,benchmark_history=benchmark_history,
+                                     liquidity_records=liquidity_records)
     out=save_experiment(result,scores,meta,output_dir,input_dir,sectors=sectors)
     from .diagnostics import evaluate_factor_panel, exposure_panel, data_quality_report
     from .comparison import compare_index_methods
