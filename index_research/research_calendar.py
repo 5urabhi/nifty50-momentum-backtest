@@ -65,7 +65,8 @@ def align_research_calendar(source_dir: str | Path,
     labeled_prices=prices.copy()
     labeled_prices.index=calendar
     snapshots=membership.copy()
-    snapshots.index=calendar
+    snapshots.index=pd.DatetimeIndex(calendar,name="date")
+    snapshots.columns=pd.Index(snapshots.columns,name="ticker")
     if benchmark_csv is None:
         benchmark_path=root/"benchmark.csv"
     else:
@@ -86,8 +87,8 @@ def align_research_calendar(source_dir: str | Path,
                 "; unexpected="+str([str(d.date()) for d in unexpected[:12]]))
     out.mkdir(parents=True)
     labeled_prices.to_csv(out/"prices.csv",index_label="date",float_format="%.12g")
-    snapshots.stack(future_stack=True).rename("eligible").reset_index(
-        names=["date","ticker"]).to_csv(out/"membership.csv",index=False)
+    snapshots.stack(future_stack=True).rename("eligible").reset_index().to_csv(
+        out/"membership.csv",index=False)
     if benchmark is not None:
         shutil.copyfile(benchmark_path,out/"benchmark.csv")
     observed=pd.DataFrame({
