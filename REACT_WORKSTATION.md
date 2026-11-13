@@ -302,3 +302,37 @@ research experiment, and inspect Saved Runs and Research Reports.
 but a local frontend build and complete end-to-end test execution must still
 be performed on the target PC before this migration is considered approved.
 Do not merge or deploy as a public app until verified.
+
+
+## Results Studio: statistical evidence (November 2026)
+
+In **Results Studio**, select a saved run and open **Evidence audit**.
+For an index run with 24+ paired monthly observations, the Python engine
+computes source-bound net-return risk, loss-distribution and rolling-risk
+figures, a seeded circular moving-block 95% uncertainty interval, and
+Newey–West HAC descriptive inference. Short or incomplete data produces an
+explicit blocked state, never a simulated confidence interval. Model runs
+expose archived numerical metrics and the correct theoretical/synthetic/
+observed-unverified source classification without claiming a prospective test.
+
+Choose **Compare runs**, select 2–8 compatible saved index runs (the first
+selected becomes baseline), then press **Calculate paired evidence**. The
+backend requires equal source-file checksums, dataset ID, shared calendar and
+benchmark, followed by a paired monthly comparison with Holm-adjusted nominal
+p-values and deterministic block-bootstrap intervals. Use separate plot panels
+for incompatible math/simulation families. Download Evidence JSON and the
+relevant CSV or SVG alongside the research notebook's original report.
+
+Read **docs/METRIC_REFERENCE.md** before interpreting intervals or p-values.
+Source hashes, bootstrap intervals, and declared holdouts are useful audit
+evidence but **not independent vendor/source verification, an audited market
+index, live fills, or a publication-level positive result**.
+
+API:
+- `GET /api/workspace/results/model_run/{run_id}/evidence`
+- `GET /api/workspace/results/research_run/{run_id}/evidence`
+- `POST /api/workspace/results/paired-comparison` with
+  `{"baseline_id":"run1","challenger_ids":["run2"]}`
+
+Synthetic fixture-only acceptance:
+`python -m unittest tests.test_result_evidence -v`.

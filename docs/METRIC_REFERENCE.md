@@ -84,3 +84,53 @@ An observation buffer of **+20%** is a preferred sample-size target, **not** a v
 Use **Help & Settings → Metric Guide** to inspect concepts. Use **Model Laboratory** for the registered algorithm formulas and bounds. Use **Compare & Visualize → Plot Builder** for graphs and **Research Projects** for notebook reports. Source checksums are recorded to show data lineage, not independent accuracy certification.
 
 Do not place Dhan access tokens in research notes, exports, or bug reports.
+
+
+## Saved-result Evidence Audit and paired inference
+
+**Results Studio → Evidence audit** operates only on archived local model or index runs.
+It does not download market data, modify datasets, alter saved model output or
+certify a strategy. Each check is `pass`, `warning`, `blocked`, or
+`not_applicable`; the **publication certification gate remains blocked**
+until independent review of point-in-time membership, corporate actions,
+benchmark total-return conventions, publication-dated fundamentals and
+untouched prospective test decisions. A reproducible checksum is a lineage
+identifier, **not** evidence of correct prices.
+
+For completed **index runs**, QuantLab now reports the following from complete,
+chronologically ordered, valid, paired saved monthly net returns:
+
+| Quantity | Computation / caveat |
+| --- | --- |
+| Conditional annual mean active return | `12 × mean(strategy_net − benchmark)`; in percentage points after multiplying by 100. **Not** the difference of CAGRs. |
+| Realized volatility / tracking error | `sqrt(12) × sample std(returns or active returns)`. |
+| Zero-rate Sharpe / zero-threshold Sortino | Mean / sample volatility or RMS negative-only downside, annualized appropriately. Zero-rate and target are explicitly assumed. |
+| Historical 95% VaR and ES | Loss quantile and mean of observed tail losses at/beyond quantile; descriptive only. |
+| Circular block-bootstrap interval | 1,000 deterministic replications of contiguous 2–6-month blocks (adapted to n), 95% percentile bounds on the annualized arithmetic active mean. Requires at least **24 paired valid monthly observations**. Conditional on the sample and approximate stationarity; not a prediction interval. |
+| Newey–West HAC nominal p-value | Asymptotic two-sided normal approximation for the mean active return; not valid evidence against data snooping or unreported specification search. |
+| Final-test declaration | Shows actual saved `final_test_start` and valid monthly count. Merely declaring a date is not proof that the test was isolated from research decisions. |
+
+There is **no forward-filling or synthetic completion** in this audit. Missing,
+infinite, or returns below/equal to −100% are explicitly counted as invalid;
+duplicate/nonchronological dates fail closed rather than silently changing the
+sample. Confidence bounds are omitted when fewer than 24 months are available.
+
+**Results Studio → Compare runs → Calculate paired evidence** supports 2–8
+index runs with exact matching dataset IDs, source-file hash maps, and
+benchmarks on the same calendar. It computes net-return *challenger minus
+baseline* differences for months present and valid in every selected run,
+requiring at least 24. The interval uses the same deterministic moving-block
+method. Asymptotic HAC p-values across the explicitly selected challengers are
+Holm-adjusted (step-down familywise error control). This adjustment cannot
+correct hidden model search or historical survivorship bias. Model simulations
+and theoretical surfaces must instead use **separate plots** rather than a
+spurious paired trading-performance significance test.
+
+Reports can be exported as machine-readable evidence JSON alongside the
+underlying run manifests, figure CSVs/SVGs, and research-notebook reports.
+
+**Interpretation rule:** `synthetic_demo`, `theoretical`, and
+`observed_unverified` are not interchangeable. A model with
+`mode=historical` fitted to the synthetic fixture **remains synthetic**,
+regardless of the model algorithm's label. No audit yields a
+“publication-ready” badge automatically.

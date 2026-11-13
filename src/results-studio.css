@@ -131,3 +131,31 @@
 @media(max-width:1250px){.rs-explorer{grid-template-columns:230px minmax(0,1fr)}.rs-figures{grid-template-columns:1fr}.rs-figures .rs-figure:nth-child(3n){grid-column:auto}}
 @media(max-width:1050px){.rs-explorer{grid-template-columns:1fr}.rs-run-picker{position:static;max-height:350px}.rs-run-list{max-height:220px}.rs-run-picker>header{flex-shrink:0}}
 @media(max-width:700px){.rs-hero{padding:23px;display:block}.rs-hero-actions{margin-top:20px;justify-content:flex-start}.rs-step{gap:6px;font-size:8px}.rs-two{grid-template-columns:1fr}.rs-identity{flex-direction:column;align-items:flex-start}.rs-identity-right{align-items:flex-start}.rs-tabs>button{flex:0 0 auto!important}.rs-panel{padding:15px}.rs-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rs-figure{padding:9px}.rs-figure header{align-items:flex-start}}
+
+
+/* Research evidence center: separate mathematical outputs from audited claims */
+.rs-evidence-claim{display:flex;align-items:flex-start;gap:12px;padding:15px 17px;
+  margin-bottom:18px;border:1px solid #81613e;border-radius:11px;background:#352e29;color:#e7d0ab}
+.rs-evidence-claim>svg{color:#f1bc7b;flex-shrink:0;margin-top:3px}
+.rs-evidence-claim strong,.rs-evidence-claim span{display:block}
+.rs-evidence-claim strong{font-size:12px;letter-spacing:.06em;margin-bottom:4px}
+.rs-evidence-claim span{font-size:11px;line-height:1.6}
+.rs-check-gates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:15px 0}
+.rs-gate{min-width:0;border:1px solid #526278;border-radius:9px;background:#142639;padding:12px 14px}
+.rs-gate.pass{border-color:#337764;background:#15362f}
+.rs-gate.warning{border-color:#917143;background:#3a3028}
+.rs-gate.blocked{border-color:#945465;background:#392630}
+.rs-gate.not_applicable{border-color:#3b5669}
+.rs-gate>div{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.rs-gate strong{font-size:11px;color:#e5efee}
+.rs-gate-label{display:inline-flex;align-items:center;flex-shrink:0;border-radius:5px;
+  padding:3px 6px;font-weight:800;letter-spacing:.065em;color:#bad7e9;background:#20394c;font-size:8px}
+.rs-gate.pass .rs-gate-label{color:#90e6c0;background:#1d5542}
+.rs-gate.warning .rs-gate-label{color:#ffd292;background:#614b31}
+.rs-gate.blocked .rs-gate-label{color:#ffc4cd;background:#643741}
+.rs-gate p{color:#d4e4e9;font-size:10px;line-height:1.65;margin:8px 0}
+.rs-gate small{display:block;color:#b8d1d6;font-size:10px;line-height:1.6}
+.rs-rule{height:1px;background:#294452;margin:17px 0}
+.rs-figures .rs-figure .ql-plot{min-width:0}
+.rs-root .rs-panel .rs-warning{margin-top:14px}
+@media(max-width:1100px){.rs-check-gates{grid-template-columns:1fr}}
