@@ -13,6 +13,8 @@ reproducibility checks, risk models, statistical experiments and research report
 Open http://127.0.0.1:5173. Secrets are loaded only by the local Python
 backend from an ignored environment file. No brokerage order API is enabled.
 
+**Current three-study research validation:** [Run and verify the source-gated studies](docs/THREE_STUDIES_RESEARCH_ACCEPTANCE.md) and [review the latest release, demo and résumé claim boundaries](docs/QUANTLAB_RELEASE_AND_SHOWCASE_20261113.md). Real historical NIFTY research is **not yet independently certified**; the repository contains software and synthetic test fixtures, not a complete audited NIFTY price/membership/filings/TRI evidence package.
+
 **For an unfamiliar researcher:** read
 [the five-minute researcher tour and JD skills map](docs/START_HERE_RESEARCHER.md),
 [the complete user guide](docs/RESEARCH_WORKSPACE_GUIDE.md),

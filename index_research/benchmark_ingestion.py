@@ -32,8 +32,11 @@ def normalize_benchmark(source: str | Path, output_dir: str | Path,
     monthly=data.set_index("date")["level"].resample("ME").last().dropna()
     if len(monthly)<3:
         raise ValueError("at least three monthly index levels required")
-    returns=monthly.pct_change(fill_method=None)
-    returns.iloc[0]=0.
+    # The first observed index level has no preceding close. Do not invent a
+    # zero return: downstream price calendars must supply the prior month.
+    returns=monthly.pct_change(fill_method=None).iloc[1:]
+    if returns.isna().any() or not np.isfinite(returns.to_numpy()).all():
+        raise ValueError("monthly benchmark has an unobservable return")
     out=Path(output_dir)
     out.mkdir(parents=True,exist_ok=True)
     destination=out/"benchmark.csv"
@@ -46,6 +49,10 @@ def normalize_benchmark(source: str | Path, output_dir: str | Path,
         "source_file":str(source),"date_column":date_column,"level_column":level_column,
         "first_observation":str(monthly.index.min().date()),
         "last_observation":str(monthly.index.max().date()),
+        "first_return_observation":str(returns.index.min().date()),
+        "return_observations":int(len(returns)),
+        "source_sha256":__import__("hashlib").sha256(Path(source).read_bytes()).hexdigest(),
+        "initial_level_policy":"No fabricated zero return; first CSV row requires a prior observed monthly level.",
         "warning":"Data provenance, licensed use, full coverage, trading calendar and benchmark compatibility require external validation."
     },indent=2))
     return destination,manifest
