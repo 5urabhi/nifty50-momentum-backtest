@@ -18,7 +18,7 @@ import uuid
 
 import pandas as pd
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -291,6 +291,31 @@ async def import_dataset(file: UploadFile = File(...)):
         buffer = await file.read(MAX_UPLOAD + 1)
         return service.import_zip(buffer, file.filename)
     except (ValueError, OSError, RuntimeError, __import__("zipfile").BadZipFile) as exc:
+        bad(exc)
+
+
+@app.post("/api/datasets/{dataset_id}/add-tri")
+async def dataset_add_total_return_benchmark(
+    dataset_id: str, file: UploadFile = File(...),
+    confirmed_tri: bool = Form(...),
+    date_column: str = Form("Date"),
+    level_column: str = Form("Total Returns Index"),
+    index_name: str = Form("NIFTY 50 TRI"),
+    convention: str = Form("gross_total_return"),
+):
+    """Make a new, explicitly unverified dataset from user-sourced TRI levels."""
+    if not confirmed_tri:
+        raise HTTPException(400, "Confirm this file contains actual TRI levels, not spot prices")
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(400, "Choose a permitted original TRI levels CSV")
+    try:
+        payload = await file.read(MAX_UPLOAD + 1)
+        return service.attach_tri_benchmark(
+            dataset_id, payload, file.filename,
+            date_column=date_column, level_column=level_column,
+            index_name=index_name, convention=convention,
+        )
+    except (OSError, ValueError, RuntimeError) as exc:
         bad(exc)
 
 
@@ -1334,6 +1359,52 @@ def preview_historical_index(index_id: Literal["nifty50_pit", "banknifty_pit"],
 @app.get("/api/dhan/batches")
 def dhan_batches():
     return {"batches": dhan_workspace.list_batches()}
+
+
+@app.get("/api/dhan/batches/trash")
+def dhan_trashed_batches():
+    return {"batches": dhan_workspace.list_trashed_batches()}
+
+
+def _require_no_active_dhan_jobs():
+    with JOBS_LOCK:
+        if any(job.get("status") in {"queued", "running"}
+               and job.get("kind") in {
+                   "dhan_bulk", "dhan_prepare_batch", "dhan_index_price_benchmark"
+               } for job in JOBS.values()):
+            raise HTTPException(409, "A Dhan download/preparation is active. Stop it and "
+                                "let it finish before deleting a batch.")
+
+
+@app.delete("/api/dhan/batches/trash/{batch_id}")
+def dhan_purge_batch(batch_id: str, confirm: bool = False):
+    if not confirm:
+        raise HTTPException(400, "Permanent deletion requires confirmation")
+    _require_no_active_dhan_jobs()
+    try:
+        return dhan_workspace.purge_trashed_batch(batch_id)
+    except (ValueError, OSError) as exc:
+        bad(exc)
+
+
+@app.post("/api/dhan/batches/trash/{batch_id}/restore")
+def dhan_restore_batch(batch_id: str):
+    _require_no_active_dhan_jobs()
+    try:
+        return dhan_workspace.restore_trashed_batch(batch_id)
+    except (ValueError, OSError) as exc:
+        bad(exc)
+
+
+@app.delete("/api/dhan/batches/{batch_id}")
+def dhan_trash_batch(batch_id: str, confirm: bool = False):
+    if not confirm:
+        raise HTTPException(400, "Deleting a download requires confirmation")
+    _require_no_active_dhan_jobs()
+    try:
+        return dhan_workspace.trash_batch(batch_id)
+    except (ValueError, OSError) as exc:
+        bad(exc)
 
 
 @app.get("/api/dhan/batches/{batch_id}")
