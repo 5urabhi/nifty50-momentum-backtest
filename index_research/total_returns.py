@@ -165,6 +165,7 @@ def build_research_total_returns(raw_folder: str | Path, instruments,
     """
     actions=read_actions(actions_file)
     panels=[]
+    per_security_sessions=[]
     for inst in instruments:
         src=Path(raw_folder)/(inst.label+"_daily.csv")
         frame=pd.read_csv(src)
@@ -176,19 +177,41 @@ def build_research_total_returns(raw_folder: str | Path, instruments,
         close=pd.Series(pd.to_numeric(frame.close,errors="raise").to_numpy(),index=pd.DatetimeIndex(days)).sort_index()
         calc=total_return_index(close,actions,price_basis=price_basis,ticker=inst.label)
         panels.append(daily_to_monthly_total_return(calc).rename(inst.label))
+        last_obs=pd.Series(calc.index,index=calc.index)
+        last_by_month=last_obs.groupby(last_obs.index.to_period("M")).max()
+        last_by_month.index=last_by_month.index.to_timestamp("M")
+        per_security_sessions.append(last_by_month.rename(inst.label))
     matrix=pd.concat(panels,axis=1).sort_index()
+    last_sessions=pd.concat(per_security_sessions,axis=1).reindex(matrix.index)
+    market_session=last_sessions.max(axis=1)
+    if market_session.isna().any() or not (
+        market_session.dt.to_period("M")==matrix.index.to_period("M")
+    ).all():
+        raise ValueError("Monthly research wealth lacks actual source close sessions")
     out=Path(output_folder)
     out.mkdir(parents=True,exist_ok=True)
     target=out/"prices.csv"
     if target.exists():
         raise FileExistsError(f"{target} exists (do not overwrite previous vintage)")
     matrix.to_csv(target,index_label="date")
+    pd.DataFrame({
+        "calendar_month_end":matrix.index,
+        "observed_market_session":market_session.to_numpy(),
+        "calendar_days_between":(pd.Series(matrix.index,index=matrix.index)
+                                 -market_session).dt.days.to_numpy()
+    }).to_csv(out/"OBSERVED_MARKET_SESSIONS.csv",index=False)
+    last_sessions.to_csv(out/"PER_SECURITY_LAST_OBSERVED_SESSIONS.csv",
+                         index_label="date")
     (out/"RETURN_METHODOLOGY.json").write_text(json.dumps({
         "vendor":"DhanHQ daily OHLCV","price_basis":price_basis,
         "dividend_adjustment":"verified ex-date cash-per-share, reinvested on ex-date",
         "split_bonus_adjustment":"only applied to raw_unadjusted basis",
         "supported_events":sorted(EVENTS),
         "not_supported":["rights_issue","spin_off","merger_exchange","tender_offer","unknown_delisting_recovery"],
+        "observed_monthly_market_sessions_file":"OBSERVED_MARKET_SESSIONS.csv",
+        "per_security_last_sessions_file":"PER_SECURITY_LAST_OBSERVED_SESSIONS.csv",
+        "source_session_policy":"Maximum actually observed per-security session each "
+                                "month; stale or suspended constituents need source review.",
         "validation":"UNVERIFIED completeness of market events and price adjustments",
         "use":"research only until event coverage and vendor policy independently verified"
     },indent=2))

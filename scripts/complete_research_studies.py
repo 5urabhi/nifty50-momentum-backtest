@@ -92,7 +92,8 @@ def research_preflight(data_dir: str | Path, config: ExperimentConfig) -> dict:
                 config_blockers.append("Invalid liquidity source: "+str(exc))
     if config.sector_cap is not None and "sectors.csv" not in present:
         config_blockers.append("Sector cap requires effective-dated sectors.csv")
-    if (set(config.factor_weights or {}) & {"value","quality","size","yield"}
+    if ({name for name,value in (config.factor_weights or {}).items()
+         if value>0} & {"value","quality","size","yield"}
             and "fundamentals.csv" not in present):
         config_blockers.append("Fundamental factor selection requires publication-dated fundamentals.csv")
     if (config.factor_weights or {}).get("yield",0)>0 and "fundamentals.csv" in present:
@@ -117,7 +118,8 @@ def research_preflight(data_dir: str | Path, config: ExperimentConfig) -> dict:
             if (membership & prices.isna()).any().any():
                 config_blockers.append("Missing prices for historically eligible securities.")
             requested = config.factor_weights or {"momentum": 1}
-            if set(requested) & {"value", "quality", "size"} and fundamentals is None:
+            if ({name for name,value in requested.items() if value>0}
+                    & {"value","quality","size","yield"} and fundamentals is None):
                 config_blockers.append("Value/Quality/Size need first-published fundamentals.csv.")
             if len(prices.columns) < config.top_n:
                 config_blockers.append("The historical price panel has fewer names than top_n.")
