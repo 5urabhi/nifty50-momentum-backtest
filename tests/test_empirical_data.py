@@ -128,8 +128,13 @@ class MarketResearchInputTests(unittest.TestCase):
             level_column="IndexTR",index_name="NIFTY 50 TRI",
             return_convention="gross_total_return")
         out=pd.read_csv(path)
-        self.assertAlmostEqual(out["return"].iloc[1],.1)
-        self.assertEqual(json.loads(metadata.read_text())["return_convention"],"gross_total_return")
+        self.assertEqual(len(out),3)
+        self.assertAlmostEqual(out["return"].iloc[0],.1)
+        self.assertTrue((out["return"]!=0).all())
+        manifest=json.loads(metadata.read_text())
+        self.assertEqual(manifest["return_convention"],"gross_total_return")
+        self.assertEqual(manifest["first_return_observation"],"2024-02-29")
+        self.assertEqual(len(manifest["source_sha256"]),64)
 
     def test_unverified_gate_fails_closed(self):
         root=self.root/"no_evidence"
