@@ -262,3 +262,54 @@ redistributed by the exported methodology reports.
 
 Run local regression tests after updating:
 `python -m unittest tests.test_historical_freeze tests.test_action_import -v`.
+
+
+## NSE TRI daily CSV date alignment: automatic and no-lookahead
+
+**Data Library → Complete the missing dataset inputs → Choose TRI CSV →
+Validate and add TRI benchmark** now matches daily original NSE Indices
+TRI levels to the **actual saved stock observation dates**, not artificial
+calendar-end dates. This fixes the false missing-month warnings that occurred
+when the source's observed index close was on January 30, February 27,
+March 30 or May 29, while the old importer stamped the data on January 31,
+February 28, March 31 or May 31.
+
+The algorithm selects an index level on the **exact stock date** whenever
+available. For a dataset explicitly labeled with a **calendar month-end**
+instead of a trading day, it uses the last original index observation
+within that same month, at most five calendar days earlier. Every choice
+is stored in `BENCHMARK_ALIGNMENT_PROVENANCE.json`, including the input
+label, actual source trading date, lag in days, preceding source mark and
+whether exact alignment or month-end-label interpretation was used.
+
+The first stock-month return requires an **actual source close from the
+preceding month**. No zero return is inserted. Missing index observations
+on a genuine stock trading date, missing source months, incomplete prior
+month, invalid index identity, or mismatched study dates still fail with a
+specific actionable error. No future TRI level is used to compute a
+past stock-month benchmark return; missing data are never invented.
+
+For example, a source file named
+`NIFTY 50_Historical_TR_01112025to01112026.csv` containing actual daily
+`Total Returns Index` observations is a valid source *format*. A similarly
+named `Historical_PR` file with an OHLC `Close` is **not** TRI. Actual
+availability of the source month **before** the study's first month is
+still mandatory. Source rights and stock dividend reconciliation remain
+independent validation requirements.
+
+A successful import creates a **new dataset version** and leaves the Dhan
+original intact. The legacy independent `EVIDENCE_REVIEW.json` is *not*
+automatically inherited by the new benchmark version; the reviewer must
+approve the resulting economic dataset separately. The source file itself
+is kept only in a temporary local import staging area, not included in
+publicly shareable results. Frozen research protocols include the new
+alignment manifest in their input hashes.
+
+Validation commands (already committed as software tests):
+
+    python -m unittest tests.test_tri_trading_date_alignment -v
+
+User workflow: update `main`, restart `bash run.sh`, choose your existing
+prepared stock dataset, reselect the same original TRI CSV once and click
+**Validate and add TRI benchmark**. No new stock download or spreadsheet
+editing is required if the source actually covers the stock marks.

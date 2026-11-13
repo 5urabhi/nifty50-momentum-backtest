@@ -341,11 +341,13 @@ function App(){
       form.append('level_column',triLevelColumn)
       form.append('convention',triConvention)
       form.append('index_name',dataset.label.toLowerCase().includes('bank')?'NIFTY BANK TRI':'NIFTY 50 TRI')
-      return request<Dataset & {benchmark_caveat:string}>(
+      return request<Dataset & {benchmark_caveat:string;benchmark_alignment?:{matched_months:number;calendar_end_label_matches:number;exact_trading_date_matches:number}}>(
         '/datasets/'+encodeURIComponent(dataset.id)+'/add-tri',{method:'POST',body:form})
     },r=>{
       void refresh();setSelectedDataset(r.id);setTriFile(null);setTriConfirmed(false)
-      notify('New data version created with aligned TRI benchmark. Original source reviews and dividends remain unverified.')
+      notify('TRI aligned automatically for '+(r.benchmark_alignment?.matched_months||'saved')+
+        ' stock months ('+(r.benchmark_alignment?.calendar_end_label_matches||0)+
+        ' calendar-end labels resolved). No missing prices fabricated. Source reviews remain unverified.')
     })
   }
   const trashDataset=(d:Dataset)=>{
@@ -419,11 +421,13 @@ function App(){
                 historical membership are already saved. Don't download those again.</p>
               <a href="https://www.niftyindices.com/reports/historical-data"
                 target="_blank" rel="noreferrer">Get NIFTY Total Returns Index levels from the exchange ↗</a>
-              <p>Choose an original TRI levels CSV covering the entire stock period,
-                <b> including the prior month.</b> A Dhan spot price index is not TRI.</p>
+              <p>Choose an original TRI levels CSV covering the stock period,
+                <b> including the prior month.</b> QuantLab automatically matches daily TRI
+                observations to your saved stock dates—no manual date editing or repeated
+                stock downloads. A Dhan spot price index is not TRI.</p>
               <label className="ws-file-input"><span>1. Choose TRI CSV</span>
-                <input aria-label="Choose NIFTY TRI levels CSV" type="file" accept=".csv,text/csv"
-                  onChange={e=>{setTriFile(e.target.files?.[0]||null);e.target.value=''}}/>
+                <input key={dataset.id} aria-label="Choose NIFTY TRI levels CSV" type="file" accept=".csv,text/csv"
+                  onChange={e=>{setTriFile(e.target.files?.[0]||null)}}/>
                 {triFile&&<small>Selected: {triFile.name}</small>}
               </label>
               <details className="ws-tri-advanced"><summary>CSV column names (change only if different)</summary>
