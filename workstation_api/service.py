@@ -236,7 +236,6 @@ def attach_tri_benchmark(dataset_id: str, original_csv: bytes, filename: str,
     A source file without a prior monthly level cannot be used to fabricate
     a first return. Successful structural compatibility is NOT certification.
     """
-    from . import research_library
     from index_research.benchmark_ingestion import normalize_benchmark
     from index_research.data import load_research_inputs
     if not original_csv or len(original_csv) > 30 * 1024 * 1024:
@@ -258,8 +257,10 @@ def attach_tri_benchmark(dataset_id: str, original_csv: bytes, filename: str,
     if any(not (folder / f).is_file() or (folder / f).is_symlink()
            for f in ("prices.csv", "membership.csv")):
         raise ValueError("Prepare stock prices and historical membership first.")
-    dependencies = research_library.resource_dependencies("dataset", dataset_id)
     # Source is never removed; even referenced original datasets remain stable.
+    if (folder / "DO_NOT_CITE.txt").exists():
+        raise ValueError("A synthetic demonstration cannot be relabeled as observed "
+                         "research by uploading an unrelated benchmark.")
     if folder.is_symlink() or any(p.is_symlink() for p in folder.iterdir()):
         raise ValueError("Dataset source contains an unsafe link.")
     base = DATA / "workstation_imports"
