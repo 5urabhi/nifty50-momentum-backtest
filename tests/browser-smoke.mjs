@@ -223,7 +223,7 @@ try {
     const graph=page.locator('.ra-result .ql-svg-chart').first()
     await graph.hover({position:{x:320,y:140}})
     await page.locator('.ra-result .ql-active-observation').first().waitFor()
-    assert.ok((await page.locator('.ra-result .ql-active-observation').innerText()).length>3,
+    assert.ok((await page.locator('.ra-result .ql-active-observation').textContent()).length>3,
       'Hover must expose actual data values, not a non-interactive line')
     await screenshot('02-plot-scatter')
     const figure=await apiJson('/api/workspace/plot-builder/columns/upload_ci_browser_smoke')
