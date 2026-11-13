@@ -37,10 +37,10 @@ class ActionImportTests(unittest.TestCase):
             .groupby(self.days.to_period("M")).max().to_list(),name="date")
         closes.loc[marks].to_csv(self.path/"prices.csv")
         self.ledger=pd.DataFrame([{
-            "ex_date":self.days[20].date().isoformat(), "ticker":"ALFA",
+            "ex_date":self.days[35].date().isoformat(), "ticker":"ALFA",
             "event_type":"dividend","cash_per_share":2.0,
             "share_multiplier":1.0,
-            "declared_at":self.days[12].date().isoformat(),
+            "declared_at":self.days[30].date().isoformat(),
             "source_url":"https://example.org/invented-fixture",
             "verified":True,
         }])
@@ -89,7 +89,7 @@ class ActionImportTests(unittest.TestCase):
     def test_unverified_or_unsupported_events_fail_closed(self):
         unverified=self.ledger.copy()
         unverified["verified"]=False
-        with self.assertRaisesRegex(ValueError,"unverifiable"):
+        with self.assertRaisesRegex(ValueError,"unverified"):
             corporate_action_import.import_adjusted("upload_action_fixture",
                 self.payload(unverified))
         unsupported=self.ledger.copy()
