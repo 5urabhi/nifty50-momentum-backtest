@@ -261,3 +261,38 @@
 .dh-guided button:focus-visible,.dh-guided input:focus-visible,.dh-guided select:focus-visible,.dh-guided summary:focus-visible{outline:2px solid #88efcf;outline-offset:3px}
 @media(max-width:820px){.dh-simple-intro{align-items:flex-start;flex-direction:column}.dh-simple-modes{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.dh-guided>.dh-panel{padding:17px}.dh-simple-track{grid-template-columns:repeat(2,minmax(0,1fr))}.dh-simple-modes{grid-template-columns:1fr}.dh-simple-review{grid-template-columns:repeat(2,minmax(0,1fr))}.dh-simple-review>div:first-child{grid-column:1/-1}.dh-simple-date-fields{grid-template-columns:1fr}}
+
+
+/* Always-visible, actionable failure card. No hidden stock table required
+   to read the provider status and no raw vendor response bodies copied. */
+.dh-visible-errors{border:1px solid #ba745b;background:#332a28;border-radius:10px;
+  padding:18px;margin-top:14px;color:#f5e7df}
+.dh-visible-errors-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:13px}
+.dh-visible-errors-head>svg{color:#ffad86;flex:none}
+.dh-visible-errors-head strong{font-size:15px;color:#ffcfba}
+.dh-visible-errors-head p{font-size:12px;line-height:1.55;color:#dbc4b9;margin:7px 0 0}
+.dh-visible-error-item{background:#241e20;border:1px solid #77584d;border-radius:8px;
+  padding:13px 14px;margin-top:9px}
+.dh-visible-error-item>div{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.dh-visible-error-item strong{color:#ffdbc8;font-size:13px}
+.dh-visible-error-item span{display:inline-flex;border:1px solid #ce8d6c;border-radius:6px;
+  padding:3px 7px;color:#ffc8a8;font:800 12px ui-monospace,SFMono-Regular,monospace}
+.dh-visible-error-item code{display:block;font:12px/1.6 ui-monospace,SFMono-Regular,monospace;
+  color:#f6d8c7;margin-top:10px;overflow-wrap:anywhere;user-select:text}
+.dh-visible-error-item p{font-size:12px;color:#e0c8c0;line-height:1.6;margin:9px 0 0}
+.dh-error-extra{font-size:11px;color:#d7b9af}
+.dh-visible-error-buttons{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.dh-visible-error-buttons button{font-size:12px;min-height:40px;border-color:#947363}
+.dh-auth-failure-next{margin-top:14px;padding-top:13px;border-top:1px solid #7d5648}
+.dh-auth-failure-next>strong{font-size:13px;color:#ffcdaf}
+.dh-auth-failure-next>p{font-size:12px;line-height:1.65;color:#e6cbbb;margin:7px 0 12px}
+.dh-auth-failure-next button{min-height:42px;font-size:12px}
+.dh-batch-open-label{display:flex;align-items:center;gap:5px;white-space:nowrap;
+  color:#9be1d2;font-size:11px;font-weight:800}
+.dh-batch-row.active .dh-batch-open-label{color:#d5fff0}
+.dh-batch-row:focus-visible{outline:2px solid #83edc9;outline-offset:3px}
+@media(max-width:600px){
+  .dh-visible-errors{padding:13px}
+  .dh-batch-open-label{font-size:10px}
+  .dh-batch-numbers{display:none}
+}
