@@ -348,7 +348,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
       <p className="dh-simple-help">Pick one. NIFTY 50 historical is the best starting point for the index study.</p>
       <div className="dh-mode-grid dh-simple-modes">{simpleOptions.map(optionButton)}</div>
       <details className="dh-simple-details">
-        <summary>More choices: BANK/NSE/BSE and ticker lists</summary>
+        <summary>More choices: NSE/BSE markets or a ticker list</summary>
         <div className="dh-mode-grid dh-simple-modes dh-extra-modes">{otherOptions.map(optionButton)}</div>
       </details>
       {pitMode?<>
@@ -508,6 +508,9 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         <p>Once a download finishes, select “Prepare data for models” here.</p></div>
     </div>
     <Section title="Your downloads" aside={<button className="dh-small-btn" type="button" onClick={()=>void loadBatches()}><RefreshCw size={14}/> Refresh</button>}>
+      {!details&&<p className="dh-simple-help" role="status">
+        {batches.length?'Loading the selected download…':'No downloads yet. Start in Step 3; progress will appear here automatically.'}
+      </p>}
       <details className="dh-simple-details dh-previous-downloads">
         <summary>Past downloads ({batches.length}) · select a different batch</summary>
       {batches.length>0?<div className="dh-library">
@@ -551,7 +554,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
             couldResume&&<button className="dh-small-btn" disabled={working||Boolean(task)} onClick={resume}><Play size={15}/> Resume / retry remaining</button>}
           {countsCompleted>0&&!details.prepared_dataset_id&&
             <button className="dh-small-btn primary" disabled={working||Boolean(task)||currentActive} onClick={prepare}>
-              <FileSpreadsheet size={16}/> Prepare research dataset from {details.interval===null?'daily':details.interval+'-minute'} candles
+              <FileSpreadsheet size={16}/> Prepare data for models
             </button>}
           {details.prepared_dataset_id&&<Pill tone="good">Prepared dataset: {details.prepared_dataset_id}</Pill>}
           {details.prepared_dataset_id&&!details.has_price_benchmark&&details.historical_index_name&&details.index_spot?.status==='complete'&&
@@ -588,6 +591,9 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         </details>
       </div>}
     </Section>
-    <div className="dh-footnote"><ShieldCheck size={18}/><p><strong>Research integrity:</strong> Historical NIFTY memberships are reconstructed from dated NSE notices with recorded source versions. Unresolved delisted/renamed instruments and missing OHLCV are reported, never silently replaced. Price history is not dividend-reinvested total return data; completed index backtests still require benchmark and corporate-action verification.</p></div>
+    <details className="dh-simple-details dh-source-limits">
+      <summary>Research limitations (optional)</summary>
+      <div className="dh-footnote"><ShieldCheck size={18}/><p><strong>Research integrity:</strong> Historical NIFTY memberships are reconstructed from dated NSE notices with recorded source versions. Unresolved delisted/renamed instruments and missing OHLCV are reported, never silently replaced. Price history is not dividend-reinvested total return data; completed index backtests still require benchmark and corporate-action verification.</p></div>
+    </details>
   </div>
 }
