@@ -1,7 +1,7 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
-import {Activity,ArrowRight,BarChart3,BookOpen,CheckCircle2,ChevronDown,Download,
+import {Activity,ArrowRight,BarChart3,BookOpen,ChevronDown,Download,
   FlaskConical,Layers3,LoaderCircle,RefreshCw,Save,Search,ShieldAlert,
-  ShieldCheck,SlidersHorizontal,Table2,X} from 'lucide-react'
+  ShieldCheck,SlidersHorizontal,X} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
 import './results-studio.css'
 
@@ -277,7 +277,6 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
       '?level='+explainLevel).then(r=>{if(alive)setExplain(r)}).catch(()=>{})
     return()=>{alive=false}
   },[active?.key,explainLevel])
-  const mode=active?.mode||'unknown'
   const sourceKind=index?String(index.source.dataset_kind||'unknown'):mode
   const dataId=model?.source?.dataset_id||String(index?.source.dataset_id||active?.dataset_id||'')
   const evidence=sourceKind==='synthetic'?'SEEDED SYNTHETIC DEMONSTRATION':
