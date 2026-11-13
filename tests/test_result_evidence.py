@@ -69,7 +69,7 @@ class ResultEvidenceTests(unittest.TestCase):
         self.assertEqual(result["evidence_class"], "synthetic_demo")
         self.assertEqual(result["readiness"], "research_diagnostic_only")
         self.assertEqual(result["observations"], 48)
-        self.assertIn("input_sha256", result["source"].get("source_hashes", {}))
+        self.assertIn("prices.csv", result["source"].get("source_hashes", {}))
         self.assertIsNotNone(result["uncertainty"])
         self.assertIsNotNone(result["hac"])
         self.assertEqual(result["uncertainty"]["replications"], 1000)
