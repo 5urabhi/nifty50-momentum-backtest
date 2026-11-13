@@ -35,7 +35,7 @@ CORE = ("prices.csv", "membership.csv", "benchmark.csv")
 SOURCE = ("BENCHMARK_SOURCE.json", "RETURN_METHODOLOGY.json",
           "PIT_MEMBERSHIP_PROVENANCE.json", "EVIDENCE_REVIEW.json")
 RESEARCH = ("fundamentals.csv", "sectors.csv", "corporate_actions.csv",
-            "factor_returns.csv", "benchmark_weights.csv")
+            "factor_returns.csv", "benchmark_weights.csv", "liquidity.csv")
 
 
 def sha(path: Path) -> str:
@@ -72,6 +72,36 @@ def research_preflight(data_dir: str | Path, config: ExperimentConfig) -> dict:
         config_blockers.append("Validation must strictly precede final holdout.")
     if config.execution_lag == 0:
         config_blockers.append("Same-close execution is optimistic; choose a delayed assumption.")
+    if config.weighting=="benchmark_relative":
+        if "benchmark_weights.csv" not in present:
+            config_blockers.append("Benchmark-relative index requires dated benchmark_weights.csv")
+        else:
+            from index_research.institutional_index import read_benchmark_history
+            try:
+                read_benchmark_history(root/"benchmark_weights.csv")
+            except (ValueError,OSError) as exc:
+                config_blockers.append("Invalid benchmark weights: "+str(exc))
+    if config.liquidity_aum is not None:
+        if "liquidity.csv" not in present:
+            config_blockers.append("Capacity analysis requires sourced liquidity.csv")
+        else:
+            from index_research.liquidity import read_liquidity
+            try:
+                read_liquidity(root/"liquidity.csv")
+            except (ValueError,OSError) as exc:
+                config_blockers.append("Invalid liquidity source: "+str(exc))
+    if config.sector_cap is not None and "sectors.csv" not in present:
+        config_blockers.append("Sector cap requires effective-dated sectors.csv")
+    if (set(config.factor_weights or {}) & {"value","quality","size","yield"}
+            and "fundamentals.csv" not in present):
+        config_blockers.append("Fundamental factor selection requires publication-dated fundamentals.csv")
+    if (config.factor_weights or {}).get("yield",0)>0 and "fundamentals.csv" in present:
+        try:
+            frame=pd.read_csv(root/"fundamentals.csv")
+            if "yield" not in frame or frame["yield"].notna().sum()<2:
+                config_blockers.append("Yield factor requires >=2 sourced historical dividend-yield rows")
+        except (OSError,ValueError) as exc:
+            config_blockers.append("Invalid yield factor source: "+str(exc))
     test_months = None
     first_date = last_date = None
     if not missing and not config_blockers:

@@ -40,6 +40,24 @@ class ThreeStudyPipelineTests(unittest.TestCase):
         self.assertFalse(report["software_ready"])
         self.assertTrue(any("final_test_start" in x for x in report["configuration_blockers"]))
 
+    def test_missing_advanced_source_files_are_blocked(self):
+        from dataclasses import replace
+        benchmark_config=replace(self.config,weighting="benchmark_relative")
+        report=research_preflight(self.root,benchmark_config)
+        self.assertFalse(report["software_ready"])
+        self.assertTrue(any("benchmark_weights.csv" in x
+                            for x in report["configuration_blockers"]))
+        capacity_config=replace(self.config,liquidity_aum=100_000)
+        report=research_preflight(self.root,capacity_config)
+        self.assertFalse(report["software_ready"])
+        self.assertTrue(any("liquidity.csv" in x
+                            for x in report["configuration_blockers"]))
+        yield_config=replace(self.config,factor_weights={"yield":1.})
+        report=research_preflight(self.root,yield_config)
+        self.assertFalse(report["software_ready"])
+        self.assertTrue(any("Yield factor" in x
+                            for x in report["configuration_blockers"]))
+
     def test_missing_source_files_are_reported(self):
         (self.root / "benchmark.csv").unlink()
         result = research_preflight(self.root, self.config)
