@@ -100,6 +100,16 @@ def index_preflight(dataset_id: str, config: dict) -> dict:
     cap=float(config.get("max_weight",.2))
     if count*cap < 1-1e-10:
         blockers.append("Infeasible weights: top_n × maximum weight is below 1.")
+    universe_count=None
+    price_path=folder/"prices.csv"
+    if price_path.is_file() and not price_path.is_symlink():
+        try:
+            universe_count=len(pd.read_csv(price_path,nrows=0).columns)-1
+            if universe_count>0 and min(count,universe_count)*cap < 1-1e-10:
+                blockers.append("Infeasible observed universe: "+str(universe_count)+
+                                " names at this weight cap cannot reach full investment.")
+        except (OSError,ValueError):
+            blockers.append("Unreadable monthly source header")
     if not 1<=count<=300 or not 0<cap<=1:
         blockers.append("Constituent count and weight cap must stay in permitted bounds.")
     if config.get("execution_lag",1)==0:
@@ -118,6 +128,7 @@ def index_preflight(dataset_id: str, config: dict) -> dict:
         "factor_names":list(factor_weights),
         "factor_weights":factor_weights,"available_monthly_observations":record.get("monthly_price_observations"),
         "preferred_monthly_observations":max(60,int(config.get("momentum_formation",12))*2),
+        "available_universe_securities":universe_count,
         "methodology":"Cross-sectional standardization at formation dates; monthly source "
                       "prices; top-N constituent selection, bounded SLSQP weight construction, "
                       "drift-aware turnover and explicit execution lag.",
