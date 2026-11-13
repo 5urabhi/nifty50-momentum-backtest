@@ -49,9 +49,13 @@ Executes the actual cross-sectional factor ranking, constrained reconstitution a
 
 Requires optional `factor_returns.csv` (1–12 named monthly factor proxy return columns) and `benchmark_weights.csv` (date,ticker,weight; all modeled names including zero weights). Uses strictly earlier historical observations to fit factor exposures, then decomposes annualized active variance into `B F Bᵀ` and security-specific risk. The pipeline **reports unavailable** when the required inputs are absent; it does not synthesize them. This is a transparent OLS proxy risk estimate, not licensed MSCI/Barra output or causal attribution.
 
+In the expanded research CLI, optional source-complete benchmark/factor files
+also enable up to **36 rolling ex-ante estimates** in `STUDY_B_RISK_HISTORY.csv`,
+each fit strictly before its corresponding decision period.
+
 ### Study C — Data Integrity and Robustness
 
-Reports how many historical security-month eligibility decisions disagree with using only the *final* constituent universe. That is a **contamination diagnostic**, not a quantitative estimate of survivorship alpha. Where independently obtained `benchmark_price_only.csv` exists with matching dates, reports the index price-versus-total-return convention difference. Also reports observed **modeled** cost drag, not broker fills.
+Reports how many historical security-month eligibility decisions disagree with using only the *final* constituent universe. If there is genuine historic membership variation and the source data support both simulations, it also recomputes a static-final-membership strategy on the same inputs and saves `static_universe_counterfactual.csv`. This is an intentionally **lookahead-contaminated sensitivity experiment**, not a causal estimate of survivorship alpha or an investable strategy. Where independently obtained `benchmark_price_only.csv` exists with matching dates, reports the index price-versus-total-return convention difference. Also reports observed **modeled** cost drag, not broker fills.
 
 ## What constitutes completion
 

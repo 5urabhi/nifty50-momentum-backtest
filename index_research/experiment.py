@@ -129,6 +129,10 @@ def run_experiment(prices: pd.DataFrame, membership: pd.DataFrame,
                    benchmark_history: pd.DataFrame | None = None,
                    liquidity_records: pd.DataFrame | None = None) -> tuple[IndexBacktest, pd.DataFrame, dict]:
     factors = config.factor_weights or {"momentum":1.0}
+    if factors.get("yield",0)>0 and (
+        fundamentals is None or "yield" not in fundamentals.columns or
+        int(fundamentals["yield"].notna().sum())<2):
+        raise ValueError("Yield factor requires >=2 genuine publication-dated dividend yield observations")
     scores = composite_scores(
         prices, membership, factors, fundamentals,
         momentum_formation=config.momentum_formation,
