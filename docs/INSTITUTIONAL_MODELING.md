@@ -15,7 +15,7 @@ Objective:
 -\gamma\sum_i \sqrt{(w_i-w_i^\mathrm{old})^2+\epsilon^2}
 \]
 
-Constraints: fully invested, long-only, single-name cap, effective-dated sector cap, optional annualized tracking error limit, and optional single-name trade cap. Previous-target weights are a *proxy* for turnover in optimization; the trading simulator reports separate drift-aware realized model turnover. This is an independent open research method, not proprietary MSCI/Barra logic.
+Constraints: fully invested, long-only, single-name cap, effective-dated sector cap, optional annualized tracking error limit, and optional single-name trade cap. **Weight caps are enforced at each target reconstitution.** Market drift between those dates can legitimately carry a held security temporarily above the cap; monitoring drift does not imply daily rebalancing. Previous-target weights are a *proxy* for turnover in optimization; the trading simulator reports separate drift-aware realized model turnover. This is an independent open research method, not proprietary MSCI/Barra logic.
 
 **Missing benchmark constituent weights (including explicit zeros) block the optimizer**. Missing past returns used by the risk model are not filled with zeros. Infeasible sector/security/risk/trade limits raise an actionable error; they do not produce fictitious weights.
 

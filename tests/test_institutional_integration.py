@@ -49,7 +49,21 @@ class InstitutionalEndToEnd(unittest.TestCase):
         self.assertEqual(len(result.returns),len(self.prices)-1)
         self.assertEqual(meta["config"]["weighting"],"benchmark_relative")
         self.assertTrue((result.weights.sum(axis=1)<=1+1e-7).all())
-        self.assertTrue((result.weights.max(axis=1)<=.200001).all())
+        # Cap applies to target weights at RECONSTITUTION, not to subsequent
+        # market-drifted positions between rebalances. Testing period weights
+        # as if continuously rebalanced would incorrectly reject valid paths.
+        from index_research.index import construct_weights
+        targets=construct_weights(
+            scores,self.members,top_n=self.config.top_n,
+            weighting="benchmark_relative",cap=self.config.max_weight,
+            rebalance_every=self.config.rebalance_every,prices=self.prices,
+            vol_lookback=self.config.volatility_lookback,
+            benchmark_history=hist,
+            optimizer_risk_aversion=self.config.optimizer_risk_aversion,
+            optimizer_turnover_penalty=self.config.optimizer_turnover_penalty)
+        target_rows=targets.dropna(how="all")
+        self.assertTrue((target_rows.max(axis=1)<=.200001).all())
+        self.assertTrue((target_rows.sum(axis=1)<=1+1e-7).all())
         self.assertGreater(result.weights.gt(0).any(axis=1).sum(),0)
 
     def test_missing_benchmark_history_blocks_optimizer(self):
