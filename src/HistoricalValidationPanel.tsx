@@ -20,8 +20,8 @@ type Audit={dataset_id:string;dataset_kind:string;status:string;
 type Frozen={id:string;sha256:string;dataset_id:string;state:string;
   validation_start:string;final_test_start:string;registered_utc:string;
   independent_source_certified:boolean;publication_certified:boolean;warning:string}
-type Props={datasetId:string;config:Config;onOpenData:()=>void;
-  onOpenDhan:()=>void;onJobQueued:(jobId:string)=>void}
+type Props={datasetId:string;config:Config;hasDailyPrices:boolean;onOpenData:()=>void;
+  onOpenDhan:()=>void;onDataCreated:(datasetId:string)=>void;onJobQueued:(jobId:string)=>void}
 async function call<T>(path:string,body?:unknown):Promise<T>{
   let response:Response
   try{response=await fetch('/api'+path,{credentials:'same-origin',
@@ -41,11 +41,14 @@ function exportJson(name:string,data:unknown){
   document.body.appendChild(a);a.click();a.remove()
   window.setTimeout(()=>URL.revokeObjectURL(address),1000)
 }
-export default function HistoricalValidationPanel({datasetId,config,onOpenData,
-  onOpenDhan,onJobQueued}:Props){
+export default function HistoricalValidationPanel({datasetId,config,hasDailyPrices,onOpenData,
+  onOpenDhan,onDataCreated,onJobQueued}:Props){
   const [report,setReport]=useState<Audit|null>(null)
   const [frozen,setFrozen]=useState<Frozen|null>(null)
-  const [busy,setBusy]=useState<'audit'|'freeze'|'execute'|null>(null)
+  const [busy,setBusy]=useState<'audit'|'freeze'|'execute'|'actions'|null>(null)
+  const [actionFile,setActionFile]=useState<File|null>(null)
+  const [priceBasis,setPriceBasis]=useState('split_bonus_adjusted')
+  const [acknowledged,setAcknowledged]=useState(false)
   const [error,setError]=useState('')
   const [info,setInfo]=useState('')
   const clear=()=>{setReport(null);setFrozen(null);setError('');setInfo('')}
@@ -70,6 +73,27 @@ export default function HistoricalValidationPanel({datasetId,config,onOpenData,
     const timer=window.setTimeout(()=>{void audit()},350)
     return()=>window.clearTimeout(timer)
   },[audit,datasetId])
+  const importActions=async()=>{
+    if(!actionFile||!datasetId||!hasDailyPrices||!acknowledged)return
+    setBusy('actions');setError('')
+    try{
+      const form=new FormData()
+      form.append('file',actionFile)
+      form.append('price_basis',priceBasis)
+      form.append('acknowledge_unverified','true')
+      const response=await fetch('/api/datasets/'+encodeURIComponent(datasetId)+'/add-actions',{
+        method:'POST',credentials:'same-origin',body:form})
+      if(!response.ok){let error='HTTP '+response.status
+        try{const data=await response.json() as {detail?:string}
+          if(data.detail)error=data.detail}catch{}
+        throw new Error(error)}
+      const output=await response.json() as {dataset_id:string;warning:string}
+      setInfo('New total-return research dataset: '+output.dataset_id+'. '+output.warning)
+      setActionFile(null);setAcknowledged(false)
+      onDataCreated(output.dataset_id)
+    }catch(e){setError(e instanceof Error?e.message:String(e))}
+    finally{setBusy(null)}
+  }
   const freeze=async()=>{
     setBusy('freeze');setError('')
     try{
@@ -105,6 +129,29 @@ export default function HistoricalValidationPanel({datasetId,config,onOpenData,
           <button onClick={onOpenData}><Database size={13}/> Dataset & TRI import</button></div></div></article>
       <article><b>02</b><div><strong>Audit completeness & consistency</strong><p>Matched calendars, source checksums, announced index entries/exits, actual dividends, delistings and historical windows.</p></div></article>
       <article><b>03</b><div><strong>Freeze one final test</strong><p>Lock the exact dataset and parameters BEFORE evaluation; consume the protocol once.</p></div></article>
+    </div>
+    <div className="hv-action-form"><div><span className="hv-kicker">01B / PRICE ADJUSTMENT</span>
+      <h3>Create event-adjusted total-return dataset</h3>
+      <p>Upload real source-cited ex-date actions from issuer/exchange records. QuantLab builds a separate
+        dividend-reinvested wealth series from the dataset's original daily closes.
+        No stock event or delisting recovery is assumed when missing.</p></div>
+      <div className="hv-action-grid">
+        <label>Reviewed action ledger CSV<input type="file" accept=".csv,text/csv"
+          disabled={!hasDailyPrices||!datasetId||busy!==null} onChange={e=>setActionFile(e.target.files?.[0]||null)}/></label>
+        <label>Original daily price basis<select value={priceBasis}
+          onChange={e=>setPriceBasis(e.target.value)} disabled={busy!==null}>
+          <option value="split_bonus_adjusted">Split/bonus adjusted (Dhan daily closes)</option>
+          <option value="raw_unadjusted">Raw, unadjusted prices (verified source only)</option>
+        </select></label>
+      </div>
+      <label className="hv-ack"><input type="checkbox" checked={acknowledged}
+        onChange={e=>setAcknowledged(e.target.checked)}/>
+        I understand that the imported action ledger and coverage are NOT independently certified.</label>
+      <button disabled={!datasetId||!hasDailyPrices||!actionFile||!acknowledged||busy!==null}
+        onClick={()=>void importActions()}><FileCheck2 size={15}/>
+        {busy==='actions'?'Preparing source-aware wealth indices…':'Build new version — keep original unchanged'}</button>
+      {!hasDailyPrices&&<p className="hv-muted">This dataset lacks daily_prices.csv. Prepare daily Dhan
+        history first; monthly closes cannot determine ex-date dividends or delisting payoffs.</p>}
     </div>
     {!datasetId&&<p className="hv-error">Select a dataset in Experiment Configuration to inspect its original evidence.</p>}
     {busy==='audit'&&<p className="hv-loading" role="status">Inspecting archived research inputs and provenance…</p>}
