@@ -26,6 +26,7 @@ SOURCE_FILES = (
     "factor_returns.csv", "benchmark_weights.csv", "liquidity.csv",
     "sectors.csv", "corporate_actions.csv", "PIT_MEMBERSHIP_PROVENANCE.json",
     "BENCHMARK_PROVENANCE.json", "BENCHMARK_SOURCE.json",
+    "BENCHMARK_ALIGNMENT_PROVENANCE.json",
     "RETURN_METHODOLOGY.json", "EVIDENCE_REVIEW.json",
     "FUNDAMENTAL_METHODS.json", "DAILY_AGGREGATION_PROVENANCE.json",
 )
