@@ -31,7 +31,7 @@ type Explain={model:string;level:string;explanation:string;formula:string;
   metrics?:{name:string;value:number|null;unit:string}[];
   metrics_by_split?:Json;parameters?:Json;limitations?:string[];
   evidence_class:string;warning:string}
-const FACTORS=['momentum','low_volatility','value','quality','size']
+const FACTORS=['momentum','low_volatility','value','quality','size','yield']
 const nf=(n:number|null|undefined,percent=false)=>
   n===null||n===undefined?'Unavailable':(percent?n*100:n).toLocaleString('en-US',{maximumFractionDigits:4})+(percent?'%':'')
 const short=(s:string,n=19)=>s.length>n?s.slice(0,n)+'…':s
@@ -65,7 +65,7 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
   runs,onStartJob}:Props){
   const [tab,setTab]=useState<'index'|'explain'|'passport'|'risk'|'publication'>('index')
   const [name,setName]=useState('NIFTY multi-factor methodology research')
-  const [factors,setFactors]=useState<Record<string,number>>({momentum:.5,low_volatility:.5,value:0,quality:0,size:0})
+  const [factors,setFactors]=useState<Record<string,number>>({momentum:.5,low_volatility:.5,value:0,quality:0,size:0,yield:0})
   const [topN,setTopN]=useState(10)
   const [maxWeight,setMaxWeight]=useState(.2)
   const [weighting,setWeighting]=useState('equal')
@@ -73,6 +73,15 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
   const [cost,setCost]=useState(10)
   const [lag,setLag]=useState(1)
   const [sectorCap,setSectorCap]=useState<number|null>(null)
+  const [riskAversion,setRiskAversion]=useState(3)
+  const [turnoverPenalty,setTurnoverPenalty]=useState(.02)
+  const [teLimit,setTeLimit]=useState<number|null>(null)
+  const [maxTrade,setMaxTrade]=useState<number|null>(null)
+  const [liquidityOn,setLiquidityOn]=useState(false)
+  const [liquidityAum,setLiquidityAum]=useState(1000000)
+  const [liquidityParticipation,setLiquidityParticipation]=useState(.05)
+  const [liquidityDays,setLiquidityDays]=useState(3)
+  const [liquidityImpact,setLiquidityImpact]=useState(50)
   const [formation,setFormation]=useState(12)
   const [validationStart,setValidationStart]=useState('')
   const [finalTestStart,setFinalTestStart]=useState('')
@@ -100,6 +109,14 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
     top_n:topN,weighting,max_weight:maxWeight,rebalance_every:rebalance,
     cost_bps:cost,execution_lag:lag,momentum_formation:formation,
     momentum_skip:1,volatility_lookback:12,sector_cap:sectorCap,
+    optimizer_risk_aversion:riskAversion,
+    optimizer_turnover_penalty:turnoverPenalty,
+    optimizer_tracking_error_limit:teLimit,
+    optimizer_max_trade_weight:maxTrade,
+    liquidity_aum:liquidityOn?liquidityAum:null,
+    liquidity_max_participation:liquidityParticipation,
+    liquidity_execution_days:liquidityDays,
+    liquidity_impact_coefficient_bps:liquidityImpact,
     validation_start:validationStart||null,final_test_start:finalTestStart||null})
   const doWork=async<T,>(fn:()=>Promise<T>,done:(x:T)=>void)=>{
     setBusy(true);setError('');setMessage('')
@@ -183,7 +200,7 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
             onChange={e=>{setName(e.target.value);setPlan(null)}}/></label>
           <Combo label="Portfolio weighting" value={weighting}
             onChange={v=>{setWeighting(v);setPlan(null)}}
-            items={['equal','score','inverse_volatility','minimum_variance','risk_parity']
+            items={['equal','score','inverse_volatility','minimum_variance','risk_parity','benchmark_relative']
               .map(x=>({id:x,label:x.replaceAll('_',' ')}))}/>
           <NumberField label="Selected constituents" value={topN} onChange={v=>{setTopN(v);setPlan(null)}}
             min={2} max={300}/>
@@ -204,6 +221,27 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
           <label className="rw-field"><span>Frozen test start (optional)</span>
             <input type="date" value={finalTestStart} onChange={e=>{setFinalTestStart(e.target.value);setPlan(null)}}/></label>
         </div>
+        {weighting==='benchmark_relative'&&<div className="rw-stack">
+          <p className="rw-caution">Benchmark-relative optimization requires actual dated
+            benchmark_weights.csv for every modeled security, including explicit zero weights.
+            Factor scores are not calibrated alpha forecasts. Risk covariance uses strictly prior returns.</p>
+          <div className="rw-form-grid">
+            <NumberField label="Risk aversion (annual active variance penalty)" value={riskAversion}
+              min={0} max={100} step={.1} onChange={v=>{setRiskAversion(v);setPlan(null)}}/>
+            <NumberField label="Target turnover penalty" value={turnoverPenalty}
+              min={0} max={100} step={.01} onChange={v=>{setTurnoverPenalty(v);setPlan(null)}}/>
+            <label className="rs-check"><input type="checkbox" checked={teLimit!==null}
+              onChange={e=>{setTeLimit(e.target.checked?.15:null);setPlan(null)}}/>
+              Limit annualized predicted tracking error</label>
+            {teLimit!==null&&<NumberField label="Tracking error limit (decimal)" value={teLimit}
+              min={.005} max={5} step={.01} onChange={v=>{setTeLimit(v);setPlan(null)}}/>}
+            <label className="rs-check"><input type="checkbox" checked={maxTrade!==null}
+              onChange={e=>{setMaxTrade(e.target.checked?.2:null);setPlan(null)}}/>
+              Limit each rebalance's single-security trade</label>
+            {maxTrade!==null&&<NumberField label="Max trade fraction" value={maxTrade}
+              min={.01} max={1} step={.01} onChange={v=>{setMaxTrade(v);setPlan(null)}}/>}
+          </div>
+        </div>}
         <div className="rs-factor-grid">
           {FACTORS.map(key=><NumberField key={key} label={key.replaceAll('_',' ')+' factor weight'}
             value={factors[key]||0} min={0} max={1} step={.1}
@@ -214,6 +252,24 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
           Constrain sector exposure using effective-dated classifications</label>
         {sectorCap!==null&&<NumberField label="Sector cap" value={sectorCap} min={.1} max={1}
           step={.05} onChange={v=>{setSectorCap(v);setPlan(null)}}/>}
+        <div className="rw-stack">
+          <label className="rs-check"><input type="checkbox" checked={liquidityOn}
+            onChange={e=>{setLiquidityOn(e.target.checked);setPlan(null)}}/>
+            Model liquidity, participation limits and square-root market impact</label>
+          {liquidityOn&&<><p className="rw-caution">Requires sourced liquidity.csv with
+            dated ADV in the same currency as capital and half-spreads in basis points.
+            Estimates are not real broker fills. Fixed-bps costs must exclude spreads
+            to prevent double counting.</p><div className="rw-form-grid">
+            <NumberField label="Research capital (ADV currency)" value={liquidityAum}
+              min={1} max={1e15} step={10000} onChange={v=>{setLiquidityAum(v);setPlan(null)}}/>
+            <NumberField label="Maximum ADV participation" value={liquidityParticipation}
+              min={.001} max={1} step={.01} onChange={v=>{setLiquidityParticipation(v);setPlan(null)}}/>
+            <NumberField label="Execution days per rebalance" value={liquidityDays}
+              min={1} max={30} onChange={v=>{setLiquidityDays(v);setPlan(null)}}/>
+            <NumberField label="Impact coefficient (bps × √participation)" value={liquidityImpact}
+              min={0} max={10000} step={5} onChange={v=>{setLiquidityImpact(v);setPlan(null)}}/>
+          </div></>}
+        </div>
         <div className="rw-button-group"><button disabled={busy||!selectedDataset}
           onClick={()=>void preflight()}><ShieldAlert size={15}/> Check assumptions & data</button>
           <button className="rw-primary" disabled={busy||!plan||!!plan.blockers.length}

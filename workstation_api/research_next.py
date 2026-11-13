@@ -205,10 +205,19 @@ def index_decisions(run_id: str, requested_date: str | None = None,
         if not path.is_file() or path.is_symlink():
             raise ValueError("Effective-dated sectors.csv missing")
         sectors=asof_sectors(read_sector_history(str(path)),prices.index,prices.columns)
+    benchmark_history=None
+    if cfg["weighting"]=="benchmark_relative":
+        from index_research.institutional_index import read_benchmark_history
+        benchmark_history=read_benchmark_history(folder/"benchmark_weights.csv")
     targets=construct_weights(scores,membership,top_n=cfg["top_n"],
         weighting=cfg["weighting"],cap=cfg["max_weight"],rebalance_every=cfg["rebalance_every"],
         prices=prices,vol_lookback=cfg["volatility_lookback"],
-        sectors=sectors,sector_cap=cfg.get("sector_cap"))
+        sectors=sectors,sector_cap=cfg.get("sector_cap"),
+        benchmark_history=benchmark_history,
+        optimizer_risk_aversion=cfg.get("optimizer_risk_aversion",3.),
+        optimizer_turnover_penalty=cfg.get("optimizer_turnover_penalty",.02),
+        optimizer_tracking_error_limit=cfg.get("optimizer_tracking_error_limit"),
+        optimizer_max_trade_weight=cfg.get("optimizer_max_trade_weight"))
     rebalance=targets.dropna(how="all")
     if rebalance.empty:
         raise ValueError("This run has no rebalance decisions")
