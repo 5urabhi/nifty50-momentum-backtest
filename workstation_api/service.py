@@ -32,7 +32,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
 RESULTS = ROOT / "results" / "workstation_runs"
 REQUIRED = ("prices.csv", "membership.csv", "benchmark.csv")
-OPTIONAL = ("fundamentals.csv", "sectors.csv", "corporate_actions.csv", "EVIDENCE_REVIEW.json")
+OPTIONAL = ("fundamentals.csv", "sectors.csv", "corporate_actions.csv", "EVIDENCE_REVIEW.json",
+            "factor_returns.csv", "benchmark_weights.csv")
 ALLOWED_FILES = set(REQUIRED + OPTIONAL)
 ARTIFACTS = {
     "monthly_results.csv", "post_rebalance_weights.csv", "pre_trade_weights.csv",
@@ -192,6 +193,22 @@ def import_zip(blob: bytes, original_filename: str) -> dict:
                 with archive.open(entry) as source, (folder / entry.filename).open("wb") as target:
                     shutil.copyfileobj(source, target, length=1024 * 1024)
             audit = audit_dataset(folder)  # Reject malformed CSVs before making them selectable.
+            if (folder / "factor_returns.csv").is_file():
+                from .active_risk_lab import _read_factor_returns
+                _read_factor_returns(folder / "factor_returns.csv")
+            if (folder / "benchmark_weights.csv").is_file():
+                weights = pd.read_csv(folder / "benchmark_weights.csv")
+                if not {"date","ticker","weight"}.issubset(weights.columns) or weights.empty:
+                    raise ValueError("benchmark_weights.csv requires dated ticker and weight rows")
+                dates=pd.to_datetime(weights["date"],errors="raise")
+                values=pd.to_numeric(weights["weight"],errors="raise")
+                if (dates.isna().any() or weights[["date","ticker"]].isna().any().any()
+                    or weights[["date","ticker"]].duplicated().any()
+                    or values.isna().any() or not np.isfinite(values).all()
+                    or (values<0).any()
+                    or not np.allclose(values.groupby(dates).sum().to_numpy(),1.,atol=1e-6)):
+                    raise ValueError("Dated benchmark weight snapshots must be complete, "
+                                     "nonnegative and sum to one for each recorded date")
             (folder / "workstation_source.json").write_text(json.dumps({
                 "uploaded_filename": Path(original_filename).name[:120],
                 "uploaded_utc": datetime.now(timezone.utc).isoformat(),
