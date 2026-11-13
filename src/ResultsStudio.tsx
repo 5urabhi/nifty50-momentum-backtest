@@ -35,7 +35,7 @@ type Evidence={id:string;kind:Kind;model:string;evidence_class:string;readiness:
   uncertainty:{estimate_pp_per_year:number;lower_pp_per_year:number;upper_pp_per_year:number;
     confidence:number;block_months:number;seed:number;replications:number;interval_includes_zero:boolean}|null;
   hac:{two_sided_normal_p_value:number|null;hac_standard_error:number|null;lags:number}|null;
-  split:{label:string;declared_final_test?:boolean;final_test_months?:number;note?:string};
+  split:{label:string;declared_final_test?:boolean;final_test_months?:number;note?:string;frozen_protocol_status?:string};
   plots:ResearchPlotData[];checks:{name:string;status:string;detail:string;next_action:string}[];
   limitations:string[];method:string;warning:string;source:Row}
 type Paired={baseline:string;challengers:string[];paired_months:number;start:string;end:string;
@@ -506,6 +506,10 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
                     <strong>{audit.hac?.two_sided_normal_p_value===null||!audit.hac?'Unavailable':
                       pretty(audit.hac.two_sided_normal_p_value,5)}</strong>
                     <span>Asymptotic; no control for strategy selection</span></article>
+                  <article><small>Frozen source lock</small>
+                    <strong>{audit.split.frozen_protocol_status==='software_frozen_exploratory'
+                      ?'Source-locked':'Not source-locked'}</strong>
+                    <span>{audit.split.frozen_protocol_status||'No receipt'} · independent approval not claimed</span></article>
                   <article><small>Chronological final test</small><strong>{audit.split.declared_final_test?
                     audit.split.final_test_months+' months':'Not declared'}</strong>
                     <span>Declaration does not prove independent freezing</span></article></div>
