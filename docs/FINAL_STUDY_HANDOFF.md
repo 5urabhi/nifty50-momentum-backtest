@@ -87,7 +87,8 @@ membership with observed trading-session dates:
 
 ~~~bash
 python scripts/prepare_research_data.py calendar-align \
-  --source-dir data/stages/observed_monthly_plus_pit \
+  --source-dir data/stages/stock_wealth_001 \
+  --membership-file data/sources/membership.csv \
   --benchmark data/stages/tri_001/benchmark.csv \
   --output-dir data/stages/aligned_001
 

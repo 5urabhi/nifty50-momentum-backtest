@@ -112,12 +112,17 @@ do not modify economic values or forward-fill through weekends. Create a
 new, auditable calendar-aligned view:
 
     python scripts/prepare_research_data.py calendar-align \
-      --source-dir data/dhan/monthly_research/LOCAL_BATCH_ID \
+      --source-dir data/stock_total_returns_stage_001 \
+      --membership-file data/sources/membership.csv \
       --benchmark data/nifty_tri_stage_001/benchmark.csv \
       --output-dir data/calendar_aligned_stage_001
 
-This relabels actual observed month-close prices and samples membership on
-the ORIGINAL session close, before any post-close membership change. It keeps
+The total-returns stage now writes OBSERVED_MARKET_SESSIONS.csv and
+PER_SECURITY_LAST_OBSERVED_SESSIONS.csv derived from the actual daily
+source timestamps. The calendar-align stage uses those original sessions,
+not a weekend month-end label, to select effective-dated PIT membership.
+It also preserves return, index and PIT provenance receipts. An exit
+effective after the last trading day cannot leak into the earlier decision. It keeps
 OBSERVED_MARKET_SESSIONS.csv and CALENDAR_ALIGNMENT_PROVENANCE.json and
 rejects missing/old months or unmatched TRI data. It does NOT add dividends.
 If your stock data are not yet wealth-index adjusted, complete step 3 before
