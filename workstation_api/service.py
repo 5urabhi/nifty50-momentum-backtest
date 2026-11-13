@@ -98,6 +98,17 @@ def datasets(include_archived: bool = False):
                 benchmark_evidence = json.loads(benchmark_meta_path.read_text())
             except (OSError, ValueError, TypeError):
                 missing.append("invalid_benchmark_provenance")
+        return_method = {}
+        return_method_file = folder / "RETURN_METHODOLOGY.json"
+        if return_method_file.is_file() and not return_method_file.is_symlink():
+            try:
+                return_method = json.loads(return_method_file.read_text())
+                if not isinstance(return_method, dict):
+                    return_method = {}
+            except (OSError, ValueError):
+                return_method = {}
+        generated_total_return = (
+            return_method.get("kind") == "reconstructed_total_return_wealth_research_v1")
         # Monthly index simulation needs an explicit pre-formation sample-size
         # gate. A file existing on disk is NOT sufficient information.
         monthly_observations = 0
@@ -109,11 +120,15 @@ def datasets(include_archived: bool = False):
                 monthly_observations = 0
         output.append({
             "id": dataset_id,
-            "label": (str(historical.get("index_name")) + " · " + label) if historical else label,
+            "label": ("Adjusted total-return research · "+str(return_method.get("source_dataset_id")))
+                     if generated_total_return else
+                     (str(historical.get("index_name")) + " · " + label) if historical else label,
             "kind": kind,
             "ready": not missing, "missing": missing,
             "has_prices": "prices.csv" in items,
             "monthly_price_observations": monthly_observations,
+            "return_basis": "source-cited_event_adjusted_provisional" if generated_total_return else
+                            "not_independently_verified",
             "benchmark_kind": benchmark_evidence.get("basis") or
                               ("unclassified" if "benchmark.csv" in items else "missing"),
             "benchmark_is_total_return": benchmark_evidence.get("is_total_return_index", False),
@@ -137,6 +152,9 @@ def datasets(include_archived: bool = False):
                       "corporate-action adjusted total returns and a compatible benchmark "
                       "are NOT independently validated")
                      if historical else
+                     "Locally event-adjusted wealth indices; original Dhan/user daily data preserved; "
+                     "action coverage and total-return parity NOT independently certified"
+                     if generated_total_return else
                      "synthetic" if kind == "synthetic" else
                      "raw Dhan monthly closes; not independently total-return adjusted" if kind == "dhan"
                      else "user supplied; source and PIT status unverified",
