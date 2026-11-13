@@ -56,7 +56,8 @@ class ResearchReleaseTests(unittest.TestCase):
             archived = set(package.namelist())
         self.assertNotIn("prices.csv", archived)
         self.assertEqual(archived, {"RESEARCH_RELEASE_STATUS.json",
-                "RESEARCH_RELEASE_MEMO.md", "RESEARCH_RELEASE.html"})
+                "RESEARCH_RELEASE_MEMO.md", "RESEARCH_RELEASE.html",
+                "RESEARCH_PAPER_DRAFT.md"})
         with self.assertRaises(FileExistsError):
             generate(self.source, self.settings, destination)
 
@@ -77,5 +78,10 @@ class ResearchReleaseTests(unittest.TestCase):
         findings = json.loads((destination / "studies" /
                                "THREE_STUDIES_RESULTS.json").read_text())
         self.assertFalse(findings["external_research_certified"])
+        paper = (destination / "RESEARCH_PAPER_DRAFT.md").read_text()
+        self.assertIn("Study A", paper)
+        self.assertIn("Study B", paper)
+        self.assertIn("Study C", paper)
+        self.assertIn("does NOT establish independently validated", paper)
         self.assertIn("Simulated index net wealth",
             (destination / "RESEARCH_RELEASE.html").read_text())

@@ -148,6 +148,114 @@ def _chart(monthly: Path) -> str:
     )
 
 
+
+def _research_paper(status: dict, findings: dict | None) -> str:
+    """Render a source-safe draft using the real computed metrics, if any."""
+    cfg = status["config"]
+    sections = [
+        "# QuantLab: Multi-Factor Equity Index Construction, Active Risk and Data Integrity",
+        "**UNREVIEWED RESEARCH PAPER DRAFT — no independent market-data certification.**",
+        "## Abstract",
+        "We describe a source-aware factor-index methodology, benchmark-relative "
+        "risk decomposition and bias/robustness experiments. Software results "
+        "alone do not validate historical NIFTY performance.",
+        "Empirical outcome availability: " +
+        ("descriptive calculations, NOT externally certified" if findings else
+         "no empirical findings in this release") + ".",
+        "## Research question",
+        "Can predeclared factor index rules improve a comparable benchmark "
+        "after risk, sector, turnover, capacity and timing assumptions?",
+        "## Research protocol (archived JSON)",
+        json.dumps(cfg, sort_keys=True, indent=2),
+        "This source configuration does not itself prove that the model was "
+        "registered before any prior exploration of the final test period.",
+        "## Source material, historical time and evidence",
+        "| Input | SHA-256 (identity, NOT accuracy) |",
+        "| --- | --- |",
+    ]
+    for name, digest in sorted(status["source_sha256"].items()):
+        sections.append("| " + name + " | " + digest + " |")
+    sections.extend([
+        "Missing source or methodology files: " +
+        ", ".join(status["missing_sources"]) + ".",
+        "## Index methodology and execution",
+        "Cross-sectional as-of factors rank eligible securities; the optimizer "
+        "uses specified long-only, maximum-weight, historical sector and "
+        "risk/turnover constraints. Factor scores are NOT guaranteed forecasts "
+        "of alpha. The delayed execution simulator includes turnover costs "
+        "and optional scenario-only spread/impact from genuinely dated liquidity.",
+        "## Statistical protocol and limitations",
+        "Development, validation and final test are chronologically separated. "
+        "Exploratory HAC/bootstrap estimates and Holm adjustments cover only "
+        "listed tests, not unknown prior researcher degrees of freedom.",
+        "## Study A — Multi-factor index versus documented benchmark",
+    ])
+    def fmt(x):
+        return "%.6g" % x if isinstance(x, (int, float)) else (
+            "Unavailable" if x is None else str(x))
+    if findings:
+        a = findings["studies"].get("study_A_multi_factor_index", {})
+        sections.extend([
+            "| Split | Months | Index CAGR | Benchmark CAGR | Tracking error | Annual turnover |",
+            "| --- | ---: | ---: | ---: | ---: | ---: |",
+        ])
+        for name, values in a.get("metrics_by_split", {}).items():
+            sections.append("| " + name + " | " + " | ".join(fmt(values.get(k)) for k in (
+                "observations", "strategy_cagr", "benchmark_cagr",
+                "tracking_error", "annualized_turnover")) + " |")
+        sections.append("Final test inference status: " +
+                        str(a.get("holdout_inference", {}).get("status", "not calculated")))
+        sections.append("Explicit multiple-testing status: " +
+                        str(a.get("exploratory_validation_multiple_testing", {})
+                            .get("status", "not calculated")))
+        b = findings["studies"].get("study_B_factor_active_risk", {})
+        sections.extend([
+            "## Study B — Ex-ante factor and specific active-risk estimation",
+            "Availability: " + str(b.get("status", "unavailable")),
+            "Predicted annualized tracking error: " +
+            fmt(b.get("annualized_tracking_error_estimate")),
+            "Historical ex-ante risk estimates: " +
+            fmt(b.get("historical_ex_ante_estimates")),
+            "These are OLS proxy-factor estimates, NOT commercial "
+            "risk-model outputs or causal performance attributions.",
+        ])
+        c = findings["studies"].get("study_C_robustness_and_data_integrity", {})
+        sections.extend([
+            "## Study C — Research robustness",
+            "Historical membership mismatches versus the final universe: " +
+            fmt(c.get("static_universe_pit_disagreement_security_months")),
+            "Static-universe counterfactual: " +
+            str(c.get("static_universe_counterfactual", {}).get("status", "unavailable")),
+            "The static-final-constituent experiment intentionally includes "
+            "future information and is NOT an investable or causal estimate.",
+        ])
+    else:
+        sections.extend([
+            "No authenticated statistical result was available. "
+            "Do not populate this section using synthetic market returns.",
+            "## Study B — Active risk",
+            "Unavailable pending factor and benchmark source records.",
+            "## Study C — Robustness",
+            "Unavailable pending valid historical inputs.",
+        ])
+    sections.extend([
+        "## Independent review and conflicts",
+        "No NSE source notice, dividend-adjustment completeness, historical "
+        "filing availability, delisting payoff, research license or actual "
+        "execution fill has been independently certified by this pipeline.",
+        "The manifest can establish reproducibility of bytes and calculations "
+        "only, not the underlying truth of those observations.",
+        "## Reproduction",
+        "Access identical permitted original data and preserved source "
+        "SHA-256s, rerun the same frozen config into a NEW folder, compare "
+        "numerical output and secure a separate independent methodological review.",
+        "## Conclusions",
+        "The platform implements a repeatable index and risk research workflow. "
+        "This release does NOT establish independently validated NIFTY alpha "
+        "or achievable investment returns.",
+    ])
+    return "\n\n".join(sections) + "\n"
+
 def generate(data_dir: str | Path, config_path: str | Path,
              output_dir: str | Path, *, execute: bool = False) -> dict:
     """Write immutable status and source-safe HTML/ZIP, optionally run studies."""
@@ -216,6 +324,7 @@ def generate(data_dir: str | Path, config_path: str | Path,
         "and a NEW output folder containing the unchanged original input data.",
     ])
     (out / "RESEARCH_RELEASE_MEMO.md").write_text("\n\n".join(memo) + "\n")
+    (out / "RESEARCH_PAPER_DRAFT.md").write_text(_research_paper(status, findings))
     requirements = "".join(
         "<tr><td>" + escape(row["file"]) + "</td><td>" +
         ("Present, unverified" if row["source_present"] else "Missing") + "</td><td>" +
@@ -245,13 +354,14 @@ def generate(data_dir: str | Path, config_path: str | Path,
         requirements + "</tbody></table><h2>Study results</h2>" +
         ("<table>" + study_rows + "</table>" + chart if findings else
          "<p>Study inputs missing or experiment not requested; no returns asserted.</p>") +
-        "<p>All outputs require independent review of original sources, "
+        "<p>See the accompanying RESEARCH_PAPER_DRAFT.md for methodology "
+        "and research caveats.</p><p>All outputs require independent review of original sources, "
         "licenses, and a genuinely frozen test period.</p></body></html>"
     )
     (out / "RESEARCH_RELEASE.html").write_text(html)
     with ZipFile(out / "RESEARCH_RELEASE_SAFE.zip", "w", ZIP_DEFLATED) as archive:
         for name in ("RESEARCH_RELEASE_STATUS.json", "RESEARCH_RELEASE_MEMO.md",
-                     "RESEARCH_RELEASE.html"):
+                     "RESEARCH_RELEASE.html", "RESEARCH_PAPER_DRAFT.md"):
             archive.write(out / name, arcname=name)
         if findings:
             archive.write(results_file, arcname="THREE_STUDIES_RESULTS.json")
