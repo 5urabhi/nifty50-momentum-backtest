@@ -127,7 +127,7 @@ def align_daily_tri_to_stock_dates(
             source_index_name = unique[0]
             def canonical(x: str) -> str:
                 return re.sub(r"[^a-z0-9]", "", re.sub(
-                    r"\\b(tri|total returns index|total return index)\\b", "",
+                    r"\b(tri|total returns index|total return index)\b", "",
                     x.lower()))
             if canonical(source_index_name) != canonical(index_name):
                 raise ValueError(
