@@ -365,9 +365,16 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
               <small>Uses all companies that belonged to the index during the period, not only today's stocks.</small>}
           </div>
         </div>
-        {!pitPlan&&<p className="dh-simple-warning" role="status">
-          Historical membership is not ready for these dates. Open the details below to sync the list or adjust the supported end date.
-        </p>}
+        {!pitPlan&&<div className="dh-simple-warning" role="status">
+          Historical membership is not ready for these dates.
+          {pitPreview&&pitPreview.to_date<toDate?<>
+            <p>The available historical index list ends before your selected date.</p>
+            <button className="dh-small-btn" type="button"
+              onClick={()=>setToDate(pitPreview.to_date)}>
+              Use latest available date ({pitPreview.to_date}) <ArrowRight size={14}/>
+            </button>
+          </>:<p>Open membership details below to sync the list or check source availability.</p>}
+        </div>}
         <details className="dh-simple-details dh-membership-details">
           <summary>Historical membership details / sync missing history</summary>
           <PITIndexPanel mode={mode as PITMode} fromDate={fromDate} toDate={toDate}
@@ -479,7 +486,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         <div><small>Stocks</small><strong>{pitMode&&!pitPlan?'Checking…':fmt(downloadCount)}</strong></div>
         <div><small>Frequency</small><strong>{daily?'Daily':interval+'-minute'}</strong></div>
       </div>
-      {pitMode&&pitPlan?.unresolved_count>0&&<label className="dh-confirm">
+      {pitMode&&pitPlan!==null&&pitPlan.unresolved_count>0&&<label className="dh-confirm">
         <input type="checkbox" checked={acknowledgedGaps}
           onChange={e=>setAcknowledgedGaps(e.target.checked)}/>
         <span>{pitPlan.unresolved_count} historical stock IDs are unavailable.
