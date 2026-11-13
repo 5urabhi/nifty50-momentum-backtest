@@ -91,7 +91,7 @@ try {
   })
   await step('all research destination views and nested navigation',async()=>{
     for (const section of ['Home','Data Library','Model Laboratory','Experiment Studio',
-      'Compare & Visualize','Results Library','Research Projects','Help & Settings']) {
+      'Compare & Visualize','Results Studio','Research Projects','Help & Settings']) {
       await nav(section).click()
       const header=page.locator('.ws-titlebar h1')
       assert.ok((await header.innerText()).length>2,'Destination must have a visible title: '+section)
