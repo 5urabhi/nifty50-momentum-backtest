@@ -512,6 +512,9 @@ function App(){
               <div className="ws-actions"><button className="ws-button primary" disabled={!dataset?.ready||busy||!!job&&['queued','running'].includes(job.status)} onClick={startRun}><Play size={15}/> Run Python backtest</button><span className="ws-caption">Uses saved datasets with explicit provenance; writes result artifacts to disk.</span></div></Card>
           <Card title="Factor allocation"><p className="ws-caption">Select a factor and adjust its relative contribution to the composite score.</p><div className="ws-sliders">{factors.map(([key,name])=><label className="ws-factor" key={key}><div><span>{name}</span><strong>{number(config.factor_weights[key],1)}</strong></div><input type="range" min="0" max="1" step=".1" value={config.factor_weights[key]??0} onChange={e=>setConfig({...config,factor_weights:{...config.factor_weights,[key]:Number(e.target.value)}})}/></label>)}</div><div className="ws-rule"><ShieldCheck size={16}/> A backtest cannot prove historical correctness when constituent histories, adjusted returns, and benchmark evidence are missing.</div></Card></div>
           <HistoricalValidationPanel datasetId={selectedDataset} config={config}
+            hasDailyPrices={!!dataset?.has_daily_prices}
+            onDataCreated={id=>{setSelectedDataset(id);void refresh();
+              notify('New version created from original daily prices and dated events; evidence remains unverified.')}}
             onOpenData={()=>begin('data')} onOpenDhan={()=>begin('dhan')}
             onJobQueued={id=>{setJob({id,kind:'frozen_evaluation',status:'queued'});
               notify('Single-use frozen experiment queued; its result receipt will be checked.') }}/>
