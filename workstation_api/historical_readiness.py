@@ -127,6 +127,24 @@ def _pit_reconcile(folder: Path, prices: pd.DataFrame,
         actual = membership[ticker]
         if not np.array_equal(actual.to_numpy(dtype=bool), expected.to_numpy(dtype=bool)):
             return "blocked", "PIT membership.csv disagrees with pinned effective-date source for " + ticker
+    # Cardinality of the actual index is a separate check: a complete
+    # internally consistent five-security subset is not a complete NIFTY 50.
+    index_id = proof.get("index_id")
+    if index_id in {"nifty50_pit", "banknifty_pit"}:
+        for dt in prices.index:
+            observed = int(membership.loc[dt].sum())
+            if index_id == "nifty50_pit":
+                expected_count = 50
+            elif dt >= pd.Timestamp("2025-12-31"):
+                expected_count = 14
+            elif dt >= pd.Timestamp("2020-03-27"):
+                expected_count = 12
+            else:
+                expected_count = None
+            if expected_count is not None and observed != expected_count:
+                return "blocked", (f"Incomplete {index_id} membership on {dt.date()}: "
+                                   f"{observed} observed, expected {expected_count}. "
+                                   "Missing historical price tickers cannot be dropped.")
     return "review", ("Membership states match the pinned intervals for every observed month. "
                       "Underlying reconstructed index notices are not NSE-certified.")
 
