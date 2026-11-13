@@ -14,7 +14,7 @@ type ModelList={id:string;title:string;mode:string;group:string;model_id:string;
 type IndexList={id:string;name:string;dataset_kind:string;dataset_id?:string;created_utc?:string}
 type ModelDetail={run_id:string;model_id:string;title:string;group:string;mode:string;
   formula:string;params:Row;source?:{dataset_id:string;dataset_label:string;source_file:string;
-  frequency:string;observations:number;from_date:string;to_date:string;assets:string[]}|null;
+  frequency:string;observations:number;from_date:string;to_date:string;assets:string[];dataset_kind?:string}|null;
   source_sha256?:string;metrics:{label:string;value:unknown;unit:string}[];
   plots:ResearchPlotData[];table:Row[];notes:string[];limitations:string[];
   generated_utc?:string}
@@ -29,12 +29,23 @@ type Explanation={explanation:string;formula?:string;limitations?:string[];
 type CompareResult={plot?:ResearchPlotData;plots?:ResearchPlotData[];warning?:string;
   sources?:Row[];title:string}
 type Figure={group:string;plot:ResearchPlotData;insight:string}
-type View='brief'|'figures'|'diagnostics'|'robustness'|'evidence'|'compare'
+type Evidence={id:string;kind:Kind;model:string;evidence_class:string;readiness:string;
+  observations:number|null;rejected_rows:number|null;
+  metrics:{name:string;value:unknown;unit:string;detail:string}[];
+  uncertainty:{estimate_pp_per_year:number;lower_pp_per_year:number;upper_pp_per_year:number;
+    confidence:number;block_months:number;seed:number;replications:number;interval_includes_zero:boolean}|null;
+  hac:{two_sided_normal_p_value:number|null;hac_standard_error:number|null;lags:number}|null;
+  split:{label:string;declared_final_test?:boolean;final_test_months?:number;note?:string};
+  plots:ResearchPlotData[];checks:{name:string;status:string;detail:string;next_action:string}[];
+  limitations:string[];method:string;warning:string;source:Row}
+type Paired={baseline:string;challengers:string[];paired_months:number;start:string;end:string;
+  evidence_class:string;rows:Row[];plot:ResearchPlotData;method:string;warning:string}
+type View='brief'|'figures'|'diagnostics'|'validation'|'robustness'|'evidence'|'compare'
 type Props={selectedIndexRunId:string;onSelectIndexRun:(run:string)=>void;
   onModels:()=>void;onExperiments:()=>void;onWorkspace:()=>void;onData:()=>void;onReports:()=>void}
 const VIEWS:{id:View;label:string}[]=[
   {id:'brief',label:'Research brief'},{id:'figures',label:'Interactive figures'},
-  {id:'diagnostics',label:'Diagnostics'},{id:'robustness',label:'Robustness'},
+  {id:'diagnostics',label:'Diagnostics'},{id:'validation',label:'Evidence audit'},{id:'robustness',label:'Robustness'},
   {id:'evidence',label:'Sources & methods'},{id:'compare',label:'Compare runs'}
 ]
 const finite=(value:unknown):number|null=>{
@@ -181,7 +192,7 @@ function FigureCard({figure,mode,runKey}:{figure:Figure;mode:string;runKey:strin
     if(extension==='json')saveFile(base+'.json',JSON.stringify({plot:p,group:figure.group,insight:figure.insight},null,2),'application/json')
     if(extension==='csv'&&visible.x?.length&&visible.traces?.length){
       const rows=visible.x.map((x,i)=>({x,...Object.fromEntries((visible.traces||[]).map(t=>[t.name,t.y[i]]))}))
-      exportTable(base,rows)
+      exportTable(base+'.csv',rows)
     }
     if(extension==='svg'){
       const svg=holder.current?.querySelector('svg')
@@ -230,6 +241,10 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
   const [normalize,setNormalize]=useState('none')
   const [alignment,setAlignment]=useState('intersection')
   const [saved,setSaved]=useState('')
+  const [audit,setAudit]=useState<Evidence|null>(null)
+  const [auditLoading,setAuditLoading]=useState(false)
+  const [paired,setPaired]=useState<Paired|null>(null)
+  const [pairedBusy,setPairedBusy]=useState(false)
   const [offset,setOffset]=useState({model:0,index:0})
   const [older,setOlder]=useState({model:true,index:true})
   const [paging,setPaging]=useState(false)
@@ -240,7 +255,7 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
         fetchJSON<{runs:IndexList[]}>('/runs?limit=100&offset='+(reset?0:offset.index))])
       const fetched:Saved[]=[
         ...models.runs.map(r=>({key:'model_run:'+r.id,kind:'model_run' as const,id:r.id,title:r.title,
-          mode:r.mode,group:r.group,figures:r.figures,dataset_id:r.dataset_id,created:r.generated_utc})),
+          mode:r.dataset_id==='synthetic'?'synthetic':r.mode,group:r.group,figures:r.figures,dataset_id:r.dataset_id,created:r.generated_utc})),
         ...indices.runs.map(r=>({key:'research_run:'+r.id,kind:'research_run' as const,id:r.id,
           title:r.name,mode:r.dataset_kind==='synthetic'?'synthetic':'historical',
           group:'Multi-Factor Index',figures:1,dataset_id:r.dataset_id,created:r.created_utc}))].sort(
@@ -258,7 +273,7 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
   useEffect(()=>{if(!selectedKey&&runs.length)setSelectedKey(runs[0].key)},[selectedKey,runs])
   const active=runs.find(r=>r.key===selectedKey)
   useEffect(()=>{
-    let alive=true;setModel(null);setIndex(null);setQuality(null);setExplain(null);setSplitName('');setGroup('All figures')
+    let alive=true;setModel(null);setIndex(null);setQuality(null);setExplain(null);setAudit(null);setSplitName('');setGroup('All figures')
     if(!active)return
     setLoadingDetail(true);setError('')
     const url=active.kind==='model_run'?'/lab/runs/':'/runs/'
@@ -277,7 +292,8 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
       '?level='+explainLevel).then(r=>{if(alive)setExplain(r)}).catch(()=>{})
     return()=>{alive=false}
   },[active?.key,explainLevel])
-  const sourceKind=index?String(index.source.dataset_kind||'unknown'):(active?.mode||'unknown')
+  const sourceKind=index?String(index.source.dataset_kind||'unknown'):
+    (model?.source?.dataset_kind==='synthetic'||active?.dataset_id==='synthetic'?'synthetic':(active?.mode||'unknown'))
   const dataId=model?.source?.dataset_id||String(index?.source.dataset_id||active?.dataset_id||'')
   const evidence=sourceKind==='synthetic'?'SEEDED SYNTHETIC DEMONSTRATION':
     sourceKind==='theoretical'?'THEORETICAL / ASSUMED INPUTS':
@@ -303,7 +319,34 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
   const limitations=(model?.limitations||index?.meta.limitations||[])
   const info=active?.kind==='model_run'?model?.source:null
   const runDetails=model||index
-  const selectedForCompare=runs.filter(r=>selection.includes(r.key))
+  const selectedForCompare=selection.map(key=>runs.find(r=>r.key===key)).filter((r):r is Saved=>!!r)
+  const loadEvidence=async()=>{
+    if(!active)return
+    setAuditLoading(true);setError('')
+    try{setAudit(await fetchJSON<Evidence>('/workspace/results/'+active.kind+'/'+
+      encodeURIComponent(active.id)+'/evidence'))}
+    catch(e){setError(e instanceof Error?e.message:String(e))}
+    finally{setAuditLoading(false)}
+  }
+  useEffect(()=>{
+    if(tab!=='validation'||!active)return
+    let alive=true;setAudit(null);setAuditLoading(true);setError('')
+    void fetchJSON<Evidence>('/workspace/results/'+active.kind+'/'+
+      encodeURIComponent(active.id)+'/evidence')
+      .then(result=>{if(alive)setAudit(result)})
+      .catch(e=>{if(alive)setError(e instanceof Error?e.message:String(e))})
+      .finally(()=>{if(alive)setAuditLoading(false)})
+    return()=>{alive=false}
+  },[tab,active?.key])
+  const comparePaired=async()=>{
+    if(selectedForCompare.length<2||selectedForCompare.some(r=>r.kind!=='research_run'))return
+    setPairedBusy(true);setError('');setPaired(null)
+    try{setPaired(await fetchJSON<Paired>('/workspace/results/paired-comparison',{
+      baseline_id:selectedForCompare[0].id,
+      challenger_ids:selectedForCompare.slice(1).map(r=>r.id)}))}
+    catch(e){setError(e instanceof Error?e.message:String(e))}
+    finally{setPairedBusy(false)}
+  }
   const doCompare=async()=>{
     setComparing(true);setError('');setComparison(null)
     try{
@@ -336,7 +379,7 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
     finally{setQualityBusy(false)}
   }
   const toggleCompare=(key:string)=>{
-    setComparison(null);setSaved('')
+    setComparison(null);setPaired(null);setSaved('')
     setSelection(old=>old.includes(key)?old.filter(x=>x!==key):old.length>=8?old:[...old,key])
   }
   const runList=runs.filter(r=>(r.title+' '+r.group+' '+r.id).toLowerCase().includes(search.toLowerCase()))
@@ -407,7 +450,7 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
                 {info&&<div><dt>Common observations</dt><dd>{info.observations}</dd></div>}
                 {index&&<div><dt>Sample window</dt><dd>{index.meta.first_price_date||'—'} → {index.meta.last_price_date||'—'}</dd></div>}
                 {model?.source_sha256&&<div><dt>SHA-256 (source)</dt><dd>{model.source_sha256.slice(0,20)}…</dd></div>}
-              </dl><button className="rs-link" onClick={()=>setTab('evidence')}>Inspect complete lineage <ArrowRight size={14}/></button>
+              </dl><button className="rs-link" onClick={()=>setTab('validation')}>Review statistical evidence <ArrowRight size={14}/></button>
             </section></div>
             {allFigures.length>0&&<div className="rs-panel"><div className="rs-panel-heading"><h3>Featured computed figure</h3><button onClick={()=>setTab('figures')}>View {allFigures.length} figures <ArrowRight size={14}/></button></div>
               <FigureCard key={active.key+'-featured'} figure={allFigures[0]} runKey={active.id} mode={sourceKind}/></div>}
@@ -437,6 +480,57 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
             {!!index?.rolling.length&&<section className="rs-panel"><h3>Rolling validation</h3><DataTable rows={index.rolling} name="quantlab_rolling"/></section>}
             <div className="rs-warning">Descriptive sample statistics are not p-values or confidence intervals. For hypothesis tests and block bootstrap intervals, open Research Workspace → Statistics & Diagnostics / Research Tools.</div>
             <button className="rs-action" onClick={onWorkspace}><SlidersHorizontal size={15}/> Open statistical diagnostics & validation <ArrowRight size={14}/></button>
+          </div>}
+          {tab==='validation'&&<div className="rs-stack">
+            <section className="rs-panel"><div className="rs-panel-heading"><div>
+                <span className="rs-kicker">INFERENCE / REPRODUCIBLE AND SOURCE-BOUND</span>
+                <h3>Research Evidence Audit</h3>
+                <p className="rs-small">Deterministic tests on saved results. An external source audit is always separate.</p></div>
+              <div className="rs-figure-actions"><button type="button" disabled={auditLoading}
+                onClick={()=>void loadEvidence()}><RefreshCw size={14}/> Recompute</button>
+                <button type="button" disabled={!audit} onClick={()=>audit&&saveFile(
+                  'quantlab_evidence_'+active.id+'.json',JSON.stringify(audit,null,2),'application/json')}>
+                  <Download size={14}/> Evidence JSON</button></div></div>
+              {auditLoading&&<div className="rs-loading" role="status"><LoaderCircle size={16}/> Calculating source-bound evidence…</div>}
+              {audit&&<><div className="rs-evidence-claim"><ShieldAlert size={17}/>
+                <div><strong>{audit.readiness.replaceAll('_',' ').toUpperCase()}</strong>
+                  <span>{audit.warning}</span></div></div>
+                <div className="rs-kpi-grid"><article><small>Paired observations</small>
+                  <strong>{audit.observations??'N/A'}</strong>
+                  <span>{audit.rejected_rows===null?'No paired series':'Invalid monthly rows: '+audit.rejected_rows}</span></article>
+                  <article><small>95% active-return interval</small>
+                    <strong>{audit.uncertainty?pretty(audit.uncertainty.lower_pp_per_year,2)+' to '+
+                      pretty(audit.uncertainty.upper_pp_per_year,2)+' pp':'Not estimable'}</strong>
+                    <span>{audit.uncertainty?'Annualized arithmetic mean, circular block bootstrap':'Needs 24 valid paired months'}</span></article>
+                  <article><small>HAC nominal p-value</small>
+                    <strong>{audit.hac?.two_sided_normal_p_value===null||!audit.hac?'Unavailable':
+                      pretty(audit.hac.two_sided_normal_p_value,5)}</strong>
+                    <span>Asymptotic; no control for strategy selection</span></article>
+                  <article><small>Chronological final test</small><strong>{audit.split.declared_final_test?
+                    audit.split.final_test_months+' months':'Not declared'}</strong>
+                    <span>Declaration does not prove independent freezing</span></article></div>
+                <h3>Statistical and publication gates</h3>
+                <div className="rs-check-gates">{audit.checks.map((c,i)=><article key={i}
+                  className={'rs-gate '+c.status}><div><span className="rs-gate-label">{c.status.replaceAll('_',' ').toUpperCase()}</span>
+                  <strong>{c.name}</strong></div><p>{c.detail}</p>
+                  {c.next_action&&<small>Next: {c.next_action}</small>}</article>)}</div>
+                <p className="rs-small">{audit.method}</p></>}
+            </section>
+            {audit&&<><section className="rs-panel"><h3>Additional computed statistics</h3>
+              <DataTable rows={audit.metrics.map(m=>({metric:m.name,value:m.value,
+                unit:m.unit,definition:m.detail}))} name="quantlab_evidence_metrics"/></section>
+              {!!audit.plots.length&&<section className="rs-panel"><h3>Inference-specific graphics</h3>
+                <div className="rs-figures">{audit.plots.slice(0,6).map((plot,i)=><FigureCard
+                  key={active.id+'-evidence-'+i} runKey={active.id} mode={sourceKind}
+                  figure={{group:'Statistical evidence',plot,
+                    insight:i===0?'Computed from archived paired results. No price observations were synthesized.':
+                    'Descriptive estimates and conditional uncertainty are not prospective predictions.'}}/>)}</div>
+              </section>}
+              <section className="rs-panel"><h3>Interpretation limits</h3>
+                {audit.limitations.map((txt,i)=><p className="rs-small" key={i}><ShieldAlert size={13}/> {txt}</p>)}
+                <p className="rs-warning">{audit.split.note||'No independently frozen protocol is certified.'}</p>
+              </section></>}
+            <button className="rs-action" onClick={onWorkspace}><SlidersHorizontal size={15}/> Open advanced walk-forward and statistical tests <ArrowRight size={14}/></button>
           </div>}
           {tab==='robustness'&&<div className="rs-stack">
             {index?.robustness.length?<section className="rs-panel"><h3>Parameter sensitivity · executed rows</h3>
@@ -499,6 +593,15 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
               {comparison&&<button className="rs-action" disabled={comparing} onClick={()=>void saveComparison()}>
                 <Save size={14}/> Save reproducible comparison</button>}
               {saved&&<p className="rs-small">Saved comparison ID: {saved}</p>}
+              <div className="rs-rule"/>
+              <h3>Paired statistical comparison</h3>
+              <p className="rs-small">Select only index runs built from the same input checksums.
+                The first selected run is the baseline. The engine requires 24 common
+                months and identical benchmark returns, then applies Holm correction.</p>
+              <button className="rs-action" disabled={pairedBusy||selectedForCompare.length<2||
+                selectedForCompare.some(r=>r.kind!=='research_run')}
+                onClick={()=>void comparePaired()}>{pairedBusy?<LoaderCircle size={15}/>:<ShieldCheck size={15}/>}
+                Calculate paired evidence</button>
             </section></div>
             {comparison&&<section className="rs-panel rs-compare-output"><h3>{comparison.title}</h3>
               {comparison.plot&&<FigureCard key={'comparison-'+selection.join('-')} mode={selectedForCompare[0]?.mode||"unknown"}
@@ -508,6 +611,17 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
                 figure={{group:'Independent panel',plot,insight:'Separate scale and provenance. Do not compare raw heights across units.'}}/>)}</div>}
               <p className="rs-warning">{comparison.warning}</p>
               {!!comparison.sources?.length&&<DataTable rows={comparison.sources} name="quantlab_comparison_sources"/>}</section>}
+            {paired&&<section className="rs-panel"><div className="rs-panel-heading"><div>
+              <span className="rs-kicker">PAIRWISE INFERENCE / MULTIPLE-TEST GUARD</span><h3>Matched-calendar comparison</h3>
+              <p className="rs-small">{paired.paired_months} common months · {paired.start} to {paired.end}</p></div>
+              <button onClick={()=>saveFile('quantlab_paired_comparison.json',JSON.stringify(paired,null,2),'application/json')}>
+                <Download size={14}/> Export full evidence JSON</button></div>
+              <DataTable rows={paired.rows} name="quantlab_paired_statistics"/>
+              <FigureCard key={'paired-'+selection.join('_')} runKey="paired_comparison" mode={paired.evidence_class==='synthetic_demo'?'synthetic':'historical'}
+                figure={{group:'Matched-calendar paths',plot:paired.plot,
+                insight:'Each strategy is normalized to 100 at the start of the common sample. This is descriptive.'}}/>
+              <p className="rs-small">{paired.method}</p><p className="rs-warning">{paired.warning}</p>
+            </section>}
             <button onClick={onWorkspace} className="rs-link">Advanced Compare & Graph Studio <ArrowRight size={14}/></button>
           </div>}
         </>}</>}
