@@ -231,12 +231,12 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
             <NumberField label="Target turnover penalty" value={turnoverPenalty}
               min={0} max={100} step={.01} onChange={v=>{setTurnoverPenalty(v);setPlan(null)}}/>
             <label className="rs-check"><input type="checkbox" checked={teLimit!==null}
-              onChange={e=>{setTeLimit(e.target.checked?.15:null);setPlan(null)}}/>
+              onChange={e=>{setTeLimit(e.target.checked ? .15 : null);setPlan(null)}}/>
               Limit annualized predicted tracking error</label>
             {teLimit!==null&&<NumberField label="Tracking error limit (decimal)" value={teLimit}
               min={.005} max={5} step={.01} onChange={v=>{setTeLimit(v);setPlan(null)}}/>}
             <label className="rs-check"><input type="checkbox" checked={maxTrade!==null}
-              onChange={e=>{setMaxTrade(e.target.checked?.2:null);setPlan(null)}}/>
+              onChange={e=>{setMaxTrade(e.target.checked ? .2 : null);setPlan(null)}}/>
               Limit each rebalance's single-security trade</label>
             {maxTrade!==null&&<NumberField label="Max trade fraction" value={maxTrade}
               min={.01} max={1} step={.01} onChange={v=>{setMaxTrade(v);setPlan(null)}}/>}
