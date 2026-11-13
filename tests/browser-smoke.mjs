@@ -103,7 +103,7 @@ try {
   await step('Dhan download uses an accessible four-step guided flow',async()=>{
     await nav('Data Library').click()
     await page.locator('.ws-context-tabs').getByRole('button',{
-      name:'DhanHQ market-data terminal'
+      name:'Download market data'
     }).click()
     await page.getByRole('heading',{name:'Download data for your research'}).waitFor()
     await page.getByRole('heading',{name:'1. What data do you want?'}).waitFor()
