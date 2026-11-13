@@ -30,6 +30,28 @@ Keep the authentic source files in ignored LOCAL directories. Commit code and
 non-identifying derived acceptance summaries only; licensed raw source rows
 need redistribution permission.
 
+### NSE research access and licensing are separate approval gates
+
+NSE's current Data Sharing & Usage Policy explains restrictions on market-data
+redistribution and on producing new financial indexes using subscriber data.
+Do not assume a free historical CSV permits creation, commercialization,
+redistribution or public display of a licensed custom index.
+
+Official policy: https://www.nseindia.com/static/market-data/nse-data-policy
+
+NSE's updated **Data for Research** program describes an application process
+for eligible academic/non-commercial projects. It currently directs research
+data requests to the NSE Economic Policy Research Department with an official
+Data Seeking Request Form, via nseri@nse.co.in:
+
+https://www.nseindia.com/static/research/initiatives-data-for-research
+
+Before using research datasets for an index-comparison paper, request
+permission explicitly covering the index-research methodology, data date
+range, reuse in code, derived statistics/charts, and whether any public
+demonstration or résumé showcase is allowed. Never submit user brokerage
+credentials or publish Dhan account holdings as part of a request.
+
 ## 2. Inspect the exact holes in your own local research data
 
 You can audit a partial dataset; it does not need a valid benchmark yet.

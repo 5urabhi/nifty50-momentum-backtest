@@ -57,6 +57,16 @@ No synthetic dataset, modern constituents list, spot index candle, historical
 close alone, source URL, checksum or user-submitted review flag can substitute
 for these observations. The application explicitly marks them missing.
 
+## NSE index-data rights
+
+NSE's Data Sharing & Usage Policy may restrict creating a new index from
+subscriber market data and redistribution of derived datasets. The official
+research application path is
+https://www.nseindia.com/static/research/initiatives-data-for-research
+(request form via nseri@nse.co.in). Source download availability is NOT
+index-creation or publication permission. Confirm intended noncommercial use
+and obtain any necessary license before publishing a research product.
+
 ## Primary sources to acquire permitted exports
 
 - Exchange TRI levels: https://www.niftyindices.com/reports/historical-data
