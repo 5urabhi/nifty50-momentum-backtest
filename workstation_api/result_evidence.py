@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from index_research.inference import newey_west_mean_test
-from . import model_lab, service
+from . import frozen_study, model_lab, service
 
 Kind = Literal["model_run", "research_run"]
 PER_YEAR = 12
@@ -248,6 +248,9 @@ def summarize(kind: Kind, run_id: str) -> dict:
         hac["null_hypothesis"] = "Mean monthly net active return is zero"
         hac["interpretation"] = "Asymptotic HAC normal approximation; not multiple-testing adjusted."
     periods = _split(detail, df)
+    receipt = frozen_study.run_receipt(run_id)
+    frozen_status = receipt["state"]
+    periods["frozen_protocol_status"] = frozen_status
     checks = [
         _check("Valid paired monthly returns", "pass" if n >= 24 and rejected == 0 else "warning",
                f"{n} paired valid observations out of {original_count}; {rejected} rejected.",
@@ -267,12 +270,20 @@ def summarize(kind: Kind, run_id: str) -> dict:
                "No source review, multiple-search correction or prospective fills are certified.",
                "Conduct an external source audit and freeze a prospective evaluation protocol."),
     ]
+    checks.append(_check(
+        "Single-use source-bound final-test lock",
+        "pass" if frozen_status == "software_frozen_exploratory" else "blocked",
+        "Frozen dataset hashes, configuration and post-execution receipts match"
+        if frozen_status == "software_frozen_exploratory" else
+        "No valid single-use frozen protocol receipt: " + frozen_status,
+        "Create the frozen protocol BEFORE running an untouched final test. "
+        "Local timestamps still cannot prove it was never inspected."))
     return {"id": run_id, "kind": kind, "model": detail.get("meta", {}).get(
         "config", {}).get("name", run_id), "evidence_class": classification,
         "readiness": "research_diagnostic_only", "observations": n,
         "rejected_rows": rejected, "metrics": _risk(r, b),
         "uncertainty": ci, "hac": hac, "checks": checks,
-        "split": periods, "plots": _figures(df, ci), "limitations": [
+        "split": periods, "frozen_receipt": receipt, "plots": _figures(df, ci), "limitations": [
             "Full-history uncertainty is exploratory; strategy search and repeated testing create selection bias.",
             "Block-bootstrap intervals assume approximately stationary, short-range dependent monthly returns.",
             "The price-index / total-return benchmark convention must match strategy returns.",

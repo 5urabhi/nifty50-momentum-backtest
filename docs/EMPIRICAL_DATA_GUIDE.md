@@ -184,3 +184,81 @@ evidence, and a Dhan or other historical price source.
 Neither simulated data nor the old static universe is a substitute.
 We will not invent market-history records, declare results independently
 verified, or overwrite `main` on that basis.
+
+
+## G. One-screen historical source preparation and final-test lock
+
+In **Experiment Studio**, choose an actual observed dataset and scroll to
+**Historical Evidence Workflow**. The screen is ordered:
+
+1. **Collect originals.** Open the Dhan downloader for historical daily equity
+   prices and the Data Library for original, lawfully obtained TRI levels.
+   Use the existing pinned NIFTY constituent-history import for actual
+   effective-date membership intervals. Inspect any unresolved delistings or
+   security mappings; the current Dhan instrument master is not a historical
+   delisted-security archive.
+2. **Prepare dated actions.** Upload a real, public-source-cited
+   `corporate_actions.csv` to the *Create event-adjusted total-return dataset*
+   form. Choose the **original price basis**. For Dhan daily closes, select
+   `split_bonus_adjusted`; `raw_unadjusted` would double-apply splits.
+   QuantLab creates a **new version**, retaining the parent's daily candles,
+   eligibility, benchmark, dated notes and source metadata. Originals are never
+   overwritten. The return output is a daily-reinvested wealth index evaluated
+   at the ACTUAL monthly observed sessions. Interior missing daily sessions,
+   source calendar gaps, unsupported corporate events, unverifiable event
+   records, and reused already-adjusted factors block the conversion.
+   **An empty event CSV is not evidence that an issuer had no dividends.**
+3. **Inspect source gates.** QuantLab structurally reconciles every PIT interval
+   and observed member month, verifies the source interval hash and pinned
+   commit, enforces index constituent counts (NIFTY 50=50 and source-dated
+   NIFTY BANK transitions), identifies missing eligible next-month returns,
+   checks TRI name/convention/calendar/level-source digest and event processing
+   policy, and checks publication vintages when filing factors are selected.
+   Its source and independent-license review status is **never approved by
+   software alone**. Export the detailed readiness JSON to share with an
+   independent reviewer.
+4. **Freeze one test.** Before examining final-test performance, specify
+   `validation_start` and `final_test_start` in Experiment Studio. The
+   software requires at least **44 training months** (36 + 20% buffer),
+   one separate validation month, and 12 final-test months. Press **Create
+   frozen protocol** to pin exact input and provenance hashes, model parameters,
+   test dates and a local registration timestamp. Press **Run once** to
+   execute the saved configuration and consume the protocol exactly once.
+   QuantLab verifies the original source hashes before and after execution and
+   compares the completed manifest against frozen CSV inputs. A changed source
+   invalidates the receipt; a consumed protocol cannot be rerun. The archived
+   Results Studio **Evidence audit** shows the lock status.
+
+The frozen lock is intentionally labeled **software-frozen exploratory**:
+it is not a third-party-notarized preregistration, does not prevent prior
+human inspection of the final test and is not proof of untouched evaluation.
+For confirmatory claims, use an independently timestamped protocol, locked
+future observations or truly prospective data, and a human source audit.
+
+A successful source conversion, a matching TRI calendar, a 64-character
+SHA-256 hash, or a checked `verified=true` in an action ledger is **not**
+external verification. Valid Nifty-index and vendor licenses, all historical
+corporate actions, split/bonus policies, special dividends, name changes,
+delistings, actual recovery proceeds, and first-publication filing dates must
+be checked against genuinely original evidence. No missing events are
+automatically inferred to be absent.
+
+### New local-only endpoints
+
+- `GET /api/workspace/historical-readiness/{dataset_id}?validation_start=YYYY-MM-DD&final_test_start=YYYY-MM-DD`
+- `POST /api/datasets/{dataset_id}/add-actions`: multipart `file` (original
+  action CSV), `price_basis`, `acknowledge_unverified=true`.
+- `POST /api/workspace/frozen/create`: the exact Experiment Studio JSON
+  configuration including dataset ID and chronological split.
+- `GET /api/workspace/frozen/{protocol_id}`: inspect immutable protocol.
+- `POST /api/workspace/frozen/{protocol_id}/execute`: JSON `{"confirm":true}`
+  queues the single-use Python research job.
+- `GET /api/workspace/frozen/runs/{run_id}/receipt`: inspect source lock.
+
+All endpoints are loopback-only and obey the same no-order security policy.
+The new source snapshots live locally under ignored `data/` and `results/`,
+never on GitHub or in the browser bundle. No proprietary market files are
+redistributed by the exported methodology reports.
+
+Run local regression tests after updating:
+`python -m unittest tests.test_historical_freeze tests.test_action_import -v`.
