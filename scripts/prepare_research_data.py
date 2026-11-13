@@ -16,6 +16,8 @@ from index_research.benchmark_ingestion import normalize_benchmark
 from index_research.empirical_validation import export_holdout_review
 from index_research.research_calendar import align_research_calendar
 from index_research.nse_weights import import_nifty_weight_snapshots
+from index_research.evidence_coverage import export_empirical_coverage
+import json
 
 
 def main(argv=None):
@@ -59,6 +61,12 @@ def main(argv=None):
     weights.add_argument("--index-column",default=None)
     weights.add_argument("--index-label",default="NIFTY 50")
     weights.add_argument("--pit-intervals",default=None)
+    coverage=sub.add_parser("coverage-audit",
+        help="Export exact missing historical security-months and benchmark/factor readiness")
+    coverage.add_argument("--data-dir",required=True)
+    coverage.add_argument("--output-dir",required=True)
+    coverage.add_argument("--config",default=None,
+                          help="Optional frozen ExperimentConfig JSON for sample and factor requirements")
     review=sub.add_parser("review",help="Report research evidence readiness without auto-approving it")
     review.add_argument("--data-dir",required=True)
     review.add_argument("--results-dir",required=True)
@@ -96,6 +104,11 @@ def main(argv=None):
             index_label=args.index_label,pit_intervals_csv=args.pit_intervals)
         print("Official-claimed monthly source snapshots (unverified):",result)
         print("Original publication dates, historical ticker coverage and source licensing remain unverified.")
+    elif args.command=="coverage-audit":
+        cfg=json.loads(Path(args.config).read_text()) if args.config else None
+        result=export_empirical_coverage(args.data_dir,args.output_dir,cfg)
+        print("Precise historical source gap report:",result)
+        print("No prices are downloaded, invented, completed or marked independently verified.")
     else:
         print(export_holdout_review(args.results_dir,args.data_dir,args.declarations))
         print("A review-ready status is NOT an independent market-data audit.")
