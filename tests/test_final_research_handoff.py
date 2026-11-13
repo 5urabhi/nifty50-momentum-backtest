@@ -106,6 +106,22 @@ class FinalResearchHandoffTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"requires original prices"):
             assemble(values,self.config,self.root/"bad_missing_membership")
 
+    def test_zero_weight_fundamental_does_not_require_missing_filings(self):
+        from index_research.experiment import ExperimentConfig
+        from scripts.complete_research_studies import research_preflight
+        from dataclasses import replace
+        from index_research.fixtures import make_fixture
+        source=make_fixture(self.root/"zero_weight_fixture")
+        (source/"fundamentals.csv").unlink()
+        config=ExperimentConfig(
+            name="SYNTH ZERO FACTOR INPUT",
+            factor_weights={"momentum":1.,"value":0.,"quality":0.,"yield":0.},
+            top_n=10,max_weight=.2,rebalance_every=3,execution_lag=1,
+            validation_start="2020-01-31",final_test_start="2023-01-31")
+        status=research_preflight(source,config)
+        self.assertTrue(status["software_ready"],status)
+        self.assertEqual(status["classification"],"SYNTHETIC_DEMONSTRATION")
+
     def test_external_review_cannot_be_auto_approved(self):
         result=assemble(self._inputs(),self.config,self.root/"still_unreviewed")
         self.assertTrue(result["external_evidence_blockers"])
