@@ -77,5 +77,5 @@ class ResearchReleaseTests(unittest.TestCase):
         findings = json.loads((destination / "studies" /
                                "THREE_STUDIES_RESULTS.json").read_text())
         self.assertFalse(findings["external_research_certified"])
-        self.assertIn("simulated index net wealth",
+        self.assertIn("Simulated index net wealth",
             (destination / "RESEARCH_RELEASE.html").read_text())
