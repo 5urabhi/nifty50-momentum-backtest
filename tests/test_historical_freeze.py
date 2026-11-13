@@ -121,6 +121,19 @@ class HistoricalFrozenResearchTests(unittest.TestCase):
         self.assertEqual(categories["Total-return benchmark provenance"],"review")
         self.assertEqual(categories["Independent original-source and licensing review"],"blocked")
 
+    def test_missing_entire_month_blocks_frozen_research(self):
+        file=self.dataset/"prices.csv"
+        source=pd.read_csv(file)
+        source=source.drop(index=source.index[9]).reset_index(drop=True)
+        source.to_csv(file,index=False)
+        report=self.audit()
+        panel={c["name"]:c for c in report["checks"]}
+        self.assertEqual(panel["Monthly price panel"]["status"],"blocked")
+        self.assertIn("calendar months",panel["Monthly price panel"]["detail"])
+        self.assertFalse(report["structural_run_ready"])
+        with self.assertRaisesRegex(ValueError,"Frozen exploratory evaluation blocked"):
+            frozen_study.create("upload_audit_fixture",dict(self.config))
+
     def test_pit_intervals_are_checked_against_every_month(self):
         mismatch = self.dataset / "membership.csv"
         frame = pd.read_csv(mismatch)
