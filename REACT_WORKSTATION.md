@@ -336,3 +336,28 @@ API:
 
 Synthetic fixture-only acceptance:
 `python -m unittest tests.test_result_evidence -v`.
+
+
+## Historical source completion: guided UI
+
+The **Experiment Studio → Historical Evidence Workflow** now handles the
+last-mile steps missing from a basic chart dashboard: show exact market-data
+and PIT/benchmark/event gate results; link to daily-history downloads and
+TRI uploads; import a source-cited ex-date dividend/split/delisting event
+ledger into a **new, non-destructive total-return dataset version**; and lock
+one observed study's source files, parameters and train/validation/final
+dates before consuming the frozen protocol once. The status board never
+automatically claims independent market-data or publication certification.
+
+The Results Studio **Evidence audit** identifies whether its index run was
+actually bound to a valid one-use frozen receipt. Missing/modified data,
+insufficient 44/1/12 training/validation/final months, incomplete PIT states,
+unadjusted spot benchmarks, unsupported events and publication-vintage gaps
+have explicit remediation actions.
+
+**Sources still required from original providers:** licensed Dhan (or user)
+historical daily closes, effective-dated NSE index circulars with all
+historical identities, issuer action/ex-date records and delisting recovery,
+correct first-release financial filings and comparable NSE Indices TRI
+levels. No backend can manufacture those source truths or independently
+approve its own research assumptions.
