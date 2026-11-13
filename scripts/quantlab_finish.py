@@ -272,6 +272,59 @@ def _next_steps(data: Path, config: Path, status: dict) -> str:
     return "\n\n".join(steps)+"\n"
 
 
+
+def _brief_doctor(result: dict, evidence: dict) -> str:
+    """A quick human status, not a replacement for the archived research audit."""
+    folder=Path(result["output"])
+    messages=["QUANTLAB DOCTOR: OK"]
+    ready=bool(result["software_ready"])
+    classification=evidence.get("classification","BLOCKED")
+    core=["prices.csv","membership.csv","benchmark.csv","fundamentals.csv"]
+    absent=set(evidence.get("missing_sources",[]))
+    blockers=evidence.get("preflight",{}).get("software_blockers",[])
+    if not ready:
+        messages.append("HISTORICAL RESEARCH: NOT READY")
+        important=[name for name in core if name in absent]
+        if important:
+            messages.append("PROBLEM: Missing "+", ".join(important))
+        elif blockers:
+            messages.append("PROBLEM: "+str(blockers[0]))
+        else:
+            messages.append("PROBLEM: Historical research inputs are incomplete.")
+        messages.append("NEXT: Prepare original market data in Data Library; check again.")
+    elif classification=="SYNTHETIC_DEMONSTRATION":
+        messages.append("HISTORICAL RESEARCH: DEMO ONLY")
+        messages.append("PROBLEM: Data are synthetic, not genuine NIFTY history.")
+        messages.append("NEXT: Use verified historical inputs before publishing findings.")
+    else:
+        messages.append("RESEARCH CALCULATIONS: READY" if not result["studies_executed"]
+                        else "RESEARCH CALCULATIONS: COMPUTED")
+        messages.append("VERIFICATION: PENDING (not independently certified)")
+        messages.append("NEXT: Verify primary sources, data rights and the frozen holdout.")
+    if not ready and result.get("studies_executed"):
+        raise AssertionError("An incomplete input cannot execute the three studies")
+    messages.append("DETAILS (optional): "+str(folder/"NEXT_ACTIONS.md"))
+    return "\n".join(messages)
+
+
+def _brief_other(command: str, result: dict) -> str:
+    if command=="assemble":
+        return "\n".join([
+            "SOURCE ASSEMBLY: OK",
+            "RESEARCH: "+("INPUTS READY" if result["software_ready"] else "NOT READY"),
+            "VERIFICATION: PENDING (not independently certified)",
+            "DATASET: "+str(result["dataset"]),
+        ])
+    return "\n".join([
+        "LEGACY DATA AUDIT: OK",
+        "HISTORICAL RESEARCH: NOT VERIFIED",
+        "OBSERVED: "+str(result["months"])+" months, "+
+            str(result["security_columns"])+" stocks; "+
+            str(result["missing_price_cells"])+" missing prices",
+        "NEXT: Prepare original point-in-time and dividend-adjusted sources.",
+    ])
+
+
 def doctor(data_dir: str | Path, config_path: str | Path,
            output_dir: str | Path, *, execute: bool=False) -> dict:
     """Report exact missing evidence, optional three studies, and next commands."""
@@ -283,6 +336,8 @@ def doctor(data_dir: str | Path, config_path: str | Path,
     result=generate(data,config,out,execute=execute)
     status=json.loads((out/"RESEARCH_RELEASE_STATUS.json").read_text())
     (out/"NEXT_ACTIONS.md").write_text(_next_steps(data,config,status))
+    preview={**result,"actions_file":str(out/"NEXT_ACTIONS.md")}
+    (out/"STATUS.txt").write_text(_brief_doctor(preview,status)+"\n")
     return {
         **result,
         "actions_file":str(out/"NEXT_ACTIONS.md"),
@@ -380,12 +435,16 @@ def main(argv=None) -> int:
     diagnostics=sub.add_parser("doctor",help="Write all missing sources, commands and optionally run studies")
     diagnostics.add_argument("--data-dir",default="data/research_v1")
     diagnostics.add_argument("--config",default="config/research_multifactor.json")
-    diagnostics.add_argument("--output-dir",required=True)
+    diagnostics.add_argument("--output-dir",default=None,
+                             help="Optional; defaults to a new timestamped results/doctor_... folder")
     diagnostics.add_argument("--execute",action="store_true",
                              help="Run source-gated three-study calculations, not independent validation")
     legacy=sub.add_parser("legacy-audit",help="Inventory old static-universe prices without certifying them")
     legacy.add_argument("--source",default="nifty50_prices_monthly.csv")
     legacy.add_argument("--output-dir",required=True)
+    for parser in (assembly,diagnostics,legacy):
+        parser.add_argument("--json",action="store_true",
+                            help="Print full machine-readable JSON instead of short status")
     args=p.parse_args(argv)
     try:
         if args.command=="assemble":
@@ -404,16 +463,23 @@ def main(argv=None) -> int:
             }
             outcome=assemble(fields,args.config,args.output_dir)
         elif args.command=="doctor":
-            outcome=doctor(args.data_dir,args.config,args.output_dir,
+            folder=(args.output_dir or
+                    "results/doctor_"+datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f"))
+            outcome=doctor(args.data_dir,args.config,folder,
                            execute=args.execute)
         else:
             outcome=legacy_audit(args.source,args.output_dir)
-        print(json.dumps(outcome,indent=2,allow_nan=False))
+        if args.json:
+            print(json.dumps(outcome,indent=2,allow_nan=False))
+        elif args.command=="doctor":
+            print((Path(outcome["output"])/"STATUS.txt").read_text(),end="")
+        else:
+            print(_brief_other(args.command,outcome))
         if args.command=="doctor" and not outcome["software_ready"]:
             return 2
         return 0
     except (OSError,ValueError,TypeError,KeyError) as exc:
-        print("QuantLab research handoff blocked: "+str(exc),file=sys.stderr)
+        print("ERROR: "+str(exc),file=sys.stderr)
         return 2
 
 

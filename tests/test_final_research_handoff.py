@@ -1,5 +1,7 @@
 """Final research handoff tests: immutable sources and no invented certification."""
 import json
+import io
+from contextlib import redirect_stdout, redirect_stderr
 from dataclasses import asdict
 from pathlib import Path
 import tempfile
@@ -8,7 +10,7 @@ import pandas as pd
 
 from index_research.experiment import ExperimentConfig
 from index_research.fixtures import make_fixture
-from scripts.quantlab_finish import assemble, doctor, legacy_audit, file_sha256
+from scripts.quantlab_finish import assemble, doctor, legacy_audit, file_sha256, main
 
 
 class FinalResearchHandoffTests(unittest.TestCase):
@@ -98,6 +100,55 @@ class FinalResearchHandoffTests(unittest.TestCase):
         self.assertTrue((dest/"RESEARCH_PAPER_DRAFT.md").is_file())
         with self.assertRaises(FileExistsError):
             doctor(self.root/"missing_inputs",self.config,dest)
+
+    def test_short_status_is_saved_and_terminal_defaults_to_one_screen(self):
+        folder=self.root/"doctor_short"
+        stdout=io.StringIO()
+        with redirect_stdout(stdout):
+            code=main([
+                "doctor","--data-dir",str(self.root/"no_real_data"),
+                "--config",str(self.config),"--output-dir",str(folder),
+            ])
+        brief=stdout.getvalue()
+        self.assertEqual(code,2,"Missing market research input is not research-ready")
+        self.assertIn("QUANTLAB DOCTOR: OK",brief)
+        self.assertIn("HISTORICAL RESEARCH: NOT READY",brief)
+        self.assertIn("prices.csv",brief)
+        self.assertIn("membership.csv",brief)
+        self.assertIn("benchmark.csv",brief)
+        self.assertIn("DETAILS (optional)",brief)
+        self.assertLess(len(brief.splitlines()),8)
+        self.assertNotIn("Step 1",brief)
+        self.assertEqual(brief,(folder/"STATUS.txt").read_text())
+        self.assertTrue((folder/"NEXT_ACTIONS.md").exists())
+
+    def test_json_is_opt_in_for_developers(self):
+        folder=self.root/"doctor_json"
+        output=io.StringIO()
+        with redirect_stdout(output):
+            code=main([
+                "doctor","--data-dir",str(self.root/"missing_inputs"),
+                "--config",str(self.config),"--output-dir",str(folder),"--json",
+            ])
+        self.assertEqual(code,2)
+        data=json.loads(output.getvalue())
+        self.assertFalse(data["software_ready"])
+        self.assertEqual(data["output"],str(folder))
+        self.assertIn("HISTORICAL RESEARCH: NOT READY",
+                      (folder/"STATUS.txt").read_text())
+
+    def test_missing_source_error_prints_simple_error_not_traceback(self):
+        folder=self.root/"exists_already"
+        folder.mkdir()
+        stderr=io.StringIO()
+        with redirect_stderr(stderr):
+            code=main([
+                "doctor","--data-dir",str(self.root/"missing_inputs"),
+                "--config",str(self.config),"--output-dir",str(folder),
+            ])
+        self.assertEqual(code,2)
+        self.assertIn("ERROR: Release report exists",stderr.getvalue())
+        self.assertNotIn("Traceback",stderr.getvalue())
 
     def test_real_tracked_legacy_archive_stays_non_pit_non_tri(self):
         archive=Path(__file__).resolve().parents[1]/"nifty50_prices_monthly.csv"

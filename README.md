@@ -9,6 +9,20 @@ are tested. **No independently validated NIFTY historical investment result is
 published.** Real TRI, point-in-time constituents, historical filings, dividends
 and other corporate events still require an original-source audit.
 
+## Fast status (default: OK / NOT READY / ERROR)
+
+The doctor prints a **short, readable status**, never a wall of JSON or
+step-by-step instructions. It saves the optional detailed report separately.
+Run this from the repository with the local `.venv` activated:
+
+    python scripts/quantlab_finish.py doctor
+
+This automatically creates a new timestamped report folder and prints
+`QUANTLAB DOCTOR: OK`, `HISTORICAL RESEARCH: NOT READY` (or the actual
+readiness state), the missing inputs, and the next action. Use `--json`
+only if you need machine-readable output. Full methodology, evidence
+and instructions remain in the generated `NEXT_ACTIONS.md` file.
+
 ## Final research handoff: one command to see exactly what remains
 
 The new [final study handoff guide](docs/FINAL_STUDY_HANDOFF.md)
