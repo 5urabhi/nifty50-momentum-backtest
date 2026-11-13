@@ -51,6 +51,11 @@ def import_adjusted(dataset_id: str, content: bytes, *,
         raise ValueError("Original dataset must include unchanged prices.csv and daily_prices.csv")
     if daily_file.stat().st_size > MAX_DAILY_BYTES:
         raise ValueError("Daily source exceeds safe local conversion size; split the universe first")
+    if price_basis == "raw_unadjusted" and (
+            dataset.get("kind") == "dhan" or
+            (folder / "DAILY_AGGREGATION_PROVENANCE.json").is_file()):
+        raise ValueError("Dhan daily prices are already split/bonus adjusted; "
+                         "raw basis would apply share multipliers twice")
     if folder.is_symlink() or any(p.is_symlink() for p in folder.iterdir()):
         raise ValueError("Refusing to copy a dataset containing symbolic links")
     original = read_matrix(original_file, positive=True)
@@ -61,6 +66,16 @@ def import_adjusted(dataset_id: str, content: bytes, *,
         raise ValueError("Original source dates are not chronological")
     if not original.index.isin(daily.index).all():
         raise ValueError("Original monthly trading sessions are absent in the daily close series")
+    daily_months = daily.index.to_period("M")
+    monthly_counts = pd.Series(1, index=daily.index).groupby(daily_months).sum()
+    actual_final = pd.Series(daily.index, index=daily.index).groupby(daily_months).max()
+    for date in original.index:
+        period = date.to_period("M")
+        if int(monthly_counts.get(period, 0)) < 8:
+            raise ValueError("Fewer than eight actual source sessions for month " + str(period) +
+                             "; do not turn partial candles into total returns")
+        if actual_final.get(period) != date:
+            raise ValueError("Original monthly mark is not the last observed source session for " + str(period))
     if (folder/"membership.csv").is_file():
         read_membership(folder/"membership.csv",original.index,original.columns)
     if (folder/"benchmark.csv").is_file():
@@ -122,7 +137,7 @@ def import_adjusted(dataset_id: str, content: bytes, *,
             candidate=folder/name
             if candidate.is_file() and not candidate.is_symlink():
                 shutil.copy2(candidate,staging/name)
-        source_digest=hashlib.sha256(daily_file.read_bytes()).hexdigest() if daily_file.stat().st_size <= 25_000_000 else _sha_file(daily_file)
+        source_digest=_sha_file(daily_file)
         (staging/"RETURN_METHODOLOGY.json").write_text(json.dumps({
             "kind":"reconstructed_total_return_wealth_research_v1",
             "source_dataset_id":dataset_id,
