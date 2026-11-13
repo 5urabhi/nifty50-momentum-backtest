@@ -114,6 +114,19 @@ try {
     assert.ok(await page.getByRole('button',{name:'Evidence JSON'}).isEnabled())
     await screenshot('02-results-evidence-audit')
   })
+  await step('historical evidence source checks and safe frozen-test gating',async()=>{
+    await nav('Experiment Studio').click()
+    await page.locator('.hv-root').waitFor()
+    await page.getByRole('heading',{name:/Original sources.*independent review.*frozen test/}).waitFor()
+    await page.locator('.hv-checks .hv-check').first().waitFor({timeout:25000})
+    const text=await page.locator('.hv-root').innerText()
+    assert.match(text,/not independently audited/i,
+      'Original source review must never be silently approved in synthetic CI')
+    assert.match(text,/Historical study incomplete/i)
+    assert.equal(await page.getByRole('button',{name:/Create frozen protocol/}).isDisabled(),true,
+      'Short CI fixture must not be treated as a valid final-test study')
+    await screenshot('02-historical-source-readiness')
+  })
   await step('Dhan download uses an accessible four-step guided flow',async()=>{
     await nav('Data Library').click()
     await page.locator('.ws-context-tabs').getByRole('button',{
