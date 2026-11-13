@@ -31,7 +31,7 @@ COPY = (
     "DHAN_BATCH_PROVENANCE.json", "CALENDAR_ALIGNMENT_PROVENANCE.json",
     "OBSERVED_MARKET_SESSIONS.csv", "PER_SECURITY_LAST_OBSERVED_SESSIONS.csv",
     "fundamentals.csv", "FUNDAMENTAL_METHODS.json", "sectors.csv",
-    "benchmark_weights.csv", "liquidity.csv", "EVIDENCE_REVIEW.json",
+    "benchmark_weights.csv", "liquidity.csv",
 )
 
 
@@ -151,6 +151,7 @@ def import_adjusted(dataset_id: str, content: bytes, *,
             "supported_events":["dividend","split","bonus","delisting_cash"],
             "not_supported":["rights_issue","merger_exchange","spin_off","tender_offer","unknown_delisting_recovery"],
             "event_completeness_reviewed_independently":False,
+            "prior_human_review_inherited":False,
             "source_price_adjustment_verified_independently":False,
             "status":"PROVISIONAL_RESEARCH_TOTAL_RETURN_NOT_CERTIFIED",
             "warning":"An empty action ledger does not establish zero dividends. "
@@ -163,7 +164,8 @@ def import_adjusted(dataset_id: str, content: bytes, *,
             "original_daily_prices_sha256":source_digest,
             "actions_sha256":hashlib.sha256(content).hexdigest(),
             "independent_source_certified":False,
-            "warning":"Original vendor/downloaded data remains unchanged; event evidence requires independent review.",
+            "warning":"Original vendor/downloaded data remains unchanged; prior review declarations "
+                       "are NOT copied into a new economically adjusted data version.",
         },indent=2))
         if target.exists():
             raise FileExistsError("Research view already exists; retry with a new version")
