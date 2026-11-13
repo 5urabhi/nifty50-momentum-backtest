@@ -26,6 +26,7 @@ function yBounds(plot:ResearchPlotData){
 }
 function Canvas2D({plot}:{plot:ResearchPlotData}){
   const x=plot.x||[]
+  const [activeIndex,setActiveIndex]=useState<number|null>(null)
   const width=GRID_RIGHT-GRID_LEFT,height=GRID_BOTTOM-GRID_TOP
   const [lo,hi]=useMemo(()=>yBounds(plot),[plot])
   const xp=(i:number)=>GRID_LEFT+(x.length<2?.5:i/(x.length-1))*width
@@ -42,8 +43,32 @@ function Canvas2D({plot}:{plot:ResearchPlotData}){
   }).filter(Boolean).join(' ')
   const ticks=[0,.25,.5,.75,1]
   return <div className="ql-plot">
-    <svg viewBox="0 0 880 350" className="ql-svg-chart" role="img"
-      aria-label={plot.title+'; '+(plot.x_label||'x axis')+' versus '+(plot.y_label||'y axis')}>
+    <svg viewBox="0 0 880 350" className="ql-svg-chart" role="img" tabIndex={0}
+      aria-label={plot.title+'; '+(plot.x_label||'x axis')+' versus '+(plot.y_label||'y axis')+
+        '. Hover for values or use keyboard arrows.'}
+      onMouseMove={event=>{
+        if(!x.length)return
+        const rect=event.currentTarget.getBoundingClientRect()
+        const mouse=(event.clientX-rect.left)/rect.width*880
+        let nearest=0,best=Number.POSITIVE_INFINITY
+        for(let i=0;i<x.length;i++){
+          const diff=Math.abs(xcoord(i)-mouse)
+          if(diff<best){best=diff;nearest=i}
+        }
+        setActiveIndex(nearest)
+      }}
+      onMouseLeave={()=>setActiveIndex(null)}
+      onFocus={()=>setActiveIndex(x.length?x.length-1:null)}
+      onBlur={()=>setActiveIndex(null)}
+      onKeyDown={event=>{
+        if(event.key==='ArrowLeft'||event.key==='ArrowRight'){
+          event.preventDefault()
+          setActiveIndex(old=>Math.max(0,Math.min(x.length-1,
+            (old??x.length-1)+(event.key==='ArrowRight'?1:-1))))
+        }
+        if(event.key==='Home'){event.preventDefault();setActiveIndex(0)}
+        if(event.key==='End'){event.preventDefault();setActiveIndex(x.length-1)}
+      }}>
       {ticks.map(t=><g key={t}>
         <line x1={GRID_LEFT} x2={GRID_RIGHT} y1={GRID_TOP+t*height} y2={GRID_TOP+t*height}
           stroke="#304353" strokeDasharray="3 7" opacity=".8"/>
@@ -112,6 +137,32 @@ function Canvas2D({plot}:{plot:ResearchPlotData}){
             fill="#ffe0a3" fontSize="9">{note.label.slice(0,24)}</text>
         </g>
       })}
+      {activeIndex!==null&&x[activeIndex]!==undefined&&<g className="ql-active-observation">
+        <line x1={xcoord(activeIndex)} x2={xcoord(activeIndex)}
+          y1={GRID_TOP} y2={GRID_BOTTOM} stroke="#d3f8e9"
+          strokeDasharray="4 5" strokeWidth="1.1"/>
+        {plot.kind==='scatter2d'&&plot.y&&finite(plot.y[activeIndex])&&
+          <circle cx={xcoord(activeIndex)} cy={yp(plot.y[activeIndex])}
+            r="5" stroke="#d5fff0" strokeWidth="2" fill="#70dcca"/>}
+        {!isBar&&plot.kind!=='scatter2d'&&traces.map((t,i)=>
+          finite(t.y[activeIndex])?<circle key={t.name}
+            cx={xcoord(activeIndex)} cy={yp(t.y[activeIndex] as number)}
+            r="4.2" stroke="#06232e" strokeWidth="2"
+            fill={t.color||COLORS[i%COLORS.length]}/>:null)}
+        <rect x={GRID_RIGHT-250} y={GRID_TOP+4} rx="8" width="247"
+          height={28+19*Math.min(4,plot.kind==='scatter2d'?1:traces.length)}
+          fill="#092332" stroke="#6e9f9d" opacity=".96"/>
+        <text x={GRID_RIGHT-240} y={GRID_TOP+22} fontSize="12" fill="#e0fffb">
+          {String(x[activeIndex]).slice(0,30)}
+        </text>
+        {(plot.kind==='scatter2d'?[
+          {name:plot.y_label||'Value',value:plot.y?.[activeIndex]},
+        ]:traces.slice(0,4).map(t=>({name:t.name,value:t.y[activeIndex]})))
+          .map((r,i)=><text key={r.name} x={GRID_RIGHT-240} y={GRID_TOP+41+i*19}
+            fontSize="11" fill={COLORS[i%COLORS.length]}>
+            {r.name.slice(0,18)+': '+(finite(r.value)?fmt(r.value):'missing')}
+          </text>)}
+      </g>}
       {[0,.25,.5,.75,1].map((t,i)=>{const idx=Math.min(x.length-1,Math.round(t*(x.length-1)))
         return idx>=0?<text key={i} x={xcoord(idx)} y="300" textAnchor={i===0?'start':i===4?'end':'middle'}
           fill="#8ca0b5" fontSize="10">{String(x[idx]).slice(0,14)}</text>:null
@@ -120,6 +171,7 @@ function Canvas2D({plot}:{plot:ResearchPlotData}){
       <text x="18" y="152" fill="#b1c1d0" fontSize="11" textAnchor="middle"
         transform="rotate(-90,18,152)">{plot.y_label}</text>
     </svg>
+    <p className="ql-plot-hover-help">Hover over the graph (or focus it and use ← / →) to inspect exact values.</p>
     <div className="ql-legend">{traces.map((t,i)=><span key={t.name}>
       <i style={{background:t.color||COLORS[i%COLORS.length]}}/>{t.name}
     </span>)}</div>
