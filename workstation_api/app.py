@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -1430,5 +1430,111 @@ def downloaded_candle_preview(instrument_id: str, interval: str = "daily",
         return dhan_workspace.preview_history(
             instrument_id, None if interval == "daily" else int(interval), limit,
         )
+    except Exception as exc:
+        bad(exc)
+
+
+# ---------- Source-exact explainability, index methodology and publication ----------
+class StudioRunSubmission(BaseModel):
+    model_config=ConfigDict(extra="forbid")
+    experiment: RunRequest
+    confirm: bool = False
+
+
+class ResearchHypothesisRequest(BaseModel):
+    model_config=ConfigDict(extra="forbid")
+    question: str = Field(min_length=12,max_length=360)
+    rationale: str = Field(min_length=12,max_length=2500)
+    planned_dataset_id: str = Field(min_length=1,max_length=80)
+    primary_metric: str = Field(min_length=2,max_length=100)
+    success_criterion: str = Field(min_length=4,max_length=500)
+    design: str = Field(min_length=20,max_length=4000)
+
+
+@app.get("/api/workspace/passports/{dataset_id}")
+def research_data_passport(dataset_id: str):
+    try:
+        return research_next.passport(dataset_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/explain/{kind}/{run_id}")
+def explain_archived_research(kind:Literal["model_run","research_run"],
+                             run_id:str,level:Literal["beginner","researcher","mathematical"]="researcher"):
+    try:
+        return research_next.explain_saved(kind,run_id,level)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/index-studio/preflight")
+def index_methodology_preflight(body: RunRequest):
+    try:
+        return research_next.index_preflight(body.dataset_id,body.model_dump())
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/index-studio/run")
+def execute_index_methodology(body: StudioRunSubmission):
+    if not body.confirm:
+        raise HTTPException(400,"Explicit consent required before running index research")
+    try:
+        config=body.experiment
+        preflight=research_next.index_preflight(config.dataset_id,config.model_dump())
+        if preflight["blockers"]:
+            raise ValueError("Index methodology blocked: "+"; ".join(preflight["blockers"]))
+        return _spawn("workspace_index_studio",service.execute_run,
+                      config.dataset_id,config.model_dump())
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/index-studio/decisions/{run_id}")
+def explain_index_constituents(run_id:str,decision_date:str|None=None,
+                               ticker:str|None=None):
+    try:
+        return research_next.index_decisions(run_id,decision_date,ticker)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/active-risk/{run_id}")
+def index_factor_active_risk(run_id:str,as_of:str|None=None,lookback:int=36):
+    try:
+        return active_risk_lab.attribution(run_id,as_of,lookback)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/methodology/{run_id}")
+def index_paper_methodology(run_id:str):
+    try:
+        return research_publication.methodology(run_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/publications/{run_id}.zip")
+def index_paper_download(run_id:str):
+    try:
+        source=research_publication.bundle_path(run_id)
+        return FileResponse(source,filename="quantlab_"+run_id+"_research.zip",
+                            media_type="application/zip")
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/hypotheses")
+def research_preregistrations():
+    return {"hypotheses":research_publication.list_hypotheses()}
+
+
+@app.post("/api/workspace/hypotheses")
+def register_research_hypothesis(body:ResearchHypothesisRequest):
+    try:
+        return research_publication.preregister(body.question,body.rationale,
+            body.planned_dataset_id,body.primary_metric,body.success_criterion,body.design)
     except Exception as exc:
         bad(exc)
