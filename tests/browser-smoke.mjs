@@ -148,7 +148,8 @@ try {
         explanation:'Dhan rejected this historical candle request. Verify your token and Data API subscription; the exact cause is not yet confirmed.',
       }],
     }
-    await page.route('**/api/dhan/batches*',async route=>{
+    const batchRoutes=/\\/api\\/dhan\\/batches(?:\\/[^?]*)?(?:\\?.*)?$/
+    await page.route(batchRoutes,async route=>{
       const request=route.request()
       if(request.method()!=='GET')return route.continue()
       const url=new URL(request.url())
@@ -190,7 +191,7 @@ try {
     assert.equal(await selected.inputValue(),'failed')
     await page.getByRole('cell',{name:'AUBANK'}).waitFor()
     await screenshot('02b-dhan-visible-error-and-batch-arrow')
-    await page.unroute('**/api/dhan/batches*')
+    await page.unroute(batchRoutes)
     await nav('Compare & Visualize').click()
     await page.locator('.rw-top h2').waitFor()
   })
