@@ -52,3 +52,15 @@ jobs:
 
       - name: Run existing research regression suite
         run: python -m unittest discover -s tests -v
+
+      - name: Measure synthetic 50 / 100 / 300-security research performance
+        run: |
+          mkdir -p artifacts
+          python scripts/benchmark_research.py --assets 50,100,300 --periods 120 --output artifacts/scalability.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quantlab-synthetic-software-scalability
+          path: artifacts/scalability.json
+          retention-days: 14

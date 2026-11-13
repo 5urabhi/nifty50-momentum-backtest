@@ -16,6 +16,9 @@ const setting=(key, defaultValue)=>{
 }
 const base=setting('--url','http://127.0.0.1:5173')
 const out=path.resolve(setting('--output','artifacts/research-demo'))
+const api=setting('--api-url','http://127.0.0.1:8765')
+assert.ok(/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(api),
+  'API URL must remain loopback-only')
 const duration=Number(setting('--seconds','180'))
 assert.ok(/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(base),
   'Demo recorder is restricted to a local Vite server on loopback')
@@ -53,14 +56,14 @@ try {
   const page=await context.newPage()
   video=page.video()
   page.setDefaultTimeout(20000)
-  const response=await page.request.get(base.replace(':5173',':8765')+'/api/health')
+  const response=await page.request.get(api+'/api/health')
   assert.equal(response.status(),200,'Local FastAPI must be online')
   const health=await response.json()
   assert.equal(health.broker_orders_enabled,false,'Trading order execution must be disabled')
   // Create only the deterministic local fixture; do not call Dhan or use a
   // user's real datasets, accounts, credentials, or market-data API.
   const synthetic=await page.request.post(
-    base.replace(':5173',':8765')+'/api/datasets/synthetic')
+    api+'/api/datasets/synthetic')
   assert.equal(synthetic.status(),200,'Synthetic fixture must be available')
   await page.goto(base,{waitUntil:'domcontentloaded'})
   await page.getByText('ENGINE ONLINE',{exact:true}).waitFor({timeout:30000})
