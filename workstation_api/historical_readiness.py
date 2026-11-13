@@ -22,7 +22,8 @@ from index_research.empirical_validation import evidence_gate
 from . import service
 
 SOURCE_FILES = (
-    "prices.csv", "membership.csv", "benchmark.csv", "fundamentals.csv",
+    "prices.csv", "daily_prices.csv", "membership.csv", "benchmark.csv", "fundamentals.csv",
+    "factor_returns.csv", "benchmark_weights.csv", "liquidity.csv",
     "sectors.csv", "corporate_actions.csv", "PIT_MEMBERSHIP_PROVENANCE.json",
     "BENCHMARK_PROVENANCE.json", "BENCHMARK_SOURCE.json",
     "RETURN_METHODOLOGY.json", "EVIDENCE_REVIEW.json",
