@@ -1,123 +1,77 @@
-# Public Research Website & Motion Explainer
+# QuantLab — Source-Labeled Research Demonstration
 
-## What is built
+## What exists now
 
-This repository now has two **separate presentations**:
+QuantLab has a fully implemented React/Vite mathematical research front end
+and a local FastAPI research engine. The Index Research Studio, 2D/3D charts,
+data passports, methodology controls, archived calculations and research
+notes have a real browser acceptance workflow on Ubuntu.
 
-- **React/Vite research story** at the repository root. A lightweight,
-  public, static website with animated SVG charts, factor controls, portfolio
-  weights, an interactive perspective projection of a three-asset covariance
-  risk surface, and a five-chapter autoplay explainer. It can be deployed to
-  Vercel without running Python or Streamlit on the server.
-- **Python Streamlit laboratory** under `dashboard/`. It remains intact for
-  private, local experiment configuration, numerical analysis and research
-  validation. It is *not* needed to serve the Vercel website.
+The repository now also includes **an opt-in Playwright video recorder**.
+No demo video is automatically recorded, uploaded, or publicly shared,
+and the recorder **does not submit broker orders**.
 
-The public site can be used as the visual element of a 2–3 minute narrated
-demonstration video. The full editable code remains in GitHub.
+## Record a three-minute synthetic demo on Ubuntu
 
-## Start the React website on Ubuntu
+1. Start the current main branch of the real workstation:
 
-Clone the development branch if needed, or pull it into the existing clone:
+       git switch main
+       git pull --ff-only origin main
+       bash run.sh
 
-```bash
-cd ~/Desktop/codes/nifty50-momentum-backtest
-git switch research/multi-factor-equity-index
-git pull --ff-only origin research/multi-factor-equity-index
+2. In a second terminal (repo root), install Playwright *locally*:
 
-# Ubuntu: install supported Node.js (LTS 20.19+ or 22.12+) first if not installed.
-node --version
-npm --version
+       npm install --no-save --no-package-lock --ignore-scripts playwright@1.56.1
+       npx playwright install chromium
 
-npm install
-npm run dev
-```
+3. Start recording the only authorized synthetic research environment:
 
-Open the Vite URL reported in your terminal (normally http://127.0.0.1:5173).
+       node scripts/record_quantlab_demo.mjs \
+         --url http://127.0.0.1:5173 \
+         --seconds 180 \
+         --output artifacts/research_demo_first
 
-**Build/preview** locally:
+The script navigates actual React screens, uses the synthetic fixture and
+always shows a large visible **SYNTHETIC SOFTWARE DEMO · NOT INDEPENDENTLY
+AUDITED** watermark. It writes an unattended local WebM and JSON scope
+manifest. It does not fetch Dhan history, trigger trading, endorse or certify
+return calculations.
 
-```bash
-npm run build
-npm run preview
-```
+Review the entire recorded tour BEFORE sharing it. The workstation is
+local-first and could have private prior research project names: scrub or use
+a clean research-data profile before public distribution. Do not publish
+client holdings, licensed raw data, broker secrets, or unpublished analyses.
 
-Only a successful `npm run build` and a manual browser inspection verify the
-front-end. A completed source file does not establish that it visually works
-on Firefox, Chromium and mobile.
+If an MP4 is preferred, convert the reviewed local WebM with ffmpeg:
 
-## The explainer chapters
+    ffmpeg -i artifacts/research_demo_first/quantlab-synthetic-research-tour.webm \
+      -c:v libx264 -pix_fmt yuv420p \
+      artifacts/research_demo_first/quantlab-synthetic-research-tour.mp4
 
-| Time in a 2–3 min reel/video | Scene | Interaction |
-| --- | --- | --- |
-| 0:00–0:20 | Hero: market noise and mathematical research | Animated equity curve |
-| 0:20–0:45 | Research question | European call-price example |
-| 0:45–1:10 | Five equity factors | Select factor to explain rationale |
-| 1:10–1:35 | Index construction | Drag stock concentration cap |
-| 1:35–2:00 | Covariance risk geometry | Rotate the 3D feasible portfolio surface |
-| 2:00–2:20 | Holdout validation | Animated conceptual index vs benchmark |
-| 2:20–2:45 | Models and evidence | Show code and documented release gates |
+ffmpeg may require a separate local package install.
 
-Click **Play story** to advance automatically through the five lessons,
-or click the chapter dots manually. For actual recording, use OBS Studio
-(Window Capture) and record at 1920x1080 or 1080x1920 as needed; keep
-the chapter controls visible or crop them intentionally. Add your own
-voiceover and captions to explain your modeling decisions.
+The captured walkthrough has no narration by design; narration, captions
+and empirical paper interpretations should be added only after review.
 
-We have **not** auto-generated or published a video file. There is no need
-to download external imagery or third-party animation assets; this is
-code-rendered mathematical animation. If you later want a programmatic MP4
-renderer, add it after the final content and visual QA are frozen.
+## What the story can accurately claim
 
-## Mathematical integrity of the presentation
+- The simulator implements source-gated factor index construction,
+  benchmark-relative covariance risk, execution-lag and cost assumptions.
+- Saved runs can be explained at beginner, research and mathematical depth,
+  and reproduced from source-pinned evidence.
+- Missing original NSE evidence prevents empirical certification.
 
-- The hero graph and all default animated visuals are **conceptual or
-  synthetic demonstrations**, *not* actual Nifty returns.
-- Factor scores are illustrative; they are not computed from a user's
-  brokerage account or from historical filings.
-- The 3D portfolio surface is a mathematical perspective projection of
-  a covariance-derived three-security volatility grid, not real portfolio
-  forecasts.
-- The option-pricing curve is a front-end illustrative Black–Scholes
-  calculation. The verified numerical source of truth is the Python
-  mathematical research engine.
-- The **Research Evidence** panel has **no return claim by default**.
-  Only a deliberately exported aggregate snapshot enables historical charts.
+It **cannot** claim a genuine historical alpha, a validated NSE investment
+outcome, live broker fills, or independent audit based on synthetic UI scenes.
 
-## Explicitly approve a research snapshot
+The release-status guide is
+[QuantLab Evidence and Publication Status](QUANTLAB_STATUS.md).
+Use the [research release command](../README.md) to generate a local
+source checklist and findings memo if authentic licensed data are available.
 
-**Only after independently reviewing its input source licenses, point-in-time
-vintages, benchmark convention, holdout validation and privacy**:
+## Public showcase
 
-```bash
-python scripts/export_static_dashboard.py \
-  --results-dir results/research_v1 \
-  --publish
-```
-
-This writes `public/data/summary.json` and `public/data/returns.csv` for
-the Vite website. You must manually inspect these before adding them to
-Git or deploying. The exporter is deliberately opt-in.
-
-**Do not publish** licensed constituent lists, account holdings, Dhan API
-tokens, raw filing exports, or unpublished trading research.
-
-## Deploying to Vercel later
-
-The repository `vercel.json` now configures a **Vite build** with the
-`dist` output folder. Once the local production build and browser QA
-pass, connect this GitHub repository to Vercel or use the Vercel CLI to
-create a **preview** deployment from the intended branch. Check the
-preview visually before promoting or merging. No GitHub Actions required.
-
-Recommended release sequence:
-
-1. Complete `npm run build` and `npm run preview` locally.
-2. Inspect desktop, mobile layout, animations, and the 3D drag interaction.
-3. Confirm the absence of unreviewed public research numbers and secrets.
-4. Deploy the reviewed branch as a Vercel preview.
-5. Record the short explainer and link it from GitHub README.
-6. Merge only after tests and visual QA have passed.
-
-This public website intentionally has no API credentials, Python service,
-live Dhan data connection, or trading execution features.
+The root Vite project supports an interactive conceptual research story.
+Treat its default animated curves and mathematical examples as **illustrative,
+not historical NIFTY returns**. Publication is opt-in: review data rights,
+charts, visible notices, credentials and the exact build before deployment.
