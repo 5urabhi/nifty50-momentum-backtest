@@ -277,7 +277,7 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
       '?level='+explainLevel).then(r=>{if(alive)setExplain(r)}).catch(()=>{})
     return()=>{alive=false}
   },[active?.key,explainLevel])
-  const sourceKind=index?String(index.source.dataset_kind||'unknown'):mode
+  const sourceKind=index?String(index.source.dataset_kind||'unknown'):(active?.mode||'unknown')
   const dataId=model?.source?.dataset_id||String(index?.source.dataset_id||active?.dataset_id||'')
   const evidence=sourceKind==='synthetic'?'SEEDED SYNTHETIC DEMONSTRATION':
     sourceKind==='theoretical'?'THEORETICAL / ASSUMED INPUTS':
@@ -501,7 +501,7 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
               {saved&&<p className="rs-small">Saved comparison ID: {saved}</p>}
             </section></div>
             {comparison&&<section className="rs-panel rs-compare-output"><h3>{comparison.title}</h3>
-              {comparison.plot&&<FigureCard key={'comparison-'+selection.join('-')} mode="historical"
+              {comparison.plot&&<FigureCard key={'comparison-'+selection.join('-')} mode={selectedForCompare[0]?.mode||"unknown"}
                 runKey="comparison" figure={{group:'Comparison',plot:comparison.plot,insight:'Aligned saved numerical outputs. Normalization changes interpretation.'}}/>}
               {comparison.plots&&<div className="rs-figures">{comparison.plots.map((plot,i)=><FigureCard
                 key={i} mode={selectedForCompare[i]?.mode||'unknown'} runKey="comparison"
