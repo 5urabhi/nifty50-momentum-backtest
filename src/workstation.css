@@ -56,3 +56,25 @@
 .ws-protected-label{font-size:10px;color:#9ab2b4}
 .ws-dataset-trash{margin-top:13px}
 @media(max-width:700px){.ws-dataset-manage-row>div{flex-basis:100%}}
+
+
+/* Actual computed return series: switch chart semantics and inspect values. */
+.ws-interactive-chart{position:relative}
+.ws-chart-views{display:flex;gap:6px;flex-wrap:wrap}
+.ws-chart-views button{border:1px solid #385968;border-radius:7px;
+  background:#112b38;color:#a9c4cb;padding:7px 10px;cursor:pointer;
+  font-size:11px;line-height:1.25}
+.ws-chart-views button.active,.ws-chart-views button[aria-pressed=true]{
+  background:#1d514b;border-color:#67deba;color:#e6fff5;font-weight:700}
+.ws-chart-views button:focus-visible{outline:2px solid #9bf4d5;outline-offset:3px}
+.ws-chart-legend{display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;font-size:11px;color:#9dbec7;margin:10px 0}
+.ws-chart-legend .ws-dot{margin-left:8px;margin-right:3px}
+.ws-interactive-svg{cursor:crosshair;width:100%;max-width:100%}
+.ws-interactive-svg:focus-visible{outline:2px solid #89e7c7;outline-offset:3px}
+.ws-chart-focus text{pointer-events:none}
+.ws-interactive-chart .ws-caption{margin:10px 0 0;color:#a6bdc9}
+@media(max-width:650px){
+  .ws-chart-views{width:100%}
+  .ws-chart-views button{flex:1 1 115px}
+}
