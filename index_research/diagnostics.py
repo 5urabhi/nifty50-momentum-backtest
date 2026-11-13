@@ -15,7 +15,7 @@ from .research_analytics import factor_exposures
 def evaluate_factor_panel(prices: pd.DataFrame, membership: pd.DataFrame,
                           fundamentals: pd.DataFrame | None,
                           components: tuple[str, ...] = (
-                              "momentum", "low_volatility", "value", "quality", "size"),
+                              "momentum", "low_volatility", "value", "quality", "size", "yield"),
                           momentum_formation: int = 12,
                           momentum_skip: int = 1,
                           volatility_lookback: int = 12) -> tuple[pd.DataFrame,dict[str,pd.DataFrame]]:
@@ -24,11 +24,15 @@ def evaluate_factor_panel(prices: pd.DataFrame, membership: pd.DataFrame,
     Fundamental components are skipped (and reported) if no publication-dated
     fundamental records were provided; no synthetic scores are substituted.
     """
-    allowed = {"momentum","low_volatility","value","quality","size"}
+    allowed = {"momentum","low_volatility","value","quality","size","yield"}
     if not set(components).issubset(allowed) or not components:
         raise ValueError("unsupported or empty factor components")
     available = [k for k in components if
-                 fundamentals is not None or k in {"momentum","low_volatility"}]
+                 k in {"momentum","low_volatility"} or (
+                     fundamentals is not None and
+                     (k != "yield" or (
+                         "yield" in fundamentals.columns and
+                         fundamentals["yield"].notna().any())))]
     scores={}
     ics={}
     for name in available:

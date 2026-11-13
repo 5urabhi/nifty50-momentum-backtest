@@ -1,0 +1,33 @@
+{
+  "name": "source_required_benchmark_relative_NIFTY_example",
+  "factor_weights": {
+    "momentum": 0.3,
+    "value": 0.25,
+    "quality": 0.2,
+    "low_volatility": 0.15,
+    "yield": 0.1
+  },
+  "top_n": 20,
+  "weighting": "benchmark_relative",
+  "max_weight": 0.1,
+  "rebalance_every": 3,
+  "cost_bps": 10,
+  "execution_lag": 1,
+  "momentum_formation": 12,
+  "momentum_skip": 1,
+  "volatility_lookback": 12,
+  "validation_start": "2020-01-31",
+  "final_test_start": "2023-01-31",
+  "sector_cap": 0.35,
+  "optimizer_risk_aversion": 3,
+  "optimizer_turnover_penalty": 0.02,
+  "optimizer_tracking_error_limit": 0.15,
+  "optimizer_max_trade_weight": null,
+  "liquidity_aum": 1000000,
+  "liquidity_max_participation": 0.05,
+  "liquidity_execution_days": 3,
+  "liquidity_impact_coefficient_bps": 50,
+  "dataset_status": "unverified",
+  "benchmark_name": "SOURCE-REVIEW-REQUIRED",
+  "source_note": "EXAMPLE CONFIG ONLY. Requires authentic PIT/TRI/filings/ADV/sector and benchmark weights."
+}

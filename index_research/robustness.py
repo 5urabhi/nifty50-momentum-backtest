@@ -12,6 +12,8 @@ from .experiment import ExperimentConfig, run_experiment, performance_metrics
 def sensitivity_grid(prices: pd.DataFrame, membership: pd.DataFrame,
                      benchmark: pd.Series, fundamentals: pd.DataFrame | None,
                      baseline: ExperimentConfig, sectors: pd.DataFrame | None = None,
+                     benchmark_history: pd.DataFrame | None = None,
+                     liquidity_records: pd.DataFrame | None = None,
                      costs_bps: tuple[float,...]=(0.,10.,25.),
                      rebalance_months: tuple[int,...]=(1,3,6),
                      execution_lags: tuple[int,...]=(0,1),
@@ -33,8 +35,10 @@ def sensitivity_grid(prices: pd.DataFrame, membership: pd.DataFrame,
             for cost in costs_bps:
                 config=replace(baseline,rebalance_every=rebalance,execution_lag=lag,
                                cost_bps=float(cost))
-                result,_,meta=run_experiment(prices,membership,benchmark,
-                                              fundamentals,config,sectors=sectors)
+                result,_,meta=run_experiment(
+                    prices,membership,benchmark,fundamentals,config,
+                    sectors=sectors,benchmark_history=benchmark_history,
+                    liquidity_records=liquidity_records)
                 stats=meta["metrics_by_split"].get(segment)
                 if stats is None:
                     continue

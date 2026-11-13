@@ -40,10 +40,21 @@ def main(argv=None):
         prices,membership,benchmark,fundamentals=load_research_inputs(args.input_dir)
         sector_path=Path(args.input_dir)/"sectors.csv"
         sectors=asof_sectors(read_sector_history(str(sector_path)),prices.index,prices.columns) if sector_path.exists() else None
-        comparison,summary=compare_index_methods(prices,membership,benchmark,fundamentals,config,sectors=sectors)
+        benchmark_history=None
+        liquidity_records=None
+        if config.weighting=="benchmark_relative":
+            from .institutional_index import read_benchmark_history
+            benchmark_history=read_benchmark_history(Path(args.input_dir)/"benchmark_weights.csv")
+        if config.liquidity_aum is not None:
+            from .liquidity import read_liquidity
+            liquidity_records=read_liquidity(Path(args.input_dir)/"liquidity.csv")
+        comparison,summary=compare_index_methods(
+            prices,membership,benchmark,fundamentals,config,sectors=sectors,
+            benchmark_history=benchmark_history,liquidity_records=liquidity_records)
         comparison.to_csv(root/"methodology_returns.csv",index_label="date")
         summary.to_csv(root/"methodology_summary.csv",index_label="methodology")
         sensitivity=sensitivity_grid(prices,membership,benchmark,fundamentals,config,sectors=sectors,
+            benchmark_history=benchmark_history,liquidity_records=liquidity_records,
             costs_bps=(0.,20.),rebalance_months=(1,3),execution_lags=(0,1),
             segment="validation" if config.validation_start else "full_history")
         sensitivity.to_csv(root/"sensitivity_grid.csv",index=False)

@@ -12,7 +12,9 @@ from .research_analytics import compare_methodologies
 def compare_index_methods(prices: pd.DataFrame, membership: pd.DataFrame,
                           benchmark: pd.Series, fundamentals: pd.DataFrame | None,
                           baseline: ExperimentConfig,
-                          sectors: pd.DataFrame | None = None) -> tuple[pd.DataFrame,pd.DataFrame]:
+                          sectors: pd.DataFrame | None = None,
+                          benchmark_history: pd.DataFrame | None = None,
+                          liquidity_records: pd.DataFrame | None = None) -> tuple[pd.DataFrame,pd.DataFrame]:
     """Compare long-only factor weighting, keeping all inputs and costs fixed.
 
     Raises on invalid/infeasible variants instead of hiding methods silently.
@@ -27,7 +29,9 @@ def compare_index_methods(prices: pd.DataFrame, membership: pd.DataFrame,
     variants["selected_composite"]=replace(baseline,factor_weights=requested)
     histories={}
     for name,config in variants.items():
-        result,_,_=run_experiment(prices,membership,benchmark,fundamentals,config,sectors=sectors)
+        result,_,_=run_experiment(
+            prices,membership,benchmark,fundamentals,config,sectors=sectors,
+            benchmark_history=benchmark_history,liquidity_records=liquidity_records)
         histories[name]=result.returns
     series=pd.DataFrame(histories)
     if series.isna().any().any() or series.empty:

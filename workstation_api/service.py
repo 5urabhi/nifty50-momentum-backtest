@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 RESULTS = ROOT / "results" / "workstation_runs"
 REQUIRED = ("prices.csv", "membership.csv", "benchmark.csv")
 OPTIONAL = ("fundamentals.csv", "sectors.csv", "corporate_actions.csv", "EVIDENCE_REVIEW.json",
-            "factor_returns.csv", "benchmark_weights.csv")
+            "factor_returns.csv", "benchmark_weights.csv", "liquidity.csv")
 ALLOWED_FILES = set(REQUIRED + OPTIONAL)
 ARTIFACTS = {
     "monthly_results.csv", "post_rebalance_weights.csv", "pre_trade_weights.csv",
@@ -41,7 +41,7 @@ ARTIFACTS = {
     "concentration.csv", "rolling_metrics.csv", "cost_sensitivity.csv",
     "robustness_grid.csv", "methodology_summary.csv", "methodology_returns.csv",
     "data_quality.json", "dataset_audit.json", "research_manifest.json",
-    "research_report.html", "research_paper_draft.pdf",
+    "research_report.html", "research_paper_draft.pdf", "liquidity_capacity.csv",
 }
 SAFE_ID = re.compile(r"^[a-zA-Z0-9_-]{1,80}$")
 
@@ -209,6 +209,9 @@ def import_zip(blob: bytes, original_filename: str) -> dict:
                     or not np.allclose(values.groupby(dates).sum().to_numpy(),1.,atol=1e-6)):
                     raise ValueError("Dated benchmark weight snapshots must be complete, "
                                      "nonnegative and sum to one for each recorded date")
+            if (folder / "liquidity.csv").is_file():
+                from index_research.liquidity import read_liquidity
+                read_liquidity(folder / "liquidity.csv")
             (folder / "workstation_source.json").write_text(json.dumps({
                 "uploaded_filename": Path(original_filename).name[:120],
                 "uploaded_utc": datetime.now(timezone.utc).isoformat(),
@@ -316,6 +319,7 @@ def run_details(run_id: str) -> dict:
         "concentration": _records(path / "concentration.csv", 400),
         "rolling": _records(path / "rolling_metrics.csv", 400),
         "cost_sensitivity": _records(path / "cost_sensitivity.csv", 100),
+        "liquidity_capacity": _records(path / "liquidity_capacity.csv", 150),
         "robustness": _records(path / "robustness_grid.csv", 200),
         "methodologies": _records(path / "methodology_summary.csv", 100),
         "audit": _json(path / "dataset_audit.json"),
@@ -335,8 +339,8 @@ def execute_run(dataset_id: str, params: dict) -> str:
         raise ValueError("Constituent count × maximum weight must be at least 1")
     if params.get("sector_cap") is not None and not source["has_sectors"]:
         raise ValueError("Historical sectors.csv is required to apply a sector cap")
-    if set(factors) & {"quality", "value", "size"} and not source["has_fundamentals"]:
-        raise ValueError("Value, Quality and Size require publication-dated fundamentals.csv")
+    if set(factors) & {"quality", "value", "size", "yield"} and not source["has_fundamentals"]:
+        raise ValueError("Value, Quality, Size and Yield require publication-dated fundamentals.csv")
     config = ExperimentConfig(
         name=params["name"], factor_weights=factors,
         top_n=params["top_n"], weighting=params["weighting"],
@@ -352,6 +356,14 @@ def execute_run(dataset_id: str, params: dict) -> str:
         source_note="SYNTHETIC — not NSE results" if source["kind"] == "synthetic" else
                     "User-supplied research. Historical provenance not independently validated.",
         sector_cap=params.get("sector_cap"),
+        optimizer_risk_aversion=params.get("optimizer_risk_aversion",3.),
+        optimizer_turnover_penalty=params.get("optimizer_turnover_penalty",.02),
+        optimizer_tracking_error_limit=params.get("optimizer_tracking_error_limit"),
+        optimizer_max_trade_weight=params.get("optimizer_max_trade_weight"),
+        liquidity_aum=params.get("liquidity_aum"),
+        liquidity_max_participation=params.get("liquidity_max_participation",.05),
+        liquidity_execution_days=params.get("liquidity_execution_days",3),
+        liquidity_impact_coefficient_bps=params.get("liquidity_impact_coefficient_bps",50.),
     )
     RESULTS.mkdir(parents=True, exist_ok=True)
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + "_" + uuid.uuid4().hex[:8]
