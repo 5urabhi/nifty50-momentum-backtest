@@ -184,7 +184,13 @@ def inspect(dataset_id: str, *, validation_start: str | None = None,
         try:
             if name == "prices.csv":
                 prices = read_matrix(folder / name, positive=True)
-                add(label, "pass", f"{len(prices)} rows, {len(prices.columns)} securities; no missing prices created")
+                periods = prices.index.to_period("M")
+                calendar = pd.period_range(periods.min(), periods.max(), freq="M")
+                if len(periods) != len(calendar) or list(periods) != list(calendar):
+                    gaps = calendar.difference(periods)
+                    raise ValueError("Monthly price panel has missing/duplicate calendar months: " +
+                                     ", ".join(str(x) for x in list(gaps)[:12]))
+                add(label, "pass", f"{len(prices)} consecutive monthly rows, {len(prices.columns)} securities; no missing prices created")
             elif name == "membership.csv":
                 if prices is None:
                     raise ValueError("Price panel must be valid before eligibility reconciliation")
