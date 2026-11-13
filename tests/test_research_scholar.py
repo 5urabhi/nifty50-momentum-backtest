@@ -59,6 +59,13 @@ class ResearchScholarTests(unittest.TestCase):
         r=self.client.get("/api/workspace/passports/synthetic")
         self.assertEqual(r.status_code,200,r.text)
         self.assertFalse(r.json()["investability_certified"])
+        coverage=self.client.get("/api/workspace/source-coverage/synthetic")
+        self.assertEqual(coverage.status_code,200,coverage.text)
+        observed=coverage.json()
+        self.assertEqual(observed["benchmark_alignment"],"calendar_matched")
+        self.assertFalse(observed["historical_investability_certified"])
+        self.assertEqual(observed["missing_eligible_prices"],0)
+        self.assertEqual(observed["missing_security_observations_total"],0)
         invalid={**self.config,"factor_weights":{"value":.8}}
         (self.folder/"fundamentals.csv").unlink()
         self.assertTrue(any("fundamentals.csv" in x

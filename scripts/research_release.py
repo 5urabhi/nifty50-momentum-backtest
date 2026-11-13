@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 
 from index_research.data_audit import audit_dataset
+from index_research.evidence_coverage import inspect_empirical_coverage
 from index_research.empirical_validation import evidence_gate
 from index_research.experiment import ExperimentConfig
 from scripts.complete_research_studies import research_preflight, run_studies, sha
@@ -79,6 +80,20 @@ def inspect(data_dir: str | Path, config_path: str | Path) -> dict:
             audit = {"status": "internal_consistency_only", **measured}
         except (ValueError, OSError, KeyError) as exc:
             audit = {"status": "failed", "reason": str(exc)}
+    source_coverage={"status":"unavailable"}
+    if (root/"prices.csv").is_file() and not (root/"prices.csv").is_symlink():
+        try:
+            detailed=inspect_empirical_coverage(root,asdict(config))
+            # Detailed names can be licensed historical holdings; keep only
+            # aggregate counts in portable/publication-safe releases.
+            blocked_keys={"missing_security_observation_rows",
+                          "unresolved_historical_symbols"}
+            source_coverage={
+                key:value for key,value in detailed.items()
+                if key not in blocked_keys
+            }
+        except (ValueError,OSError,KeyError) as exc:
+            source_coverage={"status":"unavailable","reason":str(exc)}
     declaration = {"status": "not_submitted"}
     evidence_file = root / "EVIDENCE_REVIEW.json"
     if evidence_file.is_file() and not evidence_file.is_symlink():
@@ -107,6 +122,7 @@ def inspect(data_dir: str | Path, config_path: str | Path) -> dict:
             "first_date": pre["first_date"], "last_date": pre["last_date"],
         },
         "data_audit": audit,
+        "quantified_source_coverage": source_coverage,
         "evidence_declaration_status": declaration.get("status"),
         "evidence_missing_flags": declaration.get("unchecked_review_flags", []),
         "source_sha256": {
@@ -307,6 +323,12 @@ def generate(data_dir: str | Path, config_path: str | Path,
         "## Research-software execution",
         "Readiness: " + str(status["software_ready"]),
         "Data consistency: " + status["data_audit"]["status"],
+        "Eligible price-months missing: " +
+            str(status["quantified_source_coverage"].get("missing_eligible_prices")),
+        "Missing eligible future returns: " +
+            str(status["quantified_source_coverage"].get("missing_eligible_forward_returns")),
+        "Benchmark alignment: " +
+            str(status["quantified_source_coverage"].get("benchmark_alignment")),
         "Research execution: " + status["study_execution"]["status"],
         "## Three studies",
     ])
