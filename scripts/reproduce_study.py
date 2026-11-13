@@ -18,6 +18,10 @@ import sys
 import numpy as np
 import pandas as pd
 
+# Direct invocation as python scripts/<file>.py must resolve the repository root.
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+
 from index_research.experiment import ExperimentConfig,run_from_directory
 from workstation_api import research_next,service
 
