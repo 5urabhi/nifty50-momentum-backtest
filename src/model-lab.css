@@ -161,3 +161,16 @@
 .ql-config-row button:hover{border-color:#70d6bd}
 .ql-config-row button:disabled{opacity:.45}
 @media(max-width:650px){.ql-config-row{flex-wrap:wrap}.ql-config-row>div:first-child{flex:1 1 100%}}
+
+
+.ql-seed-explain{background:#3e3026;border:1px solid #9b714e;border-radius:8px;
+  padding:13px;margin-top:12px;color:#f6dfc6}
+.ql-seed-explain strong{font-size:11px;color:#ffe1a9;letter-spacing:.03em}
+.ql-seed-explain p{font-size:11px;line-height:1.65;margin:8px 0}
+.ql-seed-explain button{display:inline-flex;align-items:center;gap:5px;color:#fce5b8;
+  font-size:11px;background:transparent;border:1px solid #9a795f;border-radius:6px;padding:7px 9px}
+.ql-figures>.ql-alert.warning{margin:0 0 15px;display:flex;align-items:flex-start;
+  flex-wrap:wrap;gap:6px;line-height:1.6;font-size:12px}
+.ql-plot-hover-help{font-size:11px;color:#a4cbbb;margin:6px 0 7px}
+.ql-svg-chart{cursor:crosshair;max-width:100%}
+.ql-svg-chart:focus-visible{outline:2px solid #78ebcd;outline-offset:2px}

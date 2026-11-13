@@ -53,7 +53,7 @@ type ResultView='configure'|'figures'|'numbers'|'method'
 const SECTIONS=['Stochastic Processes','Volatility & Econometrics','Derivatives & Options',
   'Portfolio Optimization','Tail Risk & Inference','3D Visual Laboratory']
 const MODE_LABELS:Record<ModelSpec['mode'],string>={
-  synthetic:'SEEDED SIMULATION',theoretical:'THEORETICAL',historical:'OBSERVED MARKET DATA'
+  synthetic:'SEEDED SIMULATION · DEMO',theoretical:'THEORETICAL',historical:'OBSERVED MARKET DATA'
 }
 const valueText=(value:unknown)=>{
   if(value===null||value===undefined)return 'Unavailable'
@@ -391,7 +391,18 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
       <div className="ql-main-column">
         {selected?<><section className="ql-card ql-selected-header">
           <div><span className={'ql-mode '+selected.mode}>{MODE_LABELS[selected.mode]}</span>
-            <h3>{selected.title}</h3><p>{selected.description}</p></div>
+            <h3>{selected.title}</h3><p>{selected.description}</p>
+            {selected.mode==='synthetic'&&<div className="ql-seed-explain" role="note">
+              <strong>SIMULATED EXAMPLE — NOT LIVE OR HISTORICAL MARKET DATA</strong>
+              <p><b>Seeded simulation</b> means the model generates artificial scenarios
+                using a fixed random seed. Use the same seed to reproduce the same paths.
+                These curves are for learning and testing, <b>not</b> predictions or
+                evidence of strategy performance.</p>
+              <button type="button" onClick={()=>setView('method')}>
+                See mathematical assumptions <ArrowRight size={13}/>
+              </button>
+            </div>}
+          </div>
           <div className="ql-equation" aria-label="Mathematical model formula">{selected.formula}</div>
         </section>
         <nav className="ql-inner-tabs" aria-label="Selected model views">
@@ -509,8 +520,15 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
           <span>Read-only · No trading orders · Deterministic seeds where applicable</span></div>
         </section>}
         {view==='figures'&&<section className="ql-figures">
+          {result&&result.model_id===selected.id&&result.mode==='synthetic'&&
+            <div className="ql-alert warning" role="note">
+              <CircleAlert size={16}/> <strong>SEEDED SIMULATION · DEMO RESULTS</strong>
+              <span> The graph shows reproducible computer-generated paths, not observed stock
+                prices, forecasts, or verified backtest returns.</span>
+            </div>}
           {result&&result.model_id===selected.id?
-            result.plots.length?result.plots.map((plot,i)=><ResearchPlot key={i} plot={plot}/>):
+            result.plots.length?result.plots.map((plot,i)=><ResearchPlot key={i} plot={plot}
+              provenance={result.mode}/>):
             <div className="ql-card ql-empty">The selected computation returned no figures. Inspect its numerical results.</div>
             :<div className="ql-card ql-empty"><Activity size={24}/>
               <h3>Run {selected.title} to generate graphs</h3><p>Every graph comes from the Python model, not a static illustration.</p>

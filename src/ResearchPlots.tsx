@@ -275,11 +275,14 @@ function Surface3D({plot}:{plot:ResearchPlotData}){
       <span>Z: {fmt(Math.min(...zs.flat()))} → {fmt(Math.max(...zs.flat()))}</span></div>
   </div>
 }
-export default function ResearchPlot({plot}:{plot:ResearchPlotData}){
+export default function ResearchPlot({plot,provenance}:{plot:ResearchPlotData;provenance?:string}){
   return <section className="ql-chart-card"><h4>{plot.title}</h4>
     {plot.kind==='surface3d'?<Surface3D plot={plot}/>:
      plot.kind==='heatmap2d'?<Heatmap plot={plot}/>:
      <Canvas2D plot={plot}/>}
-    <p className="ql-muted">Source: Python research engine · charts display computed observations or explicitly labeled theoretical scenarios.</p>
+    <p className="ql-muted">{provenance==='synthetic'?'SEEDED SIMULATION · ARTIFICIAL DATA · Same seed gives reproducible paths. Not observed market history or a forecast.':
+      provenance==='historical'?'OBSERVED DATA · Model outputs computed from saved source prices; original data and results still need research validation.':
+      provenance==='theoretical'?'THEORETICAL MODEL · User-assumed inputs, not observed quotes.':
+      'Source: Python research engine · computed observations or explicitly labeled mathematical scenarios.'}</p>
   </section>
 }
