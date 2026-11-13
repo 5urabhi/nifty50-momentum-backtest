@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, historical_readiness, frozen_study
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, historical_readiness, frozen_study, corporate_action_import
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -291,6 +291,29 @@ async def import_dataset(file: UploadFile = File(...)):
         buffer = await file.read(MAX_UPLOAD + 1)
         return service.import_zip(buffer, file.filename)
     except (ValueError, OSError, RuntimeError, __import__("zipfile").BadZipFile) as exc:
+        bad(exc)
+
+
+
+@app.post("/api/datasets/{dataset_id}/add-actions")
+async def dataset_attach_corporate_action_total_returns(
+    dataset_id: str, file: UploadFile = File(...),
+    price_basis: Literal["split_bonus_adjusted","raw_unadjusted"] = Form("split_bonus_adjusted"),
+    acknowledge_unverified: bool = Form(False),
+):
+    """Build new research wealth view from original daily closes + cited event CSV.
+
+    Does not change original Dhan data or treat declared events as certified.
+    """
+    if not acknowledge_unverified:
+        raise HTTPException(400, "Confirm that market-event completeness remains independently unverified")
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(400, "Choose an original action ledger CSV with actual ex-date evidence")
+    try:
+        payload = await file.read(corporate_action_import.MAX_ACTION_BYTES + 1)
+        return corporate_action_import.import_adjusted(
+            dataset_id, payload, price_basis=price_basis)
+    except (ValueError, OSError, RuntimeError) as exc:
         bad(exc)
 
 
