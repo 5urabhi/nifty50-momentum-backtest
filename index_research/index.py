@@ -69,7 +69,14 @@ def construct_weights(scores: pd.DataFrame, membership: pd.DataFrame,
             raise ValueError(f"infeasible cap: {len(selected)} eligible names * {cap} < 1")
         if weighting == "benchmark_relative":
             benchmark=benchmark_asof(benchmark_history,date,scores.columns)
-            active_names=set(selected.index)|set(benchmark[benchmark>0].index)
+            old_targets=output.iloc[:i].dropna(how="all")
+            previous_full=(old_targets.iloc[-1].reindex(scores.columns).fillna(0)
+                           if not old_targets.empty else pd.Series(0.,index=scores.columns))
+            # Include prior positions even if they have fallen out of both
+            # today's benchmark and today's selected top-N. This preserves
+            # the full cost of mandatory liquidations in the turnover term.
+            active_names=(set(selected.index)|set(benchmark[benchmark>0].index)|
+                          set(previous_full[previous_full>1e-10].index))
             risk_names=pd.Index([t for t in scores.columns if t in active_names])
             # Source evidence must cover all benchmark exposures, including
             # securities excluded from the active index. Never set missing
@@ -81,9 +88,7 @@ def construct_weights(scores: pd.DataFrame, membership: pd.DataFrame,
             risk_cov=history.cov()*12
             forecast=pd.Series(np.nan,index=risk_names)
             forecast.loc[selected.index]=selected
-            old_targets=output.iloc[:i].dropna(how="all")
-            previous=(old_targets.iloc[-1].reindex(risk_names).fillna(0)
-                      if not old_targets.empty else pd.Series(0.,index=risk_names))
+            previous=previous_full.reindex(risk_names)
             identities=None
             if sector_cap is not None:
                 if isinstance(sectors,pd.DataFrame):
