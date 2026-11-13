@@ -31,10 +31,22 @@ the frozen configuration, and synthetic-data warning markers.
 
 ## Run on Ubuntu
 
-    cd ~/Desktop/codes/nifty50-momentum-backtest
+    cd ~/Desktop/codes/quantlab
     git switch main
     git pull --ff-only origin main
+    source .venv/bin/activate
     bash run.sh
+
+The directory above is the recommended fresh clone name. If you use a
+different local folder, change only the `cd` path. The local Python
+environment `.venv` is created and activated per checkout, not committed
+to GitHub. On Ubuntu with Python 3.14+:
+
+    python3 -m venv .venv
+    source .venv/bin/activate
+    python -m pip install -r requirements.txt
+
+You only need to create/install the environment once per checkout.
 
 Open http://127.0.0.1:5173. The local Python engine reads broker tokens only
 from the ignored local environment. QuantLab does not submit trading orders.

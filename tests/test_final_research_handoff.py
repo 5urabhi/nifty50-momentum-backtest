@@ -82,6 +82,10 @@ class FinalResearchHandoffTests(unittest.TestCase):
         actions=(dest/"NEXT_ACTIONS.md").read_text()
         self.assertIn("membership.csv",actions)
         self.assertIn("Data Seeking Request Form",actions)
+        self.assertNotIn(chr(92)+chr(96), actions,
+                         "Generated Markdown must not escape code-fence backticks")
+        self.assertIn("```bash",actions)
+        self.assertIn("Local dataset: `",actions)
         self.assertTrue((dest/"RESEARCH_RELEASE.html").is_file())
         self.assertTrue((dest/"RESEARCH_PAPER_DRAFT.md").is_file())
         with self.assertRaises(FileExistsError):
