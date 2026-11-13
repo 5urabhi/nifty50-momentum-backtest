@@ -148,7 +148,7 @@ try {
         explanation:'Dhan rejected this historical candle request. Verify your token and Data API subscription; the exact cause is not yet confirmed.',
       }],
     }
-    const batchRoutes=/\\/api\\/dhan\\/batches(?:\\/[^?]*)?(?:\\?.*)?$/
+    const batchRoutes=/\/api\/dhan\/batches(?:\/[^?]*)?(?:\?.*)?$/
     await page.route(batchRoutes,async route=>{
       const request=route.request()
       if(request.method()!=='GET')return route.continue()
