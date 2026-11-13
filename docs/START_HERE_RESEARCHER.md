@@ -133,3 +133,27 @@ The published NIFTY research protocol is *not* an independently validated
 empirical paper. Work begins with acquiring original PIT member/fundamental
 and appropriately adjusted historical returns, not inserting estimates in
 place of those inputs.
+
+
+## Supplying actual benchmark-relative factor-risk inputs
+
+Use **Data Library → Import research ZIP** to import documented source data
+with required prices.csv, membership.csv and benchmark.csv, and these optional
+risk-research files:
+
+- **benchmark_weights.csv**: columns date,ticker,weight, one complete
+  dated benchmark snapshot per observation. Every modeled security must
+  have an explicit row (including zero weights), and each snapshot's weights
+  must sum to one. Attribution selects the most recent snapshot at or
+  before the evaluation date.
+- **factor_returns.csv**: date followed by 1–12 named numeric factor-proxy
+  return series, in decimal simple monthly returns with dates matching the
+  observed monthly price convention.
+
+On upload, QuantLab validates file structure, chronological dates, unique
+securities, finite numeric values and benchmark weight sums. During
+attribution, it also verifies exact security-universe coverage, shared dates
+and a strictly earlier estimation window. Neither missing file is synthesized.
+The ZIP creates a separately named user-imported research view without
+overwriting canonical shared Dhan price data. Independently reviewed factor
+vintages remain necessary before any institutional risk-factor claim.
