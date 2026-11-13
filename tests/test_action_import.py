@@ -64,7 +64,9 @@ class ActionImportTests(unittest.TestCase):
         derived=self.root/"data"/"workstation_imports"/out["dataset_id"].removeprefix("upload_")
         values=pd.read_csv(derived/"prices.csv")
         self.assertEqual(len(values),4)
-        self.assertGreater(values["ALFA"].iloc[-1],values["BETA"].iloc[-1])
+        raw=pd.read_csv(self.path/"prices.csv")
+        self.assertGreater(values["ALFA"].iloc[-1]/values["ALFA"].iloc[0],
+                           raw["ALFA"].iloc[-1]/raw["ALFA"].iloc[0])
         policy=json.loads((derived/"RETURN_METHODOLOGY.json").read_text())
         self.assertEqual(policy["price_basis"],"split_bonus_adjusted")
         self.assertFalse(policy["event_completeness_reviewed_independently"])
@@ -87,7 +89,7 @@ class ActionImportTests(unittest.TestCase):
     def test_unverified_or_unsupported_events_fail_closed(self):
         unverified=self.ledger.copy()
         unverified["verified"]=False
-        with self.assertRaisesRegex(ValueError,"unverified"):
+        with self.assertRaisesRegex(ValueError,"unverifiable"):
             corporate_action_import.import_adjusted("upload_action_fixture",
                 self.payload(unverified))
         unsupported=self.ledger.copy()
