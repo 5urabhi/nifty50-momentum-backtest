@@ -62,12 +62,8 @@ def inspect_empirical_coverage(data_dir: str | Path,
         opportunities=int(active.to_numpy().sum())
         missing_count=int(missing.to_numpy().sum())
         forward_count=int(forward_missing.to_numpy().sum())
-        missing_rows=[
-            {"date":str(d.date()),"ticker":t,"problem":"eligible_price_unavailable"}
-            for d,t in zip(*np.where(missing.to_numpy()))
-        ]
-        # The vectorized positions returned above are integer row/column
-        # indices, not date or ticker strings.
+        # Vectorized positions represent integer row/column offsets;
+        # remap them explicitly into observed source dates and securities.
         missing_rows=[
             {"date":str(dates[int(i)].date()),"ticker":str(price.columns[int(j)]),
              "problem":"eligible_price_unavailable"}
