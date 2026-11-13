@@ -82,7 +82,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const [credentialCheck,setCredentialCheck]=useState<DhanCredentialCheck|null>(null)
   const [credentialChecking,setCredentialChecking]=useState(false)
   const [credentialError,setCredentialError]=useState<string|null>(null)
-  const [mode,setMode]=useState<SelectionMode>('selected')
+  const [mode,setMode]=useState<SelectionMode>('nifty50_pit')
   const [exchange,setExchange]=useState<'NSE'|'BSE'>('NSE')
   const [query,setQuery]=useState('')
   const [page,setPage]=useState(1)
@@ -97,7 +97,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const [interval,setInterval]=useState('daily')
   const [acknowledged,setAcknowledged]=useState(false)
   const [acknowledgedGaps,setAcknowledgedGaps]=useState(false)
-  const [includeIndexSpot,setIncludeIndexSpot]=useState(true)
+  const [includeIndexSpot,setIncludeIndexSpot]=useState(false)
   const [pitPlan,setPitPlan]=useState<MembershipPlan|null>(null)
   const [pitPreview,setPitPreview]=useState<MembershipPlan|null>(null)
   const [pitSyncBusy,setPitSyncBusy]=useState(false)
@@ -264,7 +264,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
     const id=result.batch?.id
     if(id){setBatchId(id);setStatusFilter('all');setDetailPage(1)}
     setTask({id:result.job_id,kind:'batch'})
-    tell('Batch started. The workstation saves each completed instrument and can resume later.')
+    tell('Download started. Progress is shown in Step 4; finished files are saved automatically.')
+    window.setTimeout(()=>document.getElementById('dh-download-progress')?.scrollIntoView({behavior:'smooth',block:'start'}),150)
     void loadBatches()
   })
   const resume=()=>{if(!batchId)return;void run(()=>post<Job>('/dhan/batches/'+batchId+'/resume'),r=>{
@@ -302,41 +303,85 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const countsCompleted=(details?.counts.complete||0)+(details?.counts.cached||0)
   const progress=details?.total?Math.round((details.processed/details.total)*100):0
 
-  return <div className="dh-workspace">
-    <div className="dh-hero"><div><Pill tone="blue">DATA ACQUISITION · DHANHQ V2</Pill>
-      <h2>Download an entire market.<br/><em>With its real historical membership.</em></h2>
-      <p>Select individual stocks, an entire NSE/BSE cash market, or historically accurate NIFTY 50 and BANK NIFTY constituent groups. The selected dates determine which companies belong.</p>
-    </div><div className="dh-hero-stats"><div><strong>{counts.NSE?fmt(counts.NSE):'—'}</strong><span>NSE EQ-series instruments</span></div><div><strong>{fmt(batches.length)}</strong><span>Saved download batches</span></div></div></div>
+  const downloadBlocker=!connection?'Checking the local Dhan connection…':
+    !connection.token_configured?'Dhan token not found. Add DHAN_ACCESS_TOKEN to your local .env file.':
+    !connection.instrument_master_available?'Dhan stock list is missing. Open Connection settings and refresh the catalog.':
+    pitSyncBusy?'Updating the historical stock list…':
+    invalidDates?'Choose an end date later than the start date.':
+    pitMode&&!pitPlan?'Historical stock list not ready. Open Membership details to load it or adjust dates.':
+    downloadCount===0?'Choose the stocks you want to download.':
+    pitMode&&pitPlan&&pitPlan.unresolved_count>0&&!acknowledgedGaps?
+      'Some historical stocks have no current Dhan ID. Confirm the incomplete download below.':
+    downloadCount>100&&!acknowledged?'Confirm the large download below.':
+    working||task?'An operation is already running. Follow its progress below.':null
+  const simpleOptions=options.filter(item=>
+    item.mode==='nifty50_pit'||item.mode==='banknifty_pit'||item.mode==='selected')
+  const otherOptions=options.filter(item=>!simpleOptions.some(chosen=>chosen.mode===item.mode))
+  const optionButton=(item:(typeof options)[number])=><button type="button" key={item.mode}
+    className={'dh-mode '+(mode===item.mode?'active':'')} onClick={()=>selectMode(item.mode)}
+    aria-pressed={mode===item.mode}>
+    <span className="dh-mode-icon"><item.icon size={19}/></span>
+    <strong>{item.title}</strong>
+    <small>{item.description}</small>
+    {mode===item.mode&&<span className="dh-mode-selected"><Check size={13}/></span>}
+  </button>
 
-    <div className="dh-connect">
-      <div><span className={'dh-led '+(connection?.token_configured?'':'off')}/><LockKeyhole size={17}/>
-        <div><strong>{credentialCheck?.ok?'Dhan Data API verified':credentialCheck&&!credentialCheck.ok?'Dhan Data API needs attention':connection?.token_configured?'Token loaded · not verified':'Dhan API token missing'}</strong><small>{credentialCheck?.message??(connection?.token_configured?'Token held locally. Verify credentials and Data API entitlement.':'Set DHAN_ACCESS_TOKEN in project-root .env')}</small></div></div>
-      <div><span className={'dh-led '+(connection?.instrument_master_available?'':'off')}/><Database size={17}/>
-        <div><strong>{connection?.instrument_master_available?'Instrument master available':'Instrument master missing'}</strong><small>Current Dhan security ID catalog</small></div></div>
-      <button className="dh-small-btn" type="button" disabled={credentialChecking} onClick={()=>void verifyCredentials()}>
-        {credentialChecking?<LoaderCircle size={15} className="dh-spin"/>:<ShieldCheck size={15}/>}
-        Verify Dhan API access
-      </button>
-      {credentialError&&<small className="dh-credential-brief" role="alert">Verification failed: {credentialError}</small>}
-      {credentialCheck&&<small className="dh-credential-brief" role="status">{credentialCheck.code}: {credentialCheck.message}</small>}
-      <button className="dh-small-btn" type="button" disabled={working||Boolean(task)} onClick={refreshMaster}>
-        {task?.kind==='master'?<LoaderCircle size={15} className="dh-spin"/>:<RefreshCw size={15}/>}
-        Refresh instrument catalog
-      </button>
-    </div>
+
+  return <div className="dh-workspace dh-guided">
+    <header className="dh-simple-intro">
+      <div>
+        <span className="dh-simple-eyebrow">MARKET DATA · SIMPLE DOWNLOAD</span>
+        <h2>Download data for your research</h2>
+        <p>Follow the four steps. For NIFTY research, the recommended choice is already selected.</p>
+      </div>
+      <Pill tone="good"><ShieldCheck size={14}/> Read-only · no trading orders</Pill>
+    </header>
+    <nav className="dh-simple-track" aria-label="Download steps">
+      <span>1 · Choose data</span><span>2 · Dates</span><span>3 · Download</span><span>4 · Prepare</span>
+    </nav>
 
     {notice&&<div className={'dh-notice '+(notice.error?'error':'')} role="status">
       {notice.error?<CircleAlert size={17}/>:<CheckCircle2 size={17}/>}<span>{notice.text}</span>
       <button onClick={()=>setNotice(null)} aria-label="Dismiss notice"><X size={15}/></button>
     </div>}
-
-    <div className="dh-stage"><span>01</span><div><h3>Choose your universe</h3><p>No Security IDs to copy. Every selection is resolved against Dhan's official catalog.</p></div></div>
-    <div className="dh-mode-grid">{options.map(item=><button type="button" key={item.mode} className={'dh-mode '+(mode===item.mode?'active':'')} onClick={()=>selectMode(item.mode)}>
-      <span className="dh-mode-icon"><item.icon size={20}/></span><strong>{item.title}</strong><small>{item.description}</small>
-      {mode===item.mode&&<span className="dh-mode-selected"><Check size={13}/></span>}</button>)}</div>
-
-    <div className="dh-grid">
-      <Section title={pitMode?'Historical index membership':mode==='watchlist'?'Your ticker list':'Find and select stocks'} aside={<Pill tone="blue">{pitMode?(pitPlan?'Union: '+fmt(selectionCount):pitPreview?'Preview: '+fmt(pitPreview.union_count):'Awaiting membership') :fmt(selectionCount)+' in selection'}</Pill>}>
+    <Section title="1. What data do you want?" aside={<Pill tone="blue">Start here</Pill>}>
+      <p className="dh-simple-help">Pick one. NIFTY 50 historical is the best starting point for the index study.</p>
+      <div className="dh-mode-grid dh-simple-modes">{simpleOptions.map(optionButton)}</div>
+      <details className="dh-simple-details">
+        <summary>More choices: NSE/BSE markets or a ticker list</summary>
+        <div className="dh-mode-grid dh-simple-modes dh-extra-modes">{otherOptions.map(optionButton)}</div>
+      </details>
+      {pitMode?<>
+        <div className="dh-simple-summary" role="status">
+          <CheckCircle2 size={19}/>
+          <div><strong>{interpretMode(mode)}</strong>
+            <p>{pitPlan?
+              `${fmt(pitPlan.resolved_count)} mapped historical stocks across your selected dates`:
+              pitPreview?
+                `${fmt(pitPreview.resolved_count)} stocks in the available historical period`:
+                'Checking historical membership and stock IDs…'}</p>
+            {pitPlan?.unresolved_count?
+              <small>{pitPlan.unresolved_count} historical stock ID(s) need review.</small>:
+              <small>Uses all companies that belonged to the index during the period, not only today's stocks.</small>}
+          </div>
+        </div>
+        {!pitPlan&&<div className="dh-simple-warning" role="status">
+          Historical membership is not ready for these dates.
+          {pitPreview&&pitPreview.to_date<toDate?<>
+            <p>The available historical index list ends before your selected date.</p>
+            <button className="dh-small-btn" type="button"
+              onClick={()=>setToDate(pitPreview.to_date)}>
+              Use latest available date ({pitPreview.to_date}) <ArrowRight size={14}/>
+            </button>
+          </>:<p>Open membership details below to sync the list or check source availability.</p>}
+        </div>}
+        <details className="dh-simple-details dh-membership-details">
+          <summary>Historical membership details / sync missing history</summary>
+          <PITIndexPanel mode={mode as PITMode} fromDate={fromDate} toDate={toDate}
+            onToDate={setToDate} onPlan={setPitPlan} onPreview={setPitPreview}
+            onSyncBusy={setPitSyncBusy}/>
+        </details>
+      </>:mode==='selected'||mode==='watchlist'?<div className="dh-simple-pick-panel"><Section title={pitMode?'Historical index membership':mode==='watchlist'?'Your ticker list':'Find and select stocks'} aside={<Pill tone="blue">{pitMode?(pitPlan?'Union: '+fmt(selectionCount):pitPreview?'Preview: '+fmt(pitPreview.union_count):'Awaiting membership') :fmt(selectionCount)+' in selection'}</Pill>}>
         {pitMode?<PITIndexPanel mode={mode as PITMode} fromDate={fromDate} toDate={toDate} onToDate={setToDate} onPlan={setPitPlan} onPreview={setPitPreview} onSyncBusy={setPitSyncBusy}/>:mode==='watchlist'?<div className="dh-paste">
           <p>Paste exact NSE tickers, separated by commas or lines. Or upload a CSV with symbols in the first column.</p>
           <textarea rows={11} spellCheck={false} value={watchlist} onChange={e=>setWatchlist(e.target.value)}
@@ -369,50 +414,112 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
             <span>Page {page} of {Math.max(1,Math.ceil(catalog.total/catalog.per_page))}</span>
             <button disabled={!catalog.has_more} onClick={()=>setPage(v=>v+1)}>Next <ChevronRight size={16}/></button></div>}
         </>}
-      </Section>
+      </Section></div>:
+        <div className="dh-simple-summary"><Layers3 size={19}/><div>
+          <strong>{interpretMode(mode)}</strong>
+          <p>{fmt(selectionCount)} stocks from the current Dhan catalog.</p>
+          <small>This selects the current listed market, not reconstructed historical constituents.</small>
+        </div></div>}
+    </Section>
 
-      <Section title="Download settings" aside={<Pill tone="good"><ShieldCheck size={13}/> Read-only historical data</Pill>}>
-        <div className="dh-settings">
-          <div className="dh-picked-head"><span>Selected universe</span><strong>{interpretMode(mode)}</strong></div>
-          <div className="dh-selection-count"><strong>{fmt(pitPlan?downloadCount:pitPreview?.resolved_count||downloadCount)}</strong><span>{pitMode?(pitPlan?'Dhan-mapped historical stocks':'Covered-period preview · not downloadable yet'): 'instruments'}</span></div>
-          {pitMode&&pitPreview&&!pitPlan&&<p className="dh-error-note">The full selected range extends beyond documented index membership. The preview covers {pitPreview.from_date} to {pitPreview.to_date} (exclusive). Click the supported end-date button or update the membership source before downloading.</p>}
-          {pitMode&&pitPlan&&<p className="dh-hint">{fmt(pitPlan.union_count)} distinct index constituents during this period; {fmt(pitPlan.resolved_count)} have unambiguous current Dhan IDs. The downloaded set is their historical union, not today’s constituents.</p>}
-          {mode==='selected'&&<div className="dh-selected-pills">
-            {Object.values(selected).slice(0,18).map(item=><button key={item.id} onClick={()=>toggleStock(item)} title={'Remove '+item.symbol}>{item.symbol}<X size={12}/></button>)}
-            {Object.keys(selected).length>18&&<span>+{Object.keys(selected).length-18} more</span>}
-            {Object.keys(selected).length===0&&<p>No stocks selected. Click an instrument on the left.</p>}
-          </div>}
-          <div className="dh-settings-fields"><label><span>From · inclusive</span><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)}/></label>
-            <label><span>To · exclusive</span><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)}/></label>
-            <label className="dh-full"><span>Candle resolution</span><select value={interval} onChange={e=>setInterval(e.target.value)}>
-              <option value="daily">Daily OHLCV · best for bulk research</option>
-              <option value="60">60-minute candles</option>
-              <option value="15">15-minute candles</option>
-              <option value="5">5-minute candles</option>
-              <option value="1">1-minute candles</option>
-            </select></label></div>
-          <div className="dh-estimate"><div><span>Estimated API calls</span><strong>{Number.isFinite(estimatedRequests)?'≈ '+fmt(estimatedRequests):'—'}</strong></div>
-            <small>Rough minimum before retries; actual calls depend on date windows and cached coverage. Dhan applies its own limits.</small></div>
-          {!daily&&<div className="dh-pit-coverage"><span><Check size={13}/> No arbitrary instrument cap on minute history</span><span><Clock3 size={13}/> 90-day Dhan API windows, automatically chained</span><span><Database size={13}/> Each completed window saved for resume</span></div>}
-          {pitMode&&!daily&&<div className="dh-pit-alert"><Info size={16}/><div><strong>Full-year 1-minute downloads are supported</strong><p>The workstation splits the selected dates into Dhan's 90-day request windows and preserves each finished chunk, even if a later request fails. Large universes take more API calls and storage; your Dhan subscription, 5-year history coverage and rate limits still apply.</p><button className="dh-small-btn" type="button" onClick={()=>setInterval('daily')}>Use daily for faster index research</button></div></div>}
-          {invalidDates&&<p className="dh-error-note">The end date must be later than the start date.</p>}
-          {downloadCount>100&&<label className="dh-confirm"><input type="checkbox" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)}/>
-            <span>I understand this will request historical data for {fmt(downloadCount)} instruments. This may be a long-running operation and use my Dhan API allowance.</span></label>}
-          {pitMode&&<label className="dh-confirm"><input type="checkbox" checked={includeIndexSpot} onChange={e=>setIncludeIndexSpot(e.target.checked)}/>
-            <span>Also request the selected NIFTY/BANK NIFTY index-level spot OHLCV when Dhan lists an unambiguous IDX_I instrument. This is a price-index series, not TRI benchmark.</span></label>}
-          {pitMode&&pitPlan?.unresolved_count? <label className="dh-confirm"><input type="checkbox" checked={acknowledgedGaps} onChange={e=>setAcknowledgedGaps(e.target.checked)}/>
-            <span>Download the {fmt(pitPlan.resolved_count)} mapped stocks even though {fmt(pitPlan.unresolved_count)} historical constituents cannot be resolved in the current Dhan catalog. Mark the resulting historical-price dataset INCOMPLETE.</span></label>:null}
-          <button className="dh-primary" type="button" disabled={startDisabled} onClick={startBatch}>
-            {working?<LoaderCircle size={17} className="dh-spin"/>:<ArrowDownToLine size={18}/>}
-            Download {downloadCount?fmt(downloadCount)+(pitMode?' historical constituents':' instruments'):'selected stocks'}
-            <ArrowRight size={17}/></button>
-          <p className="dh-hint">Files are stored locally by Dhan Security ID. Repeated date ranges reuse verified cached candles; no orders are placed.</p>
-        </div>
-      </Section>
+    <Section title="2. Choose dates and data type" aside={<Pill tone="good">Daily recommended</Pill>}>
+      <p className="dh-simple-help">Daily data is sufficient for factor research and monthly index construction. Minute data is for intraday analysis.</p>
+      <div className="dh-settings-fields dh-simple-date-fields">
+        <label><span>Start date</span><input aria-label="Start date" type="date"
+          value={fromDate} onChange={e=>setFromDate(e.target.value)}/></label>
+        <label><span>End date (not included)</span><input aria-label="End date (not included)"
+          type="date" value={toDate} onChange={e=>setToDate(e.target.value)}/></label>
+        <label className="dh-full"><span>Download frequency</span>
+          <select aria-label="Download frequency" value={interval}
+            onChange={e=>setInterval(e.target.value)}>
+            <option value="daily">Daily prices — recommended</option>
+            <option value="60">60-minute candles</option>
+            <option value="15">15-minute candles</option>
+            <option value="5">5-minute candles</option>
+            <option value="1">1-minute candles — large download</option>
+          </select>
+        </label>
+      </div>
+      {invalidDates&&<p className="dh-simple-warning" role="alert">
+        The end date must come after the start date.</p>}
+      {!daily&&<p className="dh-simple-warning">
+        Intraday data uses more Dhan requests and storage. Choose Daily above unless you specifically need minute-level data.</p>}
+      <details className="dh-simple-details dh-advanced-data">
+        <summary>Advanced options: API calls and index spot prices</summary>
+        <div className="dh-estimate"><div><span>Estimated minimum requests</span>
+          <strong>{Number.isFinite(estimatedRequests)?'≈ '+fmt(estimatedRequests):'—'}</strong></div>
+          <small>Actual requests depend on the date range, cached candles and Dhan rate limits.</small></div>
+        {pitMode&&<label className="dh-confirm">
+          <input type="checkbox" checked={includeIndexSpot}
+            onChange={e=>setIncludeIndexSpot(e.target.checked)}/>
+          <span>Also download index spot prices (optional). They are NOT dividend-reinvested TRI returns.</span>
+        </label>}
+        {!daily&&<p className="dh-hint">
+          Dhan minute history is downloaded in resumable 90-day windows. Completed windows stay cached.
+          Your historical coverage depends on Dhan's plan and the instruments' listings.
+        </p>}
+      </details>
+      <details className="dh-simple-details dh-connect-details">
+        <summary>Connection settings · {connection?.token_configured?'Token saved locally':'Token missing'} · {connection?.instrument_master_available?'Catalog ready':'Catalog missing'}</summary>
+        <div className="dh-connect">
+      <div><span className={'dh-led '+(connection?.token_configured?'':'off')}/><LockKeyhole size={17}/>
+        <div><strong>{credentialCheck?.ok?'Dhan Data API verified':credentialCheck&&!credentialCheck.ok?'Dhan Data API needs attention':connection?.token_configured?'Token loaded · not verified':'Dhan API token missing'}</strong><small>{credentialCheck?.message??(connection?.token_configured?'Token held locally. Verify credentials and Data API entitlement.':'Set DHAN_ACCESS_TOKEN in project-root .env')}</small></div></div>
+      <div><span className={'dh-led '+(connection?.instrument_master_available?'':'off')}/><Database size={17}/>
+        <div><strong>{connection?.instrument_master_available?'Instrument master available':'Instrument master missing'}</strong><small>Current Dhan security ID catalog</small></div></div>
+      <button className="dh-small-btn" type="button" disabled={credentialChecking} onClick={()=>void verifyCredentials()}>
+        {credentialChecking?<LoaderCircle size={15} className="dh-spin"/>:<ShieldCheck size={15}/>}
+        Verify Dhan API access
+      </button>
+      {credentialError&&<small className="dh-credential-brief" role="alert">Verification failed: {credentialError}</small>}
+      {credentialCheck&&<small className="dh-credential-brief" role="status">{credentialCheck.code}: {credentialCheck.message}</small>}
+      <button className="dh-small-btn" type="button" disabled={working||Boolean(task)} onClick={refreshMaster}>
+        {task?.kind==='master'?<LoaderCircle size={15} className="dh-spin"/>:<RefreshCw size={15}/>}
+        Refresh instrument catalog
+      </button>
     </div>
+      </details>
+    </Section>
 
-    <div className="dh-stage"><span>02</span><div><h3>Download queue & progress</h3><p>Review each instrument's status, pause between requests, and resume failed or interrupted batches.</p></div></div>
-    <Section title="Download history" aside={<button className="dh-small-btn" type="button" onClick={()=>void loadBatches()}><RefreshCw size={14}/> Refresh</button>}>
+    <Section title="3. Download" aside={<Pill tone="good"><ShieldCheck size={13}/> Safe · read-only</Pill>}>
+      <div className="dh-simple-review">
+        <div><small>Data</small><strong>{interpretMode(mode)}</strong></div>
+        <div><small>Stocks</small><strong>{pitMode&&!pitPlan?'Checking…':fmt(downloadCount)}</strong></div>
+        <div><small>Frequency</small><strong>{daily?'Daily':interval+'-minute'}</strong></div>
+      </div>
+      {pitMode&&pitPlan!==null&&pitPlan.unresolved_count>0&&<label className="dh-confirm">
+        <input type="checkbox" checked={acknowledgedGaps}
+          onChange={e=>setAcknowledgedGaps(e.target.checked)}/>
+        <span>{pitPlan.unresolved_count} historical stock IDs are unavailable.
+          Download {pitPlan.resolved_count} mapped stocks and mark the data incomplete.</span>
+      </label>}
+      {downloadCount>100&&<label className="dh-confirm">
+        <input type="checkbox" checked={acknowledged}
+          onChange={e=>setAcknowledged(e.target.checked)}/>
+        <span>Confirm this large download of {fmt(downloadCount)} stocks. It may use substantial Dhan API allowance.</span>
+      </label>}
+      {downloadBlocker&&<p className="dh-simple-blocker" role="status">
+        <Info size={16}/> {downloadBlocker}</p>}
+      <button className="dh-primary dh-simple-download" type="button"
+        disabled={startDisabled} onClick={startBatch}>
+        {working||task?.kind==='batch'?<LoaderCircle size={18} className="dh-spin"/>:
+          <ArrowDownToLine size={19}/>}
+        {working||task?.kind==='batch'?'Downloading / processing…':'Start download'}
+        <ArrowRight size={18}/>
+      </button>
+      <p className="dh-simple-help">Saves data locally, uses cached downloads and can resume interruptions.
+        No orders are placed. Dhan prices alone do not replace an official dividend-inclusive benchmark.</p>
+    </Section>
+
+    <div className="dh-stage" id="dh-download-progress"><span>04</span>
+      <div><h3>Download progress & prepare data</h3>
+        <p>Once a download finishes, select “Prepare data for models” here.</p></div>
+    </div>
+    <Section title="Your downloads" aside={<button className="dh-small-btn" type="button" onClick={()=>void loadBatches()}><RefreshCw size={14}/> Refresh</button>}>
+      {!details&&<p className="dh-simple-help" role="status">
+        {batches.length?'Loading the selected download…':'No downloads yet. Start in Step 3; progress will appear here automatically.'}
+      </p>}
+      <details className="dh-simple-details dh-previous-downloads">
+        <summary>Past downloads ({batches.length}) · select a different batch</summary>
       {batches.length>0?<div className="dh-library">
         {batches.slice(0,14).map(b=><button type="button" key={b.id} className={'dh-batch-row '+(batchId===b.id?'active':'')} onClick={()=>{setBatchId(b.id);setDetailPage(1);setStatusFilter('all');setPreview(null)}}>
           <span className="dh-batch-icon"><History size={17}/></span>
@@ -422,6 +529,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
           <ChevronRight size={16}/>
         </button>)}
       </div>:<div className="dh-empty"><Clock3 size={27}/><strong>No download batches yet</strong><p>Choose a universe and start downloading. The results will appear here and remain available after a restart.</p></div>}
+      </details>
       {details&&<div className="dh-batch-detail">
         <div className="dh-batch-title"><div><strong>Batch {details.id.slice(-8)}</strong><span> · {interpretMode(details.selection)} · {fmt(details.total)} instruments</span></div>
           <Pill tone={details.status==='completed'?'good':currentActive?'blue':'warning'}>{statusText(details.status)}</Pill></div>
@@ -453,7 +561,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
             couldResume&&<button className="dh-small-btn" disabled={working||Boolean(task)} onClick={resume}><Play size={15}/> Resume / retry remaining</button>}
           {countsCompleted>0&&!details.prepared_dataset_id&&
             <button className="dh-small-btn primary" disabled={working||Boolean(task)||currentActive} onClick={prepare}>
-              <FileSpreadsheet size={16}/> Prepare research dataset from {details.interval===null?'daily':details.interval+'-minute'} candles
+              <FileSpreadsheet size={16}/> Prepare data for models
             </button>}
           {details.prepared_dataset_id&&<Pill tone="good">Prepared dataset: {details.prepared_dataset_id}</Pill>}
           {details.prepared_dataset_id&&!details.has_price_benchmark&&details.historical_index_name&&details.index_spot?.status==='complete'&&
@@ -466,6 +574,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
           {details.index_spot&&<span>Index spot OHLCV: {details.index_spot.status} · {details.index_spot.rows||0} rows{details.index_spot.file?" · saved to data/"+details.index_spot.file:""}{details.index_spot.error?" · "+details.index_spot.error:""}. Spot prices are not dividend-adjusted TRI.
           {details.index_spot.identity_source&&<> · ID source: {details.index_spot.identity_source==="verified_unique_dhan_scrip_master_match"?"Current Dhan instrument master":"Published Dhan IDX_I reference"}{details.index_spot.reference&&<> (<a href={details.index_spot.reference} target="_blank" rel="noreferrer">source ↗</a>)</>}</>}</span>}</div>}
         </div>
+        <details className="dh-simple-details dh-technical-results">
+          <summary>Individual stock results and troubleshooting</summary>
         <div className="dh-detail-toolbar"><span>Per-stock results</span>
           <select aria-label="Filter download result status" value={statusFilter} onChange={e=>{setStatusFilter(e.target.value);setDetailPage(1)}}>
             <option value="all">All statuses</option><option value="complete">Downloaded</option>
@@ -485,8 +595,12 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         {preview&&<div className="dh-preview"><div><strong>{preview.symbol} · last {preview.rows.length} candles</strong><button aria-label="Close preview" onClick={()=>setPreview(null)}><X size={15}/></button></div>
           <div className="dh-result-table"><table><thead><tr><th>Timestamp</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr></thead><tbody>{preview.rows.slice(-30).reverse().map((row,i)=><tr key={i}>{['datetime','open','high','low','close','volume'].map(key=><td key={key}>{String(row[key]??'—')}</td>)}</tr>)}</tbody></table></div>
         </div>}
+        </details>
       </div>}
     </Section>
-    <div className="dh-footnote"><ShieldCheck size={18}/><p><strong>Research integrity:</strong> Historical NIFTY memberships are reconstructed from dated NSE notices with recorded source versions. Unresolved delisted/renamed instruments and missing OHLCV are reported, never silently replaced. Price history is not dividend-reinvested total return data; completed index backtests still require benchmark and corporate-action verification.</p></div>
+    <details className="dh-simple-details dh-source-limits">
+      <summary>Research limitations (optional)</summary>
+      <div className="dh-footnote"><ShieldCheck size={18}/><p><strong>Research integrity:</strong> Historical NIFTY memberships are reconstructed from dated NSE notices with recorded source versions. Unresolved delisted/renamed instruments and missing OHLCV are reported, never silently replaced. Price history is not dividend-reinvested total return data; completed index backtests still require benchmark and corporate-action verification.</p></div>
+    </details>
   </div>
 }
