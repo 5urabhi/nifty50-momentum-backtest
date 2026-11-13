@@ -254,7 +254,7 @@ def attach_tri_benchmark(dataset_id: str, original_csv: bytes, filename: str,
     A source file without a prior monthly level cannot be used to fabricate
     a first return. Successful structural compatibility is NOT certification.
     """
-    from index_research.benchmark_ingestion import normalize_benchmark
+    from index_research.benchmark_ingestion import align_daily_tri_to_stock_dates
     from index_research.data import load_research_inputs
     if not original_csv or len(original_csv) > 30 * 1024 * 1024:
         raise ValueError("Select an original TRI CSV smaller than 30 MB.")
@@ -296,7 +296,7 @@ def attach_tri_benchmark(dataset_id: str, original_csv: bytes, filename: str,
             "RETURN_METHODOLOGY.json", "CALENDAR_ALIGNMENT_PROVENANCE.json",
             "OBSERVED_MARKET_SESSIONS.csv",
             "PER_SECURITY_LAST_OBSERVED_SESSIONS.csv",
-            "EVIDENCE_REVIEW.json", "FUNDAMENTAL_METHODS.json",
+            "FUNDAMENTAL_METHODS.json",
         ):
             file = folder / name
             if file.is_file() and not file.is_symlink():
@@ -305,26 +305,14 @@ def attach_tri_benchmark(dataset_id: str, original_csv: bytes, filename: str,
         # through research report ZIPs or the browser dataset download API.
         vendor = pending / "_tri_uploaded_source.csv"
         vendor.write_bytes(original_csv)
-        tri, receipt = normalize_benchmark(
-            vendor, pending, date_column=date_column,
-            level_column=level_column, index_name=index_name,
-            return_convention=convention,
+        # Align at observed stock sessions, not calendar month-end stamps.
+        # Never use index observations after the stock decision date.
+        tri, receipt, alignment_file = align_daily_tri_to_stock_dates(
+            vendor, pending / "prices.csv", pending,
+            date_column=date_column, level_column=level_column,
+            index_name=index_name, return_convention=convention,
         )
-        prices = pd.read_csv(pending / "prices.csv", usecols=["date"])
-        dates = pd.DatetimeIndex(pd.to_datetime(prices["date"], errors="raise"))
-        if dates.isna().any() or dates.duplicated().any() or not dates.is_monotonic_increasing:
-            raise ValueError("Stock price calendar is invalid.")
-        benchmark = pd.read_csv(tri)
-        benchmark["date"] = pd.to_datetime(benchmark["date"], errors="raise")
-        aligned = benchmark.set_index("date").reindex(dates)
-        if aligned["return"].isna().any() or not np.isfinite(aligned["return"]).all():
-            gaps = dates[aligned["return"].isna()].strftime("%Y-%m").tolist()
-            raise ValueError("TRI levels do not cover every stock month or the "
-                             "preceding month. Missing: " + ", ".join(gaps[:8]))
-        pd.DataFrame({
-            "date": dates,
-            "return": aligned["return"].to_numpy(),
-        }).to_csv(tri, index=False)
+        alignment = json.loads(alignment_file.read_text())
         source = json.loads(receipt.read_text())
         source["source_file"] = "User-uploaded original TRI CSV (kept private and local)"
         source["uploaded_filename"] = Path(filename).name
@@ -344,6 +332,7 @@ def attach_tri_benchmark(dataset_id: str, original_csv: bytes, filename: str,
         (pending / "workstation_source.json").write_text(json.dumps({
             "parent_dataset_id": dataset_id,
             "benchmark_uploaded_filename": Path(filename).name,
+            "alignment_provenance": "BENCHMARK_ALIGNMENT_PROVENANCE.json",
             "benchmark_sha256": source["source_sha256"],
             "created_utc": datetime.now(timezone.utc).isoformat(),
             "status": "unverified",
@@ -362,6 +351,12 @@ def attach_tri_benchmark(dataset_id: str, original_csv: bytes, filename: str,
     result = next(x for x in datasets(include_archived=True)
                   if x["id"] == "upload_" + ident)
     return {**result, "source_dataset_id": dataset_id,
+            "benchmark_alignment": {
+                "matched_months": alignment["stock_calendar_months"],
+                "exact_trading_date_matches": alignment["exact_trading_date_matches"],
+                "calendar_end_label_matches": alignment["calendar_end_label_matches"],
+                "missing_months_imputed": 0,
+            },
             "benchmark_caveat": "Historical source and dividend-adjusted stock returns "
                                 "are not independently verified."}
 
