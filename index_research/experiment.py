@@ -290,13 +290,16 @@ def run_from_directory(input_dir: str | Path, output_dir: str | Path,
     (out/"dataset_audit.json").write_text(json.dumps(audit,indent=2,allow_nan=False))
     try:
         grid=sensitivity_grid(prices,membership,benchmark,fundamentals,config,
-            sectors=sectors,segment="validation" if config.validation_start else "full_history")
+            sectors=sectors,benchmark_history=benchmark_history,
+            liquidity_records=liquidity_records,
+            segment="validation" if config.validation_start else "full_history")
         grid.to_csv(out/"robustness_grid.csv",index=False)
     except (ValueError,RuntimeError) as exc:
         (out/"robustness_unavailable.txt").write_text(str(exc))
     try:
         variant_returns,variant_summary=compare_index_methods(
-            prices,membership,benchmark,fundamentals,config,sectors=sectors)
+            prices,membership,benchmark,fundamentals,config,sectors=sectors,
+            benchmark_history=benchmark_history,liquidity_records=liquidity_records)
         variant_returns.to_csv(out/"methodology_returns.csv",index_label="date")
         variant_summary.to_csv(out/"methodology_summary.csv",index_label="methodology")
     except (ValueError,RuntimeError) as exc:
