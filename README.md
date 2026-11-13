@@ -9,6 +9,26 @@ are tested. **No independently validated NIFTY historical investment result is
 published.** Real TRI, point-in-time constituents, historical filings, dividends
 and other corporate events still require an original-source audit.
 
+## Final research handoff: one command to see exactly what remains
+
+The new [final study handoff guide](docs/FINAL_STUDY_HANDOFF.md)
+provides copy-paste Ubuntu commands for Dhan history, authentic NSE TRI,
+historical member and corporate-action records, and independent review.
+[Research data-request template](docs/NSE_DATA_ACCESS_REQUEST.md).
+
+    python scripts/quantlab_finish.py doctor \
+      --data-dir data/research_v1 \
+      --config config/research_multifactor.json \
+      --output-dir results/my_first_doctor
+
+The doctor creates an immutable research-evidence HTML/JSON/academic-paper
+draft and, importantly, NEXT_ACTIONS.md listing the specific missing
+historical files. The separate **assemble** command joins authorized
+source stages without inventing observations, preserves source SHA-256s,
+the frozen configuration, and synthetic-data warning markers.
+**legacy-audit** gives an actual numeric assessment of the old static
+49-security 2012–2025 CSV; it is NOT a PIT NIFTY research result.
+
 ## Run on Ubuntu
 
     cd ~/Desktop/codes/nifty50-momentum-backtest

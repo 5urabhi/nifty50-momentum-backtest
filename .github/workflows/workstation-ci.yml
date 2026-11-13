@@ -53,6 +53,20 @@ jobs:
       - name: Run existing research regression suite
         run: python -m unittest discover -s tests -v
 
+      - name: Source-audit actual tracked legacy 49-stock file without PIT certification
+        run: |
+          python scripts/quantlab_finish.py legacy-audit \
+            --source nifty50_prices_monthly.csv \
+            --output-dir artifacts/legacy_static_universe_audit
+          python -m unittest discover -s tests -p 'test_final_research_handoff.py' -v
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quantlab-legacy-source-gaps-not-certified
+          path: artifacts/legacy_static_universe_audit
+          retention-days: 14
+
       - name: Measure synthetic 50 / 100 / 300-security research performance
         run: |
           mkdir -p artifacts
