@@ -54,3 +54,18 @@
 .hv-freeze code{font-family:ui-monospace,Consolas,monospace;color:#bbfbe0}
 @media(max-width:1250px){.hv-steps{grid-template-columns:1fr}.hv-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){.hv-root{padding:15px}.hv-heading{flex-direction:column}.hv-checks{grid-template-columns:1fr}.hv-summary{grid-template-columns:1fr 1fr}}
+
+
+.hv-action-form{border:1px solid #386e69;border-radius:11px;background:#143039;
+ margin:15px 0;padding:17px;display:grid;gap:9px}
+.hv-action-form h3{font:600 14px 'Space Grotesk',sans-serif;margin:6px 0}
+.hv-action-form p{color:#b1cad1;font-size:11px;margin:4px 0;line-height:1.6}
+.hv-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;min-width:0}
+.hv-action-grid>label{font-size:10px;display:flex;flex-direction:column;gap:6px;color:#b5d3da}
+.hv-action-grid input,.hv-action-grid select{font:inherit;width:100%;min-width:0;padding:9px;
+  background:#102331;color:#dceeea;border:1px solid #4c6974;border-radius:8px}
+.hv-action-grid input[type=file]{padding:7px}
+.hv-ack{display:flex;align-items:flex-start;gap:8px;color:#c9dde1;font-size:11px;line-height:1.5}
+.hv-ack input{accent-color:#80dcc0;flex-shrink:0;margin:3px 0 0}
+.hv-action-form>.hv-muted{color:#f0c28e;font-size:10px}
+@media(max-width:750px){.hv-action-grid{grid-template-columns:1fr}}
