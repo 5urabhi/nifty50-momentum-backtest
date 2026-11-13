@@ -187,7 +187,10 @@ def run_receipt(run_id: str) -> dict:
         raise ValueError("Invalid frozen run receipt")
     parent = read(data["protocol_id"])
     checked = data.get("protocol_sha256") == parent["sha256"]
-    source_same = _source_unchanged(parent)
+    try:
+        source_same = _source_unchanged(parent)
+    except (OSError, ValueError):
+        source_same = False
     return {**data, "receipt_protocol_integrity": checked,
             "source_unchanged_now": source_same,
             "state": data["state"] if checked and source_same
