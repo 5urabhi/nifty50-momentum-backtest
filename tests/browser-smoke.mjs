@@ -142,6 +142,7 @@ try {
     await page.locator('.ws-dataset-trash summary').click()
     await page.locator('.ws-dataset-trash').evaluate(el=>el.open===true)
     await nav('Model Laboratory').click()
+    await page.locator('.ql-family-tabs').getByRole('button',{name:/Stochastic Processes/}).click()
     await page.getByText('SIMULATED EXAMPLE — NOT LIVE OR HISTORICAL MARKET DATA').waitFor()
     await nav('Compare & Visualize').click()
     await page.locator('.rw-top h2').waitFor()
