@@ -11,6 +11,7 @@ import DhanDataManager from './DhanDataManager'
 import ModelLaboratory from './ModelLaboratory'
 import ResearchGuide from './ResearchGuide'
 import ResearchWorkspace from './ResearchWorkspace'
+import ResultsStudio from './ResultsStudio'
 
 type Dict = Record<string, unknown>
 type Dataset = {id:string; label:string; kind:string; ready:boolean; monthly_price_observations?:number; missing:string[]; files:string[]; has_prices:boolean; has_daily_prices?:boolean; has_daily_ohlcv?:boolean; source_interval_minutes?:number|null; daily_session_count?:number; benchmark_kind?:string; benchmark_is_total_return?:boolean; independently_verified?:boolean; has_fundamentals:boolean; has_sectors:boolean; basis:string}
@@ -38,12 +39,12 @@ const primarySections:{id:Tab;label:string;icon:typeof Activity;tabs:Tab[]}[]=[
    tabs:['research','rolling','robustness']},
  {id:'workspace',label:'Compare & Visualize',icon:BarChart3,
    tabs:['workspace','comparisons','visual']},
- {id:'history',label:'Results Library',icon:Clock3,tabs:['history']},
+ {id:'history',label:'Results Studio',icon:Clock3,tabs:['history']},
  {id:'projects',label:'Research Projects',icon:BookOpen,tabs:['projects','reports']},
  {id:'guide',label:'Help & Settings',icon:Settings2,tabs:['guide','settings']},
 ]
 
-const titles:Record<Tab,string>={overview:'Research command center',workspace:'Research workspace',projects:'Projects and notebooks',data:'Data manager',dhan:'Download market data',research:'Index research engine',factors:'Factor laboratory',construction:'Index construction',comparisons:'Index comparisons',mathematics:'Advanced mathematics',rolling:'Rolling validation',models:'Quantitative models',risk:'Risk attribution',robustness:'Robustness & sensitivity',visual:'Visual validation',reports:'Research reports',history:'Saved research runs',settings:'Workstation settings',guide:'How to use QuantLab'}
+const titles:Record<Tab,string>={overview:'Research command center',workspace:'Research workspace',projects:'Projects and notebooks',data:'Data manager',dhan:'Download market data',research:'Index research engine',factors:'Factor laboratory',construction:'Index construction',comparisons:'Index comparisons',mathematics:'Advanced mathematics',rolling:'Rolling validation',models:'Quantitative models',risk:'Risk attribution',robustness:'Robustness & sensitivity',visual:'Visual validation',reports:'Research reports',history:'Results Studio · Research Intelligence',settings:'Workstation settings',guide:'How to use QuantLab'}
 const factors=[['momentum','Momentum'],['low_volatility','Low volatility'],['value','Value'],['quality','Quality'],['size','Size']] as const
 const number=(v:unknown,d=2)=>typeof v==='number' && Number.isFinite(v) ? v.toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d}) : '—'
 const percent=(v:unknown,d=2)=>typeof v==='number' && Number.isFinite(v) ? (v*100).toFixed(d)+'%' : '—'
@@ -511,7 +512,14 @@ function App(){
           <Card title="Factor allocation"><p className="ws-caption">Select a factor and adjust its relative contribution to the composite score.</p><div className="ws-sliders">{factors.map(([key,name])=><label className="ws-factor" key={key}><div><span>{name}</span><strong>{number(config.factor_weights[key],1)}</strong></div><input type="range" min="0" max="1" step=".1" value={config.factor_weights[key]??0} onChange={e=>setConfig({...config,factor_weights:{...config.factor_weights,[key]:Number(e.target.value)}})}/></label>)}</div><div className="ws-rule"><ShieldCheck size={16}/> A backtest cannot prove historical correctness when constituent histories, adjusted returns, and benchmark evidence are missing.</div></Card></div>
           {job&&<Card title="Current job"><div className="ws-job-row"><Tag tone={job.status==='error'?'bad':job.status==='complete'?'good':'blue'}>{job.status.toUpperCase()}</Tag><span>{job.kind}</span><small>{job.error||job.id}</small></div></Card>}
         </>}
-        {tab==='history'&&<>{withRun(<div className="ws-grid four"><Metric label="Strategy CAGR" value={percent(weighted(metric,'strategy_cagr'))} caption={split?.[0]||'No result'}/><Metric label="Benchmark CAGR" value={percent(weighted(metric,'benchmark_cagr'))}/><Metric label="Information ratio" value={number(weighted(metric,'information_ratio'))}/><Metric label="Max drawdown" value={percent(weighted(metric,'max_drawdown'))}/></div>)}{detail&&<><Card title="Run performance" extra={classification}>{chart}</Card><div className="ws-grid halves"><Card title="Latest portfolio weights"><BarRows rows={detail.latest_weights}/></Card><Card title="Run manifest"><div className="ws-data-audit">{Object.entries(detail.meta.config).map(([k,v])=><div key={k}><span>{label(k)}</span><strong>{typeof v==='object'?JSON.stringify(v):String(v??'—')}</strong></div>)}</div></Card></div></>}</>}
+        {tab==='history'&&<ResultsStudio
+          selectedIndexRunId={selectedRun}
+          onSelectIndexRun={setSelectedRun}
+          onModels={()=>begin('models')}
+          onExperiments={()=>begin('research')}
+          onWorkspace={()=>begin('workspace')}
+          onData={()=>begin('data')}
+          onReports={()=>begin('reports')}/>}
         {tab==='factors'&&<>{withRun(<div className="ws-grid halves"><Card title="Factor rank information coefficient"><Table rows={detail?.rank_ic||[]}/></Card><Card title="Portfolio factor exposures"><Table rows={detail?.factor_exposures||[]}/></Card></div>)}</>}
         {tab==='construction'&&<>{withRun(<div className="ws-grid halves"><Card title="Current allocation"><BarRows rows={detail?.latest_weights||[]}/></Card><Card title="Concentration history"><Table rows={detail?.concentration||[]}/></Card></div>)}</>}
         {tab==='comparisons'&&<>{panel('methodologies','Methodology comparison outputs')}{panel('cost_sensitivity','Transaction cost sensitivity')}</>}
