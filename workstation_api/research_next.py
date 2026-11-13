@@ -35,7 +35,7 @@ def _file_sha(path: Path) -> str:
 def _safe_sources(folder: Path) -> list[dict]:
     allowed=("prices.csv","daily_prices.csv","membership.csv","benchmark.csv",
              "fundamentals.csv","sectors.csv","corporate_actions.csv",
-             "factor_returns.csv","benchmark_weights.csv")
+             "factor_returns.csv","benchmark_weights.csv","liquidity.csv")
     rows=[]
     for name in allowed:
         path=folder/name
@@ -90,10 +90,29 @@ def index_preflight(dataset_id: str, config: dict) -> dict:
         blockers.append("Dataset is missing required inputs: "+", ".join(record.get("missing",[])))
     if not factor_weights:
         blockers.append("Select at least one positive factor weight.")
-    if not set(factor_weights).issubset({"momentum","low_volatility","value","quality","size"}):
+    if not set(factor_weights).issubset({"momentum","low_volatility","value","quality","size","yield"}):
         blockers.append("Only documented registered factor scores can be selected.")
-    if set(factor_weights)&{"value","quality","size"} and not record.get("has_fundamentals"):
-        blockers.append("Value/Quality/Size require publication-dated fundamentals.csv.")
+    if set(factor_weights)&{"value","quality","size","yield"} and not record.get("has_fundamentals"):
+        blockers.append("Value/Quality/Size/Yield require publication-dated fundamentals.csv.")
+    if "yield" in factor_weights and record.get("has_fundamentals"):
+        try:
+            sample=pd.read_csv(folder/"fundamentals.csv")
+            if "yield" not in sample or sample["yield"].notna().sum()<2:
+                blockers.append("Yield factor requires sourced, publication-dated dividend yield rows.")
+        except (OSError,ValueError):
+            blockers.append("Yield factor source is unreadable.")
+    if config.get("weighting")=="benchmark_relative":
+        try:
+            from index_research.institutional_index import read_benchmark_history
+            read_benchmark_history(folder/"benchmark_weights.csv")
+        except (OSError,ValueError) as exc:
+            blockers.append("Benchmark-relative weighting: "+str(exc))
+    if config.get("liquidity_aum") is not None:
+        try:
+            from index_research.liquidity import read_liquidity
+            read_liquidity(folder/"liquidity.csv")
+        except (OSError,ValueError) as exc:
+            blockers.append("Liquidity/capacity scenario: "+str(exc))
     if config.get("sector_cap") is not None and not record.get("has_sectors"):
         blockers.append("Sector caps require effective-dated sectors.csv; today's sector labels are not substitutes.")
     count=int(config.get("top_n",10))

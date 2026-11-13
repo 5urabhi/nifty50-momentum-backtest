@@ -34,16 +34,18 @@ def composite_scores(prices: pd.DataFrame, membership: pd.DataFrame,
                      volatility_lookback: int = 12) -> pd.DataFrame:
     """Compute date-specific factor scores, requiring all requested factors.
 
+    value/quality/yield require as-published, first-available source evidence;
+    yield is cash dividends per share over contemporaneous market price;
     value/quality are external vendor-defined *higher-is-better* numeric scores;
     size uses -log(positive market capitalization), favoring smaller stocks.
     These are not asserted to be proprietary MSCI factor specifications.
     """
-    allowed = {"momentum", "low_volatility", "value", "quality", "size"}
+    allowed = {"momentum", "low_volatility", "value", "quality", "size", "yield"}
     if not factor_weights or not set(factor_weights).issubset(allowed):
         raise ValueError("factor weights must name supported factors")
     if any(not np.isfinite(w) or w < 0 for w in factor_weights.values()) or sum(factor_weights.values()) <= 0:
         raise ValueError("factor weights must be finite nonnegative with positive sum")
-    if any(k in factor_weights for k in ("value", "quality", "size")) and fundamentals is None:
+    if any(k in factor_weights for k in ("value", "quality", "size", "yield")) and fundamentals is None:
         raise ValueError("publication-dated fundamental data required for value/quality/size")
     if not prices.index.equals(membership.index) or not prices.columns.equals(membership.columns):
         raise ValueError("prices and membership must align")

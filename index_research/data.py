@@ -75,7 +75,10 @@ def read_fundamentals(path: str | Path) -> pd.DataFrame:
     required = {"ticker", "period_end", "available_at", "value", "quality", "size"}
     if not required.issubset(f.columns):
         raise ValueError(f"fundamentals missing columns: {sorted(required - set(f.columns))}")
-    f = f[list(required)].copy()
+    # Preserve optional, first-public-date dividend-yield evidence. Do not
+    # invent a zero yield when the original source never supplied the field.
+    columns=list(required)+(["yield"] if "yield" in f.columns else [])
+    f = f[columns].copy()
     for col in ("period_end", "available_at"):
         f[col] = pd.to_datetime(f[col], errors="raise")
     if f[["ticker", "period_end", "available_at"]].isna().any().any():
@@ -84,7 +87,9 @@ def read_fundamentals(path: str | Path) -> pd.DataFrame:
         raise ValueError("fundamentals cannot be available before period end")
     if f[["ticker", "available_at"]].duplicated().any():
         raise ValueError("duplicate as-of records")
-    for col in ("value", "quality", "size"):
+    for col in ("value", "quality", "size", "yield"):
+        if col not in f.columns:
+            continue
         f[col] = pd.to_numeric(f[col], errors="coerce")
         if np.isinf(f[col].to_numpy()).any():
             raise ValueError("infinite fundamental scores")
@@ -96,7 +101,8 @@ def asof_fundamentals(records: pd.DataFrame, date: pd.Timestamp,
     """Strictly earlier availability prevents same-close publication ambiguity."""
     visible = records.loc[records["available_at"] < date].copy()
     visible = visible.sort_values(["available_at", "period_end"]).drop_duplicates("ticker", keep="last")
-    return visible.set_index("ticker").reindex(tickers)[["value", "quality", "size"]]
+    return visible.set_index("ticker").reindex(tickers).reindex(
+        columns=["value","quality","size","yield"])
 
 
 def load_research_inputs(directory: str | Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.DataFrame | None]:

@@ -178,9 +178,9 @@ class RunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     dataset_id: str
     name: str = Field(default="workstation_experiment", min_length=1, max_length=100)
-    factor_weights: dict[Literal["momentum", "low_volatility", "value", "quality", "size"], float] = Field(default_factory=lambda: {"momentum": 1.0})
+    factor_weights: dict[Literal["momentum", "low_volatility", "value", "quality", "size", "yield"], float] = Field(default_factory=lambda: {"momentum": 1.0})
     top_n: int = Field(default=10, ge=2, le=300)
-    weighting: Literal["equal", "score", "inverse_volatility", "minimum_variance", "risk_parity"] = "equal"
+    weighting: Literal["equal", "score", "inverse_volatility", "minimum_variance", "risk_parity", "benchmark_relative"] = "equal"
     max_weight: float = Field(default=.20, gt=0, le=1)
     rebalance_every: int = Field(default=3, ge=1, le=12)
     cost_bps: float = Field(default=10, ge=0, le=500)
@@ -189,6 +189,14 @@ class RunRequest(BaseModel):
     momentum_skip: int = Field(default=1, ge=0, le=12)
     volatility_lookback: int = Field(default=12, ge=3, le=60)
     sector_cap: float | None = Field(default=None, gt=0, le=1)
+    optimizer_risk_aversion: float = Field(default=3., ge=0, le=100)
+    optimizer_turnover_penalty: float = Field(default=.02, ge=0, le=100)
+    optimizer_tracking_error_limit: float | None = Field(default=None, gt=0, le=5)
+    optimizer_max_trade_weight: float | None = Field(default=None, gt=0, le=1)
+    liquidity_aum: float | None = Field(default=None, gt=0, le=1e15)
+    liquidity_max_participation: float = Field(default=.05, gt=0, le=1)
+    liquidity_execution_days: int = Field(default=3, ge=1, le=30)
+    liquidity_impact_coefficient_bps: float = Field(default=50., ge=0, le=10000)
     validation_start: str | None = None
     final_test_start: str | None = None
 

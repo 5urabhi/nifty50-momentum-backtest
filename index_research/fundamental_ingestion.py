@@ -29,10 +29,11 @@ def normalize_filing_export(path: str | Path) -> pd.DataFrame:
     missing=REQUIRED-set(data)
     if missing:
         raise ValueError(f"missing financial fields: {sorted(missing)}")
-    data=data[list(sorted(REQUIRED))].copy()
+    optional=["cash_dividends_per_share_ttm"] if "cash_dividends_per_share_ttm" in data else []
+    data=data[list(sorted(REQUIRED))+optional].copy()
     for name in ("period_end","published_at"):
         data[name]=pd.to_datetime(data[name],errors="raise",utc=True).dt.tz_convert(None)
-    numeric=sorted(REQUIRED-{"ticker","filing_id","source_url","period_end","published_at"})
+    numeric=sorted(REQUIRED-{"ticker","filing_id","source_url","period_end","published_at"})+optional
     for name in numeric:
         data[name]=pd.to_numeric(data[name],errors="coerce")
     if (data[["ticker","filing_id","period_end","published_at","source_url"]].isna().any().any()
@@ -41,7 +42,9 @@ def normalize_filing_export(path: str | Path) -> pd.DataFrame:
         or not np.isfinite(data[numeric].to_numpy()).all()
         or (data["total_assets"]<=0).any()
         or (data["market_cap"]<=0).any()
-        or (data["shares_outstanding"]<=0).any()):
+        or (data["shares_outstanding"]<=0).any()
+        or ("cash_dividends_per_share_ttm" in data and
+            (data["cash_dividends_per_share_ttm"]<0).any())):
         raise ValueError("filing identities, dates or numeric fields invalid")
     if data["source_url"].str.strip().eq("").any():
         raise ValueError("filing needs source record")
@@ -64,12 +67,16 @@ def compute_pit_factor_records(filings: pd.DataFrame) -> pd.DataFrame:
     roa=f["net_income_ttm"]/f["total_assets"]
     margin=(f["operating_income_ttm"]/f["revenue_ttm"]).where(f["revenue_ttm"]>0)
     quality=(0.5*roa+0.5*margin).where(roa.notna() & margin.notna())
+    dividend_yield=(f["cash_dividends_per_share_ttm"]*f["shares_outstanding"]/
+                    f["market_cap"] if "cash_dividends_per_share_ttm" in f else None)
     out=pd.DataFrame({
         "ticker":f["ticker"],"period_end":f["period_end"],
         "available_at":f["published_at"],
         "value":value,"quality":quality,"size":f["market_cap"],
         "filing_id":f["filing_id"],"source_url":f["source_url"],
     })
+    if dividend_yield is not None:
+        out["yield"]=dividend_yield
     if out[["ticker","available_at"]].duplicated().any():
         raise ValueError("multiple filings with same availability timestamp per ticker")
     return out.sort_values(["available_at","ticker"]).reset_index(drop=True)
@@ -84,13 +91,19 @@ def export_factor_inputs(filing_csv: str | Path, output_dir: str | Path) -> tupl
     csvpath=root/"fundamentals.csv"
     if csvpath.exists():
         raise FileExistsError("fundamentals.csv exists; create versioned output folder")
-    scores[["ticker","period_end","available_at","value","quality","size"]].to_csv(csvpath,index=False)
+    columns=["ticker","period_end","available_at","value","quality","size"]
+    if "yield" in scores:
+        columns.append("yield")
+    scores[columns].to_csv(csvpath,index=False)
     manifest=root/"fundamental_sources.csv"
     scores[["ticker","period_end","available_at","filing_id","source_url"]].to_csv(manifest,index=False)
     (root/"FUNDAMENTAL_METHODS.json").write_text(json.dumps({
         "value":"book_equity / market_cap; only positive book equity",
         "quality":"0.5 * net_income_ttm / total_assets + 0.5 * operating_income_ttm / revenue_ttm",
         "size":"historical contemporary market_cap, later used as -log(market_cap)",
+        "yield":"OPTIONAL: sourced trailing 12 month cash dividends per share * contemporary "
+                "shares outstanding / contemporary market capitalization. Never inferred "
+                "if optional input is absent; payout coverage and vintage need external audit.",
         "availability":"only visible on strictly later decision dates than published_at",
         "warning":"Inputs require independently verified first-public filing timestamps and historical market caps. No NSE filings were automatically retrieved."
     },indent=2))
