@@ -13,6 +13,10 @@ import tracemalloc
 from pathlib import Path
 import numpy as np
 import pandas as pd
+# Direct invocation as python scripts/<file>.py must resolve the repository root.
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+
 from index_research.factors import composite_scores
 from index_research.index import construct_weights,backtest_index
 
