@@ -29,6 +29,13 @@ from the ignored local environment. QuantLab does not submit trading orders.
 - [Reproducible NIFTY study design](docs/CASE_STUDY_NIFTY_MULTIFACTOR.md)
 
 ### 2. Prepare historical data
+
+**New original-source import workflow:** [Complete authentic NIFTY evidence and
+calendar reconciliation](docs/NIFTY_SOURCE_COMPLETION.md) explains how to
+download NSE historical weight snapshots, align observed Dhan month closes to
+the official TRI calendar WITHOUT altering observations, and generate
+security-by-security missing-data remediation reports. Source data remain local.
+
 Inside Data Library, use the local read-only Dhan manager and upload source
 evidence. Monthly stock price observations and a current instrument master do
 not establish a dividend-reinvested, historically investable NIFTY index.
