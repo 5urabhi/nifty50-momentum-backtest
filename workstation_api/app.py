@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, historical_readiness, frozen_study
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -1590,6 +1590,66 @@ def explain_archived_research(kind:Literal["model_run","research_run"],
                              run_id:str,level:Literal["beginner","researcher","mathematical"]="researcher"):
     try:
         return research_next.explain_saved(kind,run_id,level)
+    except Exception as exc:
+        bad(exc)
+
+
+
+class FrozenStartRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    confirm: bool = False
+
+
+@app.get("/api/workspace/historical-readiness/{dataset_id}")
+def inspect_historical_readiness(dataset_id: str,
+                                 validation_start: str | None = None,
+                                 final_test_start: str | None = None,
+                                 factors: str = ""):
+    """Structural source cross-check, NOT market or independent auditor approval."""
+    try:
+        selected = [f.strip() for f in factors.split(",") if f.strip()]
+        if len(selected) > 6:
+            raise ValueError("Too many requested factors")
+        return historical_readiness.inspect(dataset_id,
+            validation_start=validation_start, final_test_start=final_test_start,
+            selected_factors=selected)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/frozen/create")
+def create_frozen_study_protocol(body: RunRequest):
+    """Pin a software-only single-use historical dataset, configuration and split."""
+    try:
+        return frozen_study.create(body.dataset_id,
+                                  body.model_dump(exclude={"dataset_id"}))
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/frozen/{protocol_id}")
+def inspect_frozen_study_protocol(protocol_id: str):
+    try:
+        return frozen_study.read(protocol_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/frozen/{protocol_id}/execute")
+def execute_single_use_frozen_study(protocol_id: str, body: FrozenStartRequest):
+    if not body.confirm:
+        raise HTTPException(400, "Explicit confirmation required before consuming the frozen test")
+    try:
+        frozen_study.read(protocol_id)
+        return _spawn("frozen_evaluation", frozen_study.execute, protocol_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/frozen/runs/{run_id}/receipt")
+def frozen_study_run_receipt(run_id: str):
+    try:
+        return frozen_study.run_receipt(run_id)
     except Exception as exc:
         bad(exc)
 
