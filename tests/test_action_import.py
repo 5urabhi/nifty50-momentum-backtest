@@ -45,6 +45,7 @@ class ActionImportTests(unittest.TestCase):
             "verified":True,
         }])
         self.original=(self.path/"prices.csv").read_bytes()
+        (self.path/"EVIDENCE_REVIEW.json").write_text(json.dumps({"old_review":"does not apply to new actions"}))
 
     def tearDown(self):
         self.client.close()
@@ -71,6 +72,8 @@ class ActionImportTests(unittest.TestCase):
         self.assertEqual(policy["price_basis"],"split_bonus_adjusted")
         self.assertFalse(policy["event_completeness_reviewed_independently"])
         self.assertTrue((derived/"daily_prices.csv").is_file())
+        self.assertFalse((derived/"EVIDENCE_REVIEW.json").exists(),
+                         "New economic data version must require fresh independent review")
 
     def test_api_can_create_new_provisional_view(self):
         response=self.client.post("/api/datasets/upload_action_fixture/add-actions",
