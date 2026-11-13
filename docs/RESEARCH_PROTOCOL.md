@@ -58,3 +58,22 @@ benchmark consistency have been recorded.
 - Streamlit/Plotly dashboard reading the same experiment outputs.
 - Research report covering methodology, findings and limitations.
 - Resume bullets restricted to actually implemented and verified work.
+
+
+## Software-locked final-test route
+
+A plain run with `final_test_start` set is only a chronological label; it
+does **not** establish that the test was untouched. For stronger local
+reproducibility, use **Experiment Studio → Historical Evidence Workflow**.
+The freeze record is created before execution, contains the exact dataset and
+file hashes (including source and event metadata), full model configuration,
+declared validation/final-test starts and a locally computed integrity digest.
+One-use reservation occurs atomically before reading returns. The saved run
+receives `FROZEN_PROTOCOL_RECEIPT.json` and Reports → Evidence Audit
+checks it against the original protocol and current dataset.
+
+This is **a software anti-tampering and accidental retesting control**, not
+independent pre-registration or evidence of prospective isolation.
+A person could have viewed historical final-test data before registering.
+Never call this independently certified or use it to justify an unqualified
+claim of out-of-sample alpha. Full source and license reviews remain required.
