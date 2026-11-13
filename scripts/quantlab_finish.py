@@ -194,8 +194,8 @@ def _next_steps(data: Path, config: Path, status: dict) -> str:
         "# QuantLab — Exact Remaining Actions",
         "**Nothing here is independently verified solely because a file exists.**",
         "## Data currently inspected",
-        "Local dataset: \`"+str(data)+"\`",
-        "Frozen config: \`"+str(config)+"\`",
+        "Local dataset: `"+str(data)+"`",
+        "Frozen config: `"+str(config)+"`",
         "Current classification: **"+status["classification"]+"**.",
         "## Step 1 — Collect only the missing original sources",
     ]
@@ -213,22 +213,22 @@ def _next_steps(data: Path, config: Path, status: dict) -> str:
             "- Export authentic NIFTY 50 TRI index LEVELS from "
             "https://www.niftyindices.com/reports/historical-data, "
             "including a preceding monthly close. Then run the documented "
-            "\`benchmark\` preparation command (specify its ACTUAL source headers).")
+            "`benchmark` preparation command (specify its ACTUAL source headers).")
     for file in ("corporate_actions.csv","RETURN_METHODOLOGY.json",
                  "PIT_MEMBERSHIP_PROVENANCE.json"):
         if file in missing:
-            steps.append("- Resolve \`"+file+"\` from original records; "
+            steps.append("- Resolve `"+file+"` from original records; "
                          "do not fill unknown payout or ticker events with zero.")
     if "fundamentals.csv" in missing:
         steps.append(
             "- Supply first-published filing vintages, true period "
             "capitalizations and a documented factor definition; normalize "
-            "them with \`prepare_research_data.py fundamentals\`.")
+            "them with `prepare_research_data.py fundamentals`.")
     for file in ("sectors.csv","benchmark_weights.csv","factor_returns.csv",
                  "liquidity.csv"):
         if file in missing:
             steps.append(
-                "- \`"+file+"\`: obtain verified effective-dated source "
+                "- `"+file+"`: obtain verified effective-dated source "
                 "records only if the selected model requires this input.")
     if not missing:
         steps.append("- All required filenames exist, but content still "
@@ -247,16 +247,16 @@ def _next_steps(data: Path, config: Path, status: dict) -> str:
         "Obtain original rights to use derived index results and complete "
         "the original-source review with a named independent reviewer.",
         "## Step 4 — Rebuild a NEW immutable dataset folder (no overwrite)",
-        "Run \`python scripts/quantlab_finish.py assemble --help\` to "
+        "Run `python scripts/quantlab_finish.py assemble --help` to "
         "combine observed stock wealth, PIT events, TRI, filings, sectors, "
         "and optional factor/capacity sources into a source-hashed package.",
         "## Step 5 — Run the three studies only on complete sourced data",
-        "\`\`\`bash",
+        "```bash",
         "python scripts/quantlab_finish.py doctor \\",
         "  --data-dir "+str(data)+" \\",
         "  --config "+str(config)+" \\",
         "  --output-dir results/research_release_new --execute",
-        "\`\`\`",
+        "```",
         "The three-study runner produces descriptive calculations only. "
         "It never auto-certifies source truth, profitability or publication rights.",
         "## Step 6 — Independent reproduction and research paper",

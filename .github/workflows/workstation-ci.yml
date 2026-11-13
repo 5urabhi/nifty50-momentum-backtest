@@ -50,6 +50,9 @@ jobs:
       - name: Test local FastAPI and React workstation model endpoints
         run: python -m unittest discover -s tests -p 'test_react_workstation_api.py' -v
 
+      - name: Reject invalid Python escape sequences in research doctor
+        run: python -W error::SyntaxWarning -W error::DeprecationWarning -m py_compile scripts/quantlab_finish.py
+
       - name: Run existing research regression suite
         run: python -m unittest discover -s tests -v
 

@@ -2,13 +2,16 @@
 
 **As of November 13, 2026:** Software and synthetic CI are tested;
 the authentic, independently replicated NIFTY results remain a separate
-research/evidence milestone. Use the commands below on your Ubuntu checkout.
+research/evidence milestone. Use the commands below on your Ubuntu checkout, including the correct
+`quantlab` directory for the fresh clone. Activate the local `.venv` before
+running Python commands.
 Scripts are committed to GitHub; do not download or paste separate scripts.
 
 ## 1. Update and diagnose
 
 ~~~bash
-cd "$HOME/Desktop/codes/nifty50-momentum-backtest"
+cd "$HOME/Desktop/codes/quantlab"
+source .venv/bin/activate
 git switch main
 git pull --ff-only origin main
 python -m unittest discover -s tests -p 'test_final_research_handoff.py' -v
