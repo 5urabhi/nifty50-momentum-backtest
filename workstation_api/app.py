@@ -1467,6 +1467,28 @@ def research_data_passport(dataset_id: str):
         bad(exc)
 
 
+@app.get("/api/workspace/source-coverage/{dataset_id}")
+def research_source_coverage(dataset_id: str,
+                             validation_start: str | None = None,
+                             final_test_start: str | None = None):
+    """Read-only empirical source gaps; source truth is NEVER auto-certified."""
+    try:
+        from index_research.evidence_coverage import inspect_empirical_coverage
+        folder, _ = service.dataset_path(dataset_id)
+        selected = {
+            "validation_start":validation_start,
+            "final_test_start":final_test_start,
+        }
+        report=inspect_empirical_coverage(folder,selected)
+        missing=report.pop("missing_security_observation_rows",[])
+        report["missing_security_observations_total"]=len(missing)
+        report["first_missing_security_observations"]=missing[:80]
+        report["missing_observation_list_truncated"]=len(missing)>80
+        return report
+    except Exception as exc:
+        bad(exc)
+
+
 @app.get("/api/workspace/explain/{kind}/{run_id}")
 def explain_archived_research(kind:Literal["model_run","research_run"],
                              run_id:str,level:Literal["beginner","researcher","mathematical"]="researcher"):

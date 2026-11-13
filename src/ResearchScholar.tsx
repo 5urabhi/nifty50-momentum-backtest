@@ -15,6 +15,17 @@ type Passport={dataset:string;kind:string;research_classification:string;
   available_files:{name:string;sha256:string;size_bytes:number}[];
   blockers:{category:string;requirement:string;next_action:string}[];
   observed_prices_available:boolean;investability_certified:boolean;study_status:string}
+type SourceCoverage={
+  securities_in_observed_panel:number;price_observations:number;
+  missing_eligible_prices:number|null;missing_eligible_forward_returns:number|null;
+  benchmark_alignment:string;PIT_status:string;
+  observed_prevalidation_months:number|null;observed_final_test_months:number|null;
+  preferred_prevalidation_months_with_20_percent_buffer:number;
+  historical_investability_certified:boolean;warnings:string[];
+  missing_security_observations_total:number;
+  missing_observation_list_truncated:boolean;
+  first_missing_security_observations:{date:string;ticker:string;problem:string}[]
+}
 type Decision={decision_date:string;dataset_kind:string;rows:{
   ticker:string;member_at_decision:boolean;rank:number|null;score:number|null;
   target_weight:number;weighted_factor_contributions:Record<string,number|null>;
@@ -87,6 +98,7 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
   const [finalTestStart,setFinalTestStart]=useState('')
   const [plan,setPlan]=useState<Preflight|null>(null)
   const [passport,setPassport]=useState<Passport|null>(null)
+  const [sourceCoverage,setSourceCoverage]=useState<SourceCoverage|null>(null)
   const [chosenRun,setChosenRun]=useState('')
   const [level,setLevel]=useState('researcher')
   const [explanation,setExplanation]=useState<Explain|null>(null)
@@ -125,7 +137,7 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
     finally{setBusy(false)}
   }
   const updateSource=(value:string)=>{
-    onSelectDataset(value);setPlan(null);setPassport(null);setDecision(null);setRisk(null)
+    onSelectDataset(value);setPlan(null);setPassport(null);setSourceCoverage(null);setDecision(null);setRisk(null)
   }
   useEffect(()=>{
     let alive=true
@@ -142,6 +154,16 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
       .then(r=>{if(alive)setHypotheses(r.hypotheses)}).catch(()=>{})
     return()=>{alive=false}
   },[])
+  const checkSourceCoverage=()=>{
+    if(!selectedDataset)return
+    const query=new URLSearchParams()
+    if(validationStart)query.set('validation_start',validationStart)
+    if(finalTestStart)query.set('final_test_start',finalTestStart)
+    void doWork(()=>ask<SourceCoverage>(
+      'source-coverage/'+encodeURIComponent(selectedDataset)+
+      (query.size?'?'+query.toString():'')
+    ),setSourceCoverage)
+  }
   const preflight=()=>doWork(()=>ask<Preflight>('index-studio/preflight',config()),
     r=>{setPlan(r);setMessage(r.blockers.length?'Repair the listed blockers before executing.':
       'Methodology is software-ready; historical data remain unverified.')})
@@ -305,6 +327,49 @@ export default function ResearchScholar({datasets,selectedDataset,onSelectDatase
         <h4>What is still required for research credibility?</h4>
         {passport.blockers.map((v,i)=><p key={i} className="rw-caution">
           <strong>{v.category}</strong>: {v.requirement}. {v.next_action}</p>)}
+        <div className="rw-button-group"><button disabled={busy||!selectedDataset}
+          onClick={checkSourceCoverage}>
+          <ShieldAlert size={15}/> Inspect actual missing observations</button></div>
+        {sourceCoverage&&<section className="rw-stack" aria-label="Observed coverage audit">
+          <h4>Observed coverage audit — source data, never invented</h4>
+          <div className="rw-stats">
+            <div><small>Observed source months</small>
+              <strong>{sourceCoverage.price_observations}</strong></div>
+            <div><small>Stock universe</small>
+              <strong>{sourceCoverage.securities_in_observed_panel}</strong></div>
+            <div><small>Missing eligible prices</small>
+              <strong>{nf(sourceCoverage.missing_eligible_prices)}</strong></div>
+            <div><small>Missing forward returns</small>
+              <strong>{nf(sourceCoverage.missing_eligible_forward_returns)}</strong></div>
+          </div>
+          <p className="rw-help">Benchmark calendar: {sourceCoverage.benchmark_alignment}.
+            PIT evidence: {sourceCoverage.PIT_status}. Independently certified: NO.</p>
+          <p className="rw-help">Prevalidation sample: {nf(sourceCoverage.observed_prevalidation_months)}
+            {' '}months. Preferred sample including a 20% estimation buffer:
+            {' '}{sourceCoverage.preferred_prevalidation_months_with_20_percent_buffer} months.
+            Frozen final-test months: {nf(sourceCoverage.observed_final_test_months)}.</p>
+          {sourceCoverage.warnings.slice(0,14).map((v,i)=>
+            <p key={i} className="rw-caution">• {v}</p>)}
+          {!!sourceCoverage.first_missing_security_observations.length&&
+            <div className="rw-scroll"><table><thead><tr>
+              <th>Observed date</th><th>Historical ticker</th><th>Missing evidence</th>
+            </tr></thead><tbody>
+              {sourceCoverage.first_missing_security_observations.slice(0,60).map((row,i)=>
+                <tr key={i}><td>{row.date}</td><td>{row.ticker}</td>
+                  <td>{row.problem.replaceAll('_',' ')}</td></tr>)}
+            </tbody></table></div>}
+          <p className="rw-help">Shown: up to 60 missing rows out of
+            {' '}{sourceCoverage.missing_security_observations_total}.
+            For the full immutable list, use the coverage-audit research-data preparation command.
+            Historical company renames/delistings, dividends, index TRI and filing vintages
+            must be sourced; QuantLab never fills these as zeros.</p>
+          <a href="https://www.niftyindices.com/reports/historical-data"
+            target="_blank" rel="noopener noreferrer">
+            Original NSE Indices TRI and monthly reports ↗</a>
+          <a href="https://www.nseindia.com/companies-listing/corporate-filings-actions"
+            target="_blank" rel="noopener noreferrer">
+            Original NSE corporate actions ↗</a>
+        </section>}
         </>:<p className="rw-help">Choose a dataset to see its files, immutable checksums, and
           independent verification requirements.</p>}
     </Pane>}
