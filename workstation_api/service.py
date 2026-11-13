@@ -224,6 +224,128 @@ def import_zip(blob: bytes, original_filename: str) -> dict:
     return next(item for item in datasets() if item["id"] == "upload_" + name)
 
 
+
+def attach_tri_benchmark(dataset_id: str, original_csv: bytes, filename: str,
+                         *, date_column: str = "Date",
+                         level_column: str = "Total Returns Index",
+                         index_name: str = "NIFTY 50 TRI",
+                         convention: str = "gross_total_return") -> dict:
+    """Derive a NEW auditable research view; never mutate Dhan or certified data.
+
+    The uploaded data must be original, lawfully obtained index *levels*.
+    A source file without a prior monthly level cannot be used to fabricate
+    a first return. Successful structural compatibility is NOT certification.
+    """
+    from . import research_library
+    from index_research.benchmark_ingestion import normalize_benchmark
+    from index_research.data import load_research_inputs
+    if not original_csv or len(original_csv) > 30 * 1024 * 1024:
+        raise ValueError("Select an original TRI CSV smaller than 30 MB.")
+    if not filename.lower().endswith(".csv") or not 1 <= len(filename) <= 200:
+        raise ValueError("Upload a CSV containing original total-return index levels.")
+    if any(not isinstance(x, str) or not 1 <= len(x.strip()) <= 120
+           for x in (date_column, level_column, index_name)):
+        raise ValueError("Provide the actual CSV date column, TRI level column and index name.")
+    if convention not in {"gross_total_return", "net_total_return"}:
+        raise ValueError("Only a clearly identified total-return index is supported here; "
+                         "Dhan spot price-index data are not TRI.")
+    folder, record = dataset_path(dataset_id)
+    if record["kind"] == "synthetic":
+        raise ValueError("Synthetic fixtures cannot be converted into real market research.")
+    if (folder / "benchmark.csv").exists():
+        raise ValueError("This dataset already has a benchmark. Choose its original "
+                         "preparation method or start a separate new dataset version.")
+    if any(not (folder / f).is_file() or (folder / f).is_symlink()
+           for f in ("prices.csv", "membership.csv")):
+        raise ValueError("Prepare stock prices and historical membership first.")
+    dependencies = research_library.resource_dependencies("dataset", dataset_id)
+    # Source is never removed; even referenced original datasets remain stable.
+    if folder.is_symlink() or any(p.is_symlink() for p in folder.iterdir()):
+        raise ValueError("Dataset source contains an unsafe link.")
+    base = DATA / "workstation_imports"
+    base.mkdir(parents=True, exist_ok=True)
+    ident = "run_" + uuid.uuid4().hex[:12]
+    pending = base / (".pending_" + ident)
+    dest = base / ident
+    pending.mkdir(mode=0o700)
+    try:
+        for name in (
+            "prices.csv", "membership.csv", "daily_prices.csv", "sectors.csv",
+            "fundamentals.csv", "corporate_actions.csv", "liquidity.csv",
+            "factor_returns.csv", "benchmark_weights.csv",
+            "PIT_MEMBERSHIP_PROVENANCE.json", "DAILY_AGGREGATION_PROVENANCE.json",
+            "RETURN_METHODOLOGY.json", "CALENDAR_ALIGNMENT_PROVENANCE.json",
+            "OBSERVED_MARKET_SESSIONS.csv",
+            "PER_SECURITY_LAST_OBSERVED_SESSIONS.csv",
+            "EVIDENCE_REVIEW.json", "FUNDAMENTAL_METHODS.json",
+        ):
+            file = folder / name
+            if file.is_file() and not file.is_symlink():
+                shutil.copy2(file, pending / name)
+        # The original vendor CSV stays local; do not export or redistribute it
+        # through research report ZIPs or the browser dataset download API.
+        vendor = pending / "_tri_uploaded_source.csv"
+        vendor.write_bytes(original_csv)
+        tri, receipt = normalize_benchmark(
+            vendor, pending, date_column=date_column,
+            level_column=level_column, index_name=index_name,
+            return_convention=convention,
+        )
+        prices = pd.read_csv(pending / "prices.csv", usecols=["date"])
+        dates = pd.DatetimeIndex(pd.to_datetime(prices["date"], errors="raise"))
+        if dates.isna().any() or dates.duplicated().any() or not dates.is_monotonic_increasing:
+            raise ValueError("Stock price calendar is invalid.")
+        benchmark = pd.read_csv(tri)
+        benchmark["date"] = pd.to_datetime(benchmark["date"], errors="raise")
+        aligned = benchmark.set_index("date").reindex(dates)
+        if aligned["return"].isna().any() or not np.isfinite(aligned["return"]).all():
+            gaps = dates[aligned["return"].isna()].strftime("%Y-%m").tolist()
+            raise ValueError("TRI levels do not cover every stock month or the "
+                             "preceding month. Missing: " + ", ".join(gaps[:8]))
+        pd.DataFrame({
+            "date": dates,
+            "return": aligned["return"].to_numpy(),
+        }).to_csv(tri, index=False)
+        source = json.loads(receipt.read_text())
+        source["source_file"] = "User-uploaded original TRI CSV (kept private and local)"
+        source["uploaded_filename"] = Path(filename).name
+        source["parent_dataset_id"] = dataset_id
+        source["source_is_independently_verified"] = False
+        receipt.write_text(json.dumps(source, indent=2))
+        (pending / "BENCHMARK_PROVENANCE.json").write_text(json.dumps({
+            "basis": "user_supplied_total_return_index",
+            "index_name": index_name,
+            "return_convention": convention,
+            "is_total_return_index": True,
+            "is_independently_verified": False,
+            "source_sha256": source["source_sha256"],
+            "warning": "Structurally aligned user-supplied TRI, NOT independently "
+                       "verified against the exchange or source licensed for publication.",
+        }, indent=2))
+        (pending / "workstation_source.json").write_text(json.dumps({
+            "parent_dataset_id": dataset_id,
+            "benchmark_uploaded_filename": Path(filename).name,
+            "benchmark_sha256": source["source_sha256"],
+            "created_utc": datetime.now(timezone.utc).isoformat(),
+            "status": "unverified",
+            "warning": "No corporate actions, delisting payouts, holdings or "
+                       "publication-dated fundamentals were invented.",
+        }, indent=2))
+        vendor.unlink()  # the original CSV is not an exported dataset artifact
+        load_research_inputs(pending)
+        dest_parent = dest.parent
+        if dest.exists():
+            raise FileExistsError("Research view exists; retry to create a new version.")
+        pending.rename(dest)
+    except Exception:
+        shutil.rmtree(pending, ignore_errors=True)
+        raise
+    result = next(x for x in datasets(include_archived=True)
+                  if x["id"] == "upload_" + ident)
+    return {**result, "source_dataset_id": dataset_id,
+            "benchmark_caveat": "Historical source and dividend-adjusted stock returns "
+                                "are not independently verified."}
+
 def audit(dataset_id: str) -> dict:
     folder, record = dataset_path(dataset_id)
     if not record["ready"]:
