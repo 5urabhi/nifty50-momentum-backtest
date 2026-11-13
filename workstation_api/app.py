@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -1556,6 +1556,31 @@ def research_source_coverage(dataset_id: str,
         report["first_missing_security_observations"]=missing[:80]
         report["missing_observation_list_truncated"]=len(missing)>80
         return report
+    except Exception as exc:
+        bad(exc)
+
+
+
+class PairedResultsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    baseline_id: str = Field(min_length=1, max_length=80)
+    challenger_ids: list[str] = Field(min_length=1, max_length=7)
+
+
+@app.get("/api/workspace/results/{kind}/{run_id}/evidence")
+def research_saved_result_evidence(kind: Literal["model_run", "research_run"], run_id: str):
+    """No broker calls: reproducible diagnostics of already saved local artifacts."""
+    try:
+        return result_evidence.summarize(kind, run_id)
+    except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/results/paired-comparison")
+def research_paired_results_comparison(body: PairedResultsRequest):
+    """Same dataset/hash, common calendar and benchmark; explicit Holm adjustment."""
+    try:
+        return result_evidence.paired_comparison(body.baseline_id, body.challenger_ids)
     except Exception as exc:
         bad(exc)
 
