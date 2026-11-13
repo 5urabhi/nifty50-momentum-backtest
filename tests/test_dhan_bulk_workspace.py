@@ -181,6 +181,52 @@ class BulkDhanWorkstationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             dw.prepare_batch(recent["id"])
 
+    def test_paused_auth_failure_is_visible_on_every_batch_page_and_never_leaks_token(self):
+        from unittest.mock import patch as mock_patch
+        batch = dw.create_batch("all_nse", [], [], "2025-01-01", "2025-02-01", None, False)
+        secret = "HIDDEN_ACCESS_TOKEN_FOR_TEST"
+        with mock_patch.dict("os.environ", {"DHAN_ACCESS_TOKEN": secret}):
+            with mock_patch.object(
+                dw, "download_candles",
+                side_effect=RuntimeError("Dhan HTTP 401 (response body hidden) " + secret),
+            ):
+                result = dw.run_batch(batch["id"])
+        self.assertEqual(result["status"], "paused")
+        self.assertEqual(result["errors"], 1)
+        self.assertEqual(result["failure_examples"][0]["symbol"], "RELIANCE")
+        self.assertEqual(result["failure_examples"][0]["code"], "HTTP 401")
+        self.assertIn("401", result["failure_examples"][0]["diagnostic"])
+        self.assertIn("token", result["failure_examples"][0]["explanation"].lower())
+        # The second security is still pending. A filtered view must still
+        # expose the FIRST failed security in the summary.
+        response = self.client.get("/api/dhan/batches/"+batch["id"]+"?status=pending")
+        self.assertEqual(response.status_code,200,response.text)
+        filtered=response.json()
+        self.assertTrue(all(row["status"]=="pending" for row in filtered["items"]))
+        self.assertEqual(filtered["failure_examples"][0]["symbol"],"RELIANCE")
+        self.assertNotIn(secret,str(result)+str(filtered))
+        all_batches=self.client.get("/api/dhan/batches").json()["batches"]
+        self.assertEqual(all_batches[0]["failure_examples"][0]["code"],"HTTP 401")
+        self.assertNotIn(secret,str(all_batches))
+
+    def test_unexpected_dhan_error_is_categorized_without_revealing_vendor_payload(self):
+        unknown = dw._safe_batch_failure({
+            "symbol":"RELIANCE",
+            "status":"failed",
+            "error":"PRIVATE_ACCOUNT_XYZ request payload /home/user/private",
+        })
+        self.assertEqual(unknown["code"],"DOWNLOAD ERROR")
+        self.assertNotIn("PRIVATE_ACCOUNT_XYZ",str(unknown))
+        self.assertNotIn("/home/user/private",str(unknown))
+        forbidden=dw._safe_batch_failure({
+            "symbol":"RELIANCE","status":"failed","error":"Dhan HTTP 403 private-token",
+        })
+        self.assertEqual(forbidden["code"],"HTTP 403")
+        self.assertIn("403",forbidden["diagnostic"])
+        self.assertNotIn("private-token",str(forbidden))
+        invalid=dw._safe_batch_failure({"symbol":"RELIANCE","error":"Dhan HTTP 400"})
+        self.assertIn("parameters",invalid["explanation"])
+
     def test_resume_failed_download_does_not_redownload_success(self):
         created = dw.create_batch("all_nse", [], [], "2025-01-01", "2025-02-01", None, False)
         attempts = {"TCS": 0}
