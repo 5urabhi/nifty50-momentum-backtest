@@ -1,20 +1,49 @@
-> **Looking for the React/Vite QuantLab research workstation?** This repository includes
-> legacy notebook research alongside the modern local React + FastAPI UI.
-> Start with [the workstation user guide](docs/QUANTLAB_USER_GUIDE.md),
-> [the 26-model mathematical catalog](docs/MODEL_LABORATORY_GUIDE.md),
-> and [reproducibility checklist](docs/QUANTLAB_REPRODUCIBILITY.md).
-> Launch with `bash run.sh` on branch `feature/quantlab-model-laboratory-and-guide-20261113`
-> and open `http://127.0.0.1:5173`. In-app help is under **User Guide & Documentation**.
-> Brokerage orders are disabled. Outputs must not be misrepresented as audited historical returns.
+# QuantLab — Multi-Factor Equity Index Research & Explainability Platform
 
-> **Current application — React/Vite QuantLab workstation (November 12, 2026):**
-> The previous Streamlit dashboard has been replaced as the **default** interface
-> by a private local React/Vite workstation backed by FastAPI/Python. Start with
-> `bash run.sh` and open **http://127.0.0.1:5173**. API tokens belong in
-> project-root `.env`. Read [REACT_WORKSTATION.md](REACT_WORKSTATION.md)
-> for current setup, supported workflows and validation status. The older
-> Streamlit instructions below are retained for legacy reference only.
->
+**Current application:** local-first React 18 + Vite workstation, FastAPI/Python
+research engine, shared Dhan history, constrained factor/index methodologies,
+reproducibility checks, risk models, statistical experiments and research reports.
+
+**Quick start (from the current main branch):**
+
+    git switch main
+    git pull --ff-only origin main
+    bash run.sh
+
+Open http://127.0.0.1:5173. Secrets are loaded only by the local Python
+backend from an ignored environment file. No brokerage order API is enabled.
+
+**For an unfamiliar researcher:** read
+[the five-minute researcher tour and JD skills map](docs/START_HERE_RESEARCHER.md),
+[the complete user guide](docs/RESEARCH_WORKSPACE_GUIDE.md),
+[the mathematical model catalog](docs/MODEL_LABORATORY_GUIDE.md),
+[the NIFTY multi-factor research protocol](docs/CASE_STUDY_NIFTY_MULTIFACTOR.md),
+and [source-verified reproducibility](docs/QUANTLAB_REPRODUCIBILITY.md).
+
+**Research Workspace → Index Research Studio** offers:
+- Source-pinned Data Passports and evidence blockers.
+- Interactive factor methodology and constituent-level decision explanations.
+- Conditional benchmark-relative factor attribution with explicit real source
+  requirements; no invented factor returns or benchmark constituents.
+- Beginner/Researcher/Mathematical explanations tied to archived calculations.
+- Hypothesis preregistration, methodology export and one-command local replay.
+- A [loopback-only Python SDK](quantlab_sdk) and
+  [Jupyter notebook](notebooks/QuantLab_Research_Starter.ipynb).
+
+**Evidence policy:** synthetic simulation is never presented as actual NIFTY
+historical returns. Dates and stored prices alone do not certify original
+constituent membership, dividend-reinvested benchmarks, corporate actions,
+transaction costs, or investment profitability. Original source evidence and
+independent review remain necessary.
+
+---
+
+## Historical/legacy documentation
+
+The older material below describes earlier work and branches and is retained
+as an archival record. **It is not the current launch procedure or release
+status.** Follow the links above for the merged React/FastAPI workstation.
+
 # Equity Index Quantitative Research & Construction Framework
 
 **Local-first research software | Independent project | Development branch**
