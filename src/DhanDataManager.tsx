@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight,
   CircleAlert, Clock3, Database, FileSpreadsheet, History, Info, Layers3,
@@ -17,11 +17,12 @@ type CatalogPage = {
   items:CatalogItem[];total:number;page:number;per_page:number;
   has_more:boolean;disclaimer:string
 }
+type FailureExample = {symbol:string;code:string;explanation:string;diagnostic:string}
 type BatchSummary = {
   id:string;status:string;created_utc:string;updated_utc?:string;selection:SelectionMode;
   interval:number|null;from_date:string;to_date:string;total:number;processed:number;
   counts:Record<string,number>;current_symbol:string|null;current_window?:string|null;prepared_dataset_id?:string|null;has_price_benchmark?:boolean;
-  errors:number;warning:string
+  errors:number;warning:string;failure_examples?:FailureExample[]
   historical_index_name?:string|null;historical_union_count?:number
   historical_unresolved?:Array<{symbol:string;reason:string}>
   index_spot?:{status:string;rows?:number;file?:string;error?:string;warning?:string;identity_source?:string;reference?:string}
@@ -111,6 +112,9 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const [notice,setNotice]=useState<{text:string;error:boolean}|null>(null)
   const [preview,setPreview]=useState<{symbol:string;rows:Record<string,unknown>[]} | null>(null)
   const [previewLoading,setPreviewLoading]=useState(false)
+  const [batchOpenRequested,setBatchOpenRequested]=useState<string|null>(null)
+  const [copiedFailures,setCopiedFailures]=useState(false)
+  const batchDiagnosticsRef=useRef<HTMLDetailsElement|null>(null)
 
   const tell=(text:string,error=false)=>setNotice({text,error})
   const loadConnection=useCallback(async()=>{
@@ -302,6 +306,56 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const couldResume=Boolean(details)&&!currentActive
   const countsCompleted=(details?.counts.complete||0)+(details?.counts.cached||0)
   const progress=details?.total?Math.round((details.processed/details.total)*100):0
+  const failures=details?.failure_examples||[]
+  const authFailures=failures.some(item=>item.code==='HTTP 401'||item.code==='HTTP 403')
+  const viewBatch=(batch:BatchSummary)=>{
+    setBatchId(batch.id)
+    setDetailPage(1)
+    setStatusFilter((batch.counts.failed||0)>0?'failed':'all')
+    setPreview(null)
+    setCopiedFailures(false)
+    setBatchOpenRequested(batch.id)
+  }
+  useEffect(()=>{
+    if(!batchOpenRequested||details?.id!==batchOpenRequested||!batchDiagnosticsRef.current)return
+    batchDiagnosticsRef.current.open=true
+    window.requestAnimationFrame(()=>batchDiagnosticsRef.current?.scrollIntoView({
+      behavior:'smooth',block:'nearest',
+    }))
+    setBatchOpenRequested(null)
+  },[batchOpenRequested,details?.id])
+  const revealFailedStocks=()=>{
+    setStatusFilter('failed')
+    setDetailPage(1)
+    if(batchDiagnosticsRef.current)batchDiagnosticsRef.current.open=true
+    window.requestAnimationFrame(()=>batchDiagnosticsRef.current?.scrollIntoView({
+      behavior:'smooth',block:'nearest',
+    }))
+  }
+  const copyFailureDetails=async()=>{
+    if(!details||!details.errors)return
+    const lines=[
+      'QuantLab · Dhan historical download failure',
+      'Batch: '+details.id,
+      'Universe: '+interpretMode(details.selection),
+      'Date range: '+details.from_date+' to '+details.to_date+' (end exclusive)',
+      'Candle resolution: '+(details.interval===null?'Daily':details.interval+' minute'),
+      'Failed instruments: '+details.errors+' of '+details.total,
+      ...failures.flatMap(item=>[
+        'Symbol: '+item.symbol,
+        'Error: '+item.code,
+        'Diagnostic: '+item.diagnostic,
+        'Explanation: '+item.explanation,
+      ]),
+      'Data is saved locally. No broker token or account details included.',
+    ]
+    try{
+      await navigator.clipboard.writeText(lines.join('\n'))
+      setCopiedFailures(true)
+    }catch{
+      tell('Clipboard unavailable. You can select and copy the error displayed here.',true)
+    }
+  }
 
   const downloadBlocker=!connection?'Checking the local Dhan connection…':
     !connection.token_configured?'Dhan token not found. Add DHAN_ACCESS_TOKEN to your local .env file.':
@@ -521,12 +575,12 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
       <details className="dh-simple-details dh-previous-downloads">
         <summary>Past downloads ({batches.length}) · select a different batch</summary>
       {batches.length>0?<div className="dh-library">
-        {batches.slice(0,14).map(b=><button type="button" key={b.id} className={'dh-batch-row '+(batchId===b.id?'active':'')} onClick={()=>{setBatchId(b.id);setDetailPage(1);setStatusFilter('all');setPreview(null)}}>
+        {batches.slice(0,14).map(b=><button type="button" key={b.id} className={'dh-batch-row '+(batchId===b.id?'active':'')} onClick={()=>viewBatch(b)} aria-label={'View '+interpretMode(b.selection)+' download details'+(b.counts.failed?' and errors':'')}>
           <span className="dh-batch-icon"><History size={17}/></span>
           <span className="dh-batch-name"><strong>{interpretMode(b.selection)}</strong><small>{b.from_date} → {b.to_date} · {b.interval===null?'Daily':b.interval+' min'}</small></span>
           <span className="dh-batch-numbers">{fmt(b.processed)} / {fmt(b.total)}</span>
           <Pill tone={b.status==='completed'?'good':b.status==='running'?'blue':'warning'}>{statusText(b.status)}</Pill>
-          <ChevronRight size={16}/>
+          <span className="dh-batch-open-label">{b.counts.failed?'View errors':'View details'} <ChevronRight size={16}/></span>
         </button>)}
       </div>:<div className="dh-empty"><Clock3 size={27}/><strong>No download batches yet</strong><p>Choose a universe and start downloading. The results will appear here and remain available after a restart.</p></div>}
       </details>
@@ -534,22 +588,56 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
         <div className="dh-batch-title"><div><strong>Batch {details.id.slice(-8)}</strong><span> · {interpretMode(details.selection)} · {fmt(details.total)} instruments</span></div>
           <Pill tone={details.status==='completed'?'good':currentActive?'blue':'warning'}>{statusText(details.status)}</Pill></div>
         <div className="dh-meter"><span style={{width:progress+'%'}}/></div>
-        {details.status==='paused' && (details.items||[]).some(item=>item.error?.includes('HTTP 401')||item.error?.includes('HTTP 403')) &&
-          <div className="dh-pit-alert"><CircleAlert size={18}/><div><strong>Dhan rejected a historical-data request (HTTP 401/403).</strong>
-            <p>The presence of a token in .env does not prove that it is unexpired or permitted to fetch historical market data. Your batch is paused, not deleted. Verify the token and Data API subscription before resuming.</p>
-            <button className="dh-small-btn" type="button" disabled={credentialChecking} onClick={()=>void verifyCredentials()}>
-              {credentialChecking?<LoaderCircle size={14} className="dh-spin"/>:<ShieldCheck size={14}/>}
-              {credentialChecking?'Checking Dhan profile…':'Verify token and Data API subscription'}
+        {details.errors>0&&<section className="dh-visible-errors" role="alert"
+          aria-label="Download error details">
+          <div className="dh-visible-errors-head"><CircleAlert size={23}/><div>
+            <strong>Download error · {fmt(details.errors)} of {fmt(details.total)} stocks failed</strong>
+            <p>{details.status==='paused'?'This download is paused. Your completed data has been preserved.':
+              'The download has recorded errors; completed data is preserved.'}</p>
+          </div></div>
+          {failures.length?failures.map((item,index)=><div key={item.symbol+'-'+index}
+            className="dh-visible-error-item">
+            <div><strong>{item.symbol}</strong><span>{item.code}</span></div>
+            <code>{item.diagnostic}</code>
+            <p>{item.explanation}</p>
+          </div>):<p>One or more stocks failed. Open failed-stock details below for the recorded reason.</p>}
+          {details.errors>failures.length&&<p className="dh-error-extra">
+            Showing {failures.length} of {details.errors} failures. Open failed-stock details to inspect the rest.
+          </p>}
+          <div className="dh-visible-error-buttons">
+            <button className="dh-small-btn" type="button" onClick={()=>void copyFailureDetails()}>
+              <FileSpreadsheet size={14}/>{copiedFailures?'Copied error details':'Copy error details'}
+            </button>
+            <button className="dh-small-btn" type="button" onClick={revealFailedStocks}>
+              <ChevronRight size={14}/> Show failed stocks
+            </button>
+          </div>
+          {authFailures&&<div className="dh-auth-failure-next">
+            <strong>What to do next</strong>
+            <p>Check your Dhan access token and historical Data API subscription.
+              HTTP 401/403 alone does not prove which is responsible.
+              Do not keep resuming until the access check succeeds.</p>
+            <button className="dh-small-btn" type="button"
+              disabled={credentialChecking} onClick={()=>void verifyCredentials()}>
+              {credentialChecking?<LoaderCircle size={14} className="dh-spin"/>:
+                <ShieldCheck size={14}/>}
+              {credentialChecking?'Checking access…':'Verify token and Data API subscription'}
             </button>
             {credentialCheck&&<div className="dh-credential-result" role="status">
               <strong>{credentialCheck.ok?'Dhan profile verified':'Dhan profile check failed'} · {credentialCheck.code}</strong>
               <p>{credentialCheck.message}</p>
-              <p>Token valid: {credentialCheck.token_valid===null?'unconfirmed':credentialCheck.token_valid?'yes':'no'} · Data API active: {credentialCheck.data_plan_active===null?'unconfirmed':credentialCheck.data_plan_active?'yes':'no'}</p>
-              {credentialCheck.token_validity&&<p>Token expiry (reported by Dhan): {credentialCheck.token_validity}</p>}
-              {credentialCheck.ok&&<p>Profile is valid; if candles still return HTTP 401, review the terminal log for the exact endpoint and contact Dhan support with the time and HTTP status. Do not share your token.</p>}
+              <p>Token valid: {credentialCheck.token_valid===null?'unconfirmed':credentialCheck.token_valid?'yes':'no'}
+                {' '}· Data API active: {credentialCheck.data_plan_active===null?'unconfirmed':
+                  credentialCheck.data_plan_active?'yes':'no'}</p>
+              {credentialCheck.token_validity&&
+                <p>Token expiry (reported by Dhan): {credentialCheck.token_validity}</p>}
+              {credentialCheck.ok&&<p>Profile access is valid, but the candle endpoint still rejected
+                the request. Contact Dhan support with the HTTP status and failing symbol,
+                not your token.</p>}
             </div>}
-            {credentialError&&<div className="dh-credential-result" role="alert"><strong>Verification request failed</strong><p>{credentialError}</p><p>Check the terminal running bash run.sh for details.</p></div>}
-          </div></div>}
+            {credentialError&&<p role="alert">Verification request failed: {credentialError}</p>}
+          </div>}
+        </section>}
         <div className="dh-progress-label"><span>{progress}% processed {details.current_symbol?'· Now: '+details.current_symbol:''}{details.current_window?' · Window '+details.current_window:''}</span>
           <span>{fmt(details.processed)} / {fmt(details.total)}</span></div>
         <div className="dh-progress-cards">{[
@@ -574,7 +662,8 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
           {details.index_spot&&<span>Index spot OHLCV: {details.index_spot.status} · {details.index_spot.rows||0} rows{details.index_spot.file?" · saved to data/"+details.index_spot.file:""}{details.index_spot.error?" · "+details.index_spot.error:""}. Spot prices are not dividend-adjusted TRI.
           {details.index_spot.identity_source&&<> · ID source: {details.index_spot.identity_source==="verified_unique_dhan_scrip_master_match"?"Current Dhan instrument master":"Published Dhan IDX_I reference"}{details.index_spot.reference&&<> (<a href={details.index_spot.reference} target="_blank" rel="noreferrer">source ↗</a>)</>}</>}</span>}</div>}
         </div>
-        <details className="dh-simple-details dh-technical-results">
+        <details ref={batchDiagnosticsRef} id="dh-batch-diagnostics"
+          className="dh-simple-details dh-technical-results">
           <summary>Individual stock results and troubleshooting</summary>
         <div className="dh-detail-toolbar"><span>Per-stock results</span>
           <select aria-label="Filter download result status" value={statusFilter} onChange={e=>{setStatusFilter(e.target.value);setDetailPage(1)}}>
