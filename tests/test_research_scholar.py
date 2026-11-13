@@ -8,6 +8,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from io import BytesIO
 from zipfile import ZipFile
 from unittest.mock import patch
 
@@ -161,6 +162,32 @@ class ResearchScholarTests(unittest.TestCase):
         bad_benchmark.to_csv(self.folder/"benchmark_weights.csv",index=False)
         with self.assertRaisesRegex(ValueError,"every modeled security"):
             active_risk_lab.attribution(run)
+
+    def test_import_safe_risk_factor_and_dated_benchmark_files(self):
+        prices=pd.read_csv(self.folder/"prices.csv",parse_dates=["date"])
+        date=prices["date"].iloc[0].date().isoformat()
+        tickers=[c for c in prices if c!="date"]
+        weights=pd.DataFrame({"date":[date]*len(tickers),
+            "ticker":tickers,"weight":[1./len(tickers)]*len(tickers)})
+        factors=pd.DataFrame({"date":prices["date"].dt.date,
+            "FACTOR_PROXY":prices[tickers[0]].pct_change(fill_method=None).fillna(0)})
+        def bundle(w):
+            output=BytesIO()
+            with ZipFile(output,"w") as archive:
+                for name in ("prices.csv","membership.csv","benchmark.csv"):
+                    archive.writestr(name,(self.folder/name).read_bytes())
+                archive.writestr("benchmark_weights.csv",w.to_csv(index=False))
+                archive.writestr("factor_returns.csv",factors.to_csv(index=False))
+            return output.getvalue()
+        added=service.import_zip(bundle(weights),"risk-research.zip")
+        self.assertEqual(added["kind"],"uploaded")
+        folder,_=service.dataset_path(added["id"])
+        self.assertTrue((folder/"factor_returns.csv").is_file())
+        self.assertTrue((folder/"benchmark_weights.csv").is_file())
+        incorrect=weights.copy()
+        incorrect.loc[0,"weight"]+=.2
+        with self.assertRaisesRegex(ValueError,"sum to one"):
+            service.import_zip(bundle(incorrect),"invalid-risk.zip")
 
     def test_model_explanations_and_explicit_confirmation(self):
         saved=model_lab.save_result(model_lab.run_model("gbm",raw_parameters={
