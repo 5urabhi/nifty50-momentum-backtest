@@ -156,7 +156,8 @@ def _safe_float(number) -> float | None:
     return v if np.isfinite(v) else None
 
 
-def study_b(data_dir: Path, run_dir: Path, lookback: int = 36) -> dict:
+def study_b(data_dir: Path, run_dir: Path, lookback: int = 36,
+            as_of: str | None = None) -> dict:
     """Estimate ex-ante BFBt+D risk using strictly earlier factor samples.
 
     The archived strategy weights are period-ending labels for holdings
@@ -173,12 +174,14 @@ def study_b(data_dir: Path, run_dir: Path, lookback: int = 36) -> dict:
     weights = pd.read_csv(run_dir / "post_rebalance_weights.csv", index_col=0, parse_dates=True)
     if weights.empty or set(weights.columns) != set(prices.columns):
         raise ValueError("Saved weights do not cover the original price universe")
-    end_day = pd.Timestamp(weights.index[-1])
+    end_day = pd.Timestamp(weights.index[-1] if as_of is None else as_of)
+    if end_day not in weights.index:
+        raise ValueError("Risk date must be an archived portfolio-weight period")
     end_ix = prices.index.get_indexer([end_day])[0]
     if end_ix <= 0:
         raise ValueError("Risk as-of date requires preceding price month")
     start_day = prices.index[end_ix-1]
-    portfolio = weights.iloc[-1].reindex(prices.columns).astype(float).to_numpy()
+    portfolio = weights.loc[end_day].reindex(prices.columns).astype(float).to_numpy()
     if not np.isfinite(portfolio).all() or abs(portfolio.sum()-1) > .01:
         return {"status": "unavailable", "reason": "Fully-invested period holdings required"}
     rows = pd.read_csv(ben_file)
@@ -256,7 +259,7 @@ def study_b(data_dir: Path, run_dir: Path, lookback: int = 36) -> dict:
 
 def study_c(data_dir: Path, results_dir: Path, config: ExperimentConfig) -> dict:
     """Quantify static-universe contamination and optional benchmark mismatch."""
-    prices, membership, benchmark, _ = load_research_inputs(data_dir)
+    prices, membership, benchmark, fundamentals = load_research_inputs(data_dir)
     final = membership.iloc[-1]
     intersection = membership.astype(bool).mul(final.astype(bool), axis=1).sum(axis=1)
     union = membership.astype(bool).add(final.astype(bool), axis=1).astype(bool).sum(axis=1)
@@ -271,6 +274,59 @@ def study_c(data_dir: Path, results_dir: Path, config: ExperimentConfig) -> dict
         "warning": "Counts demonstrate exposure to survivorship/eligibility contamination; "
                    "they do not quantify performance bias without a separately valid counterfactual.",
     }
+    # A second, intentionally look-ahead-contaminated simulation is only
+    # meaningful when genuine PIT constituent states differ over time. Use
+    # the IDENTICAL prices, benchmark, factor rules, and net cost assumptions.
+    # Never call a difference causal alpha; final-membership lookahead changes
+    # eligibility and may also induce missing historical price observations.
+    out["static_universe_counterfactual"]={"status":"not_needed_no_membership_change"}
+    if int(substituted.sum()) > 0:
+        try:
+            from index_research.experiment import run_experiment
+            from index_research.sector_data import asof_sectors, read_sector_history
+            from index_research.institutional_index import read_benchmark_history
+            from index_research.liquidity import read_liquidity
+            static_members=pd.DataFrame(
+                np.broadcast_to(final.astype(bool).to_numpy(),membership.shape).copy(),
+                index=membership.index,columns=membership.columns)
+            sectors=None
+            sector_file=data_dir/"sectors.csv"
+            if sector_file.is_file():
+                sectors=asof_sectors(read_sector_history(str(sector_file)),
+                                     prices.index,prices.columns)
+            bweights=(read_benchmark_history(data_dir/"benchmark_weights.csv")
+                      if config.weighting=="benchmark_relative" else None)
+            liquidity=(read_liquidity(data_dir/"liquidity.csv")
+                       if config.liquidity_aum is not None else None)
+            comparison, _, _=run_experiment(
+                prices,static_members,benchmark,fundamentals,config,sectors=sectors,
+                benchmark_history=bweights,liquidity_records=liquidity)
+            real=pd.read_csv(results_dir/"monthly_results.csv",
+                             index_col=0,parse_dates=True)
+            if not real.index.equals(comparison.returns.index):
+                raise ValueError("Static and PIT simulations have different return periods")
+            diff=comparison.returns-real["strategy_net"]
+            if not np.isfinite(diff.to_numpy()).all():
+                raise ValueError("Nonfinite static-universe performance difference")
+            artifact=pd.DataFrame({
+                "pit_net_return":real["strategy_net"],
+                "static_final_universe_net_return":comparison.returns,
+                "static_minus_pit_return":diff})
+            artifact.to_csv(results_dir/"static_universe_counterfactual.csv",
+                            index_label="date",float_format="%.12g")
+            out["static_universe_counterfactual"]={
+                "status":"exploratory_lookahead_contaminated_counterfactual",
+                "months":len(artifact),
+                "mean_monthly_static_minus_pit":_safe_float(diff.mean()),
+                "annualized_arithmetic_static_minus_pit":_safe_float(diff.mean()*12),
+                "artifact":"static_universe_counterfactual.csv",
+                "warning":"This is an intentionally biased historical composition test, "
+                          "not a causal estimate of survivorship impact or investable excess return."}
+        except (ValueError,RuntimeError,KeyError,FileNotFoundError) as exc:
+            out["static_universe_counterfactual"]={
+                "status":"unavailable", "reason":str(exc),
+                "warning":"Could not simulate the static look-ahead alternative "
+                          "without inventing missing historical observations."}
     alternate = data_dir / "benchmark_price_only.csv"
     if alternate.is_file():
         price_reference = read_returns(alternate)
@@ -324,6 +380,49 @@ def inference_for_final_holdout(run_dir: Path, config: ExperimentConfig) -> dict
         return {"status": "unavailable", "reason": str(exc)}
 
 
+def validation_familywise_tests(run_dir: Path, config: ExperimentConfig) -> dict:
+    """Holm-adjusted exploratory candidate tests on validation only.
+
+    Do not choose a model on the untouched final holdout. Holm adjustment
+    covers ONLY the four candidates enumerated in the saved comparison,
+    not undisclosed prior parameter searches or unavailable historical data.
+    """
+    path=run_dir/"methodology_returns.csv"
+    if not path.is_file() or not config.validation_start or not config.final_test_start:
+        return {"status":"unavailable","reason":"Need methodology returns and frozen validation dates"}
+    from index_research.statistical_inference import newey_west_ols
+    frame=pd.read_csv(path,index_col=0,parse_dates=True)
+    monthly=pd.read_csv(run_dir/"monthly_results.csv",index_col=0,parse_dates=True)
+    dates=frame.index.intersection(monthly.index)
+    chosen=dates[(dates>=pd.Timestamp(config.validation_start))&
+                 (dates<pd.Timestamp(config.final_test_start))]
+    if len(chosen)<12:
+        return {"status":"unavailable","reason":"Validation segment shorter than 12 months"}
+    candidates=[]
+    for name in frame.columns:
+        series=frame.loc[chosen,name]-monthly.loc[chosen,"benchmark"]
+        if series.isna().any() or not np.isfinite(series.to_numpy()).all():
+            return {"status":"unavailable","reason":"Candidate returns are missing"}
+        try:
+            p=float(newey_west_ols(series).p_values_normal_approx["alpha"])
+        except ValueError:
+            continue
+        if np.isfinite(p):
+            candidates.append({"name":str(name),"uncorrected_p":p})
+    if not candidates:
+        return {"status":"unavailable","reason":"Insufficient valid candidate tests"}
+    ordered=sorted(candidates,key=lambda x:x["uncorrected_p"])
+    m=len(ordered)
+    previous=0.
+    for index,row in enumerate(ordered):
+        previous=min(1.,max(previous,row["uncorrected_p"]*(m-index)))
+        row["holm_familywise_adjusted_p"]=previous
+    return {"status":"exploratory_validation_only","tests":ordered,
+            "family_size":m,
+            "warning":"Only enumerated displayed candidates are corrected. Unknown previous "
+                      "factor searches, parameter choices, survivorship and source biases remain."}
+
+
 def run_studies(data_dir: str | Path, output_dir: str | Path,
                 config_path: str | Path) -> dict:
     source = Path(data_dir).expanduser().resolve()
@@ -338,15 +437,35 @@ def run_studies(data_dir: str | Path, output_dir: str | Path,
         return {"status": "blocked", "preflight": readiness, "output": str(output)}
     run_dir = output / "study_A_index"
     _, meta = run_from_directory(source, run_dir, config)
+    risk_history=[]
+    archived_weights=pd.read_csv(run_dir/"post_rebalance_weights.csv",
+                                 index_col=0,parse_dates=True)
+    for period in archived_weights.index[-36:]:
+        estimate=study_b(source,run_dir,as_of=str(period.date()))
+        if estimate.get("status")=="estimated_not_independently_certified":
+            risk_history.append({
+                "date":str(period.date()),
+                "formation_date":estimate["formation_date"],
+                "predicted_tracking_error_annual":estimate["annualized_tracking_error_estimate"],
+                "systematic_variance_annual":estimate["annualized_systematic_variance"],
+                "specific_variance_annual":estimate["annualized_specific_variance"]})
+    if risk_history:
+        pd.DataFrame(risk_history).to_csv(output/"STUDY_B_RISK_HISTORY.csv",index=False)
     findings = {
         "study_A_multi_factor_index": {
             "status": "descriptive_not_independently_audited",
             "metrics_by_split": meta["metrics_by_split"],
             "factor_weights": meta["factor_weights_used"],
             "holdout_inference": inference_for_final_holdout(run_dir, config),
+            "exploratory_validation_multiple_testing": validation_familywise_tests(run_dir,config),
             "limitations": meta["limitations"],
         },
-        "study_B_factor_active_risk": study_b(source, run_dir),
+        "study_B_factor_active_risk": {
+            **study_b(source, run_dir),
+            "historical_ex_ante_estimates":len(risk_history),
+            "history_artifact":("STUDY_B_RISK_HISTORY.csv" if risk_history else None),
+            "history_warning":"Risk history is based on monthly holdings and strictly earlier "
+                              "factor sample, not realized beta/causal attribution."},
         "study_C_robustness_and_data_integrity": study_c(source, run_dir, config),
     }
     manifest = {
@@ -377,7 +496,8 @@ def run_studies(data_dir: str | Path, output_dir: str | Path,
         "Requires factor_returns.csv and complete dated benchmark_weights.csv.",
         "## Study C: robustness and research data integrity",
         "Status: " + findings["study_C_robustness_and_data_integrity"]["status"],
-        "Universe mismatch is diagnostic, NOT quantified survivorship alpha.",
+        "When evidence permits, a separate lookahead-contaminated static-universe "
+        "counterfactual is calculated and labeled NON-CAUSAL.",
         "## Reproduction",
         "Run using the SAME local input data, exact configuration, and checksums.",
         "No licensed source observations are included in this publication ZIP.",
@@ -389,8 +509,13 @@ def run_studies(data_dir: str | Path, output_dir: str | Path,
     (output / "RESEARCH_MEMO.md").write_text("\n\n".join(lines) + "\n")
     bundle = output / "PUBLICATION_SAFE_EVIDENCE.zip"
     with ZipFile(bundle, "w", ZIP_DEFLATED) as z:
-        for name in ("PREFLIGHT.json", "THREE_STUDIES_RESULTS.json", "RESEARCH_MEMO.md"):
-            z.write(output / name, arcname=name)
+        for name in ("PREFLIGHT.json", "THREE_STUDIES_RESULTS.json", "RESEARCH_MEMO.md",
+                     "STUDY_B_RISK_HISTORY.csv"):
+            if (output/name).is_file():
+                z.write(output/name,arcname=name)
+        counterfactual=run_dir/"static_universe_counterfactual.csv"
+        if counterfactual.is_file():
+            z.write(counterfactual,arcname="static_universe_counterfactual.csv")
     return {"status": "exploratory_complete_not_certified",
             "studies": {name: v["status"] for name, v in findings.items()},
             "preflight": readiness, "output": str(output), "bundle": str(bundle)}
