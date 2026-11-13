@@ -260,6 +260,47 @@ def _save_batch(data: dict):
     _atomic_json(_batch_path(data["id"]), data)
 
 
+def _safe_batch_failure(item: dict) -> dict:
+    """Public, actionable error details, without vendor payloads or credentials.
+
+    Individual stored errors can contain unexpected exception messages.
+    Only the observed HTTP status (or a known network category) is
+    surfaced and available to copy from the browser.
+    """
+    raw = str(item.get("error") or "")
+    match = re.search(r"\bHTTP\s+([1-5][0-9]{2})\b", raw, re.IGNORECASE)
+    if match:
+        status = int(match.group(1))
+        code = f"HTTP {status}"
+        summary = (
+            "Dhan rejected this historical candle request. Verify your token and "
+            "Data API subscription; the exact cause is not yet confirmed."
+            if status in (401, 403) else
+            "Dhan rejected the requested instrument, dates or market-data parameters."
+            if status == 400 else
+            "Dhan rate-limited requests. Retry after the provider limit resets."
+            if status == 429 else
+            "Dhan returned a server error. Resume the saved batch later."
+            if status >= 500 else
+            "The Dhan historical-data endpoint rejected this request."
+        )
+        diagnostic = f"Dhan HTTP {status} (vendor response body hidden)"
+    elif "network" in raw.lower() or "timeout" in raw.lower():
+        code = "NETWORK"
+        summary = "Could not reach Dhan's market-data service. Check connectivity and retry."
+        diagnostic = "Dhan network request failed"
+    else:
+        code = "DOWNLOAD ERROR"
+        summary = ("The instrument failed to download. Open stock diagnostics "
+                   "or check your local backend log for additional information.")
+        diagnostic = "Download failed (raw exception hidden for safety)"
+    return {
+        "symbol": str(item.get("symbol", "Unknown"))[:80],
+        "code": code, "explanation": summary,
+        "diagnostic": diagnostic,
+    }
+
+
 def _summarize(data: dict) -> dict:
     counts = {status: sum(1 for i in data["items"] if i["status"] == status)
               for status in ("pending", "downloading", "complete", "cached", "no_data", "failed")}
@@ -283,6 +324,10 @@ def _summarize(data: dict) -> dict:
         "has_price_benchmark": bool(data.get("prepared_dataset_id") and
             (service.DATA / "dhan" / "monthly_research" / data["id"] / "benchmark.csv").is_file()),
         "errors": counts["failed"],
+        "failure_examples": [
+            _safe_batch_failure(item) for item in data["items"]
+            if item["status"] == "failed"
+        ][:4],
         "source": ("DhanHQ OHLCV + reconstructed dated NSE membership"
                    if data.get("historical_index") else "DhanHQ current instrument master"),
         "historical_index_name": data.get("historical_index", {}).get("index_name"),
