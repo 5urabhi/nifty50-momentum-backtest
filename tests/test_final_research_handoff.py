@@ -86,6 +86,14 @@ class FinalResearchHandoffTests(unittest.TestCase):
                          "Generated Markdown must not escape code-fence backticks")
         self.assertIn("```bash",actions)
         self.assertIn("Local dataset: `",actions)
+        # Keep generated fenced CLI as four contiguous shell command lines.
+        shell_block=actions.split("```bash\n",1)[1].split("\n```",1)[0]
+        command_lines=shell_block.splitlines()
+        self.assertEqual(len(command_lines),4)
+        self.assertTrue(all(line.strip() for line in command_lines))
+        self.assertTrue(all(line.endswith(chr(92)) for line in command_lines[:3]))
+        self.assertNotIn(chr(92)+"\n\n",shell_block)
+        self.assertIn("do not use --execute",actions.lower())
         self.assertTrue((dest/"RESEARCH_RELEASE.html").is_file())
         self.assertTrue((dest/"RESEARCH_PAPER_DRAFT.md").is_file())
         with self.assertRaises(FileExistsError):

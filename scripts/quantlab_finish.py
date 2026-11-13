@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+from shlex import quote as shell_quote
 from pathlib import Path
 import shutil
 import sys
@@ -251,12 +252,16 @@ def _next_steps(data: Path, config: Path, status: dict) -> str:
         "combine observed stock wealth, PIT events, TRI, filings, sectors, "
         "and optional factor/capacity sources into a source-hashed package.",
         "## Step 5 — Run the three studies only on complete sourced data",
-        "```bash",
-        "python scripts/quantlab_finish.py doctor \\",
-        "  --data-dir "+str(data)+" \\",
-        "  --config "+str(config)+" \\",
-        "  --output-dir results/research_release_new --execute",
-        "```",
+        "Run only after the source data and methodology preflight pass. "
+        "Do not use --execute while the report is BLOCKED.",
+        "\n".join([
+            "```bash",
+            "python scripts/quantlab_finish.py doctor \\",
+            "  --data-dir "+shell_quote(str(data))+" \\",
+            "  --config "+shell_quote(str(config))+" \\",
+            "  --output-dir results/research_release_new --execute",
+            "```",
+        ]),
         "The three-study runner produces descriptive calculations only. "
         "It never auto-certifies source truth, profitability or publication rights.",
         "## Step 6 — Independent reproduction and research paper",
