@@ -45,6 +45,10 @@ def main(argv=None):
     calendar=sub.add_parser("calendar-align",
         help="Align actually observed trading-session prices and PIT membership to TRI month ends")
     calendar.add_argument("--source-dir",required=True)
+    calendar.add_argument("--membership-file",default=None,
+        help="External effective-dated membership.csv; no manual copying needed")
+    calendar.add_argument("--observed-session-map",default=None,
+        help="Original traded-close month mapping, auto-detected inside source folder")
     calendar.add_argument("--benchmark",default=None,
                           help="Official-normalized benchmark.csv with real prior-month level")
     calendar.add_argument("--output-dir",required=True)
@@ -93,7 +97,9 @@ def main(argv=None):
     elif args.command=="calendar-align":
         result=align_research_calendar(
             args.source_dir,args.output_dir,args.benchmark,
-            max_staleness_days=args.max_staleness_days)
+            max_staleness_days=args.max_staleness_days,
+            membership_csv=args.membership_file,
+            observed_session_map=args.observed_session_map)
         print("Monthly calendar alignment:",result)
         print("Historical source correctness and true TRI provenance still need independent review.")
     elif args.command=="nse-weight-snapshots":
