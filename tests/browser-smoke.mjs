@@ -132,6 +132,21 @@ try {
     await nav('Compare & Visualize').click()
     await page.locator('.rw-top h2').waitFor()
   })
+  await step('Data Manager exposes source completion and recoverable dataset management',async()=>{
+    await nav('Data Library').click()
+    await page.locator('.ws-context-tabs').getByRole('button',{name:'Data manager'}).click()
+    await page.getByRole('heading',{name:'Saved datasets · manage & delete'}).waitFor()
+    const imported=page.getByRole('button',{name:/Delete dataset/})
+    assert.ok(await imported.count()>0,'User-owned datasets need a visible delete action')
+    await page.locator('.ws-dataset-trash summary').waitFor()
+    await page.locator('.ws-dataset-trash summary').click()
+    await page.locator('.ws-dataset-trash').evaluate(el=>el.open===true)
+    await nav('Model Laboratory').click()
+    await page.locator('.ql-family-tabs').getByRole('button',{name:/Stochastic Processes/}).click()
+    await page.getByText('SIMULATED EXAMPLE — NOT LIVE OR HISTORICAL MARKET DATA').waitFor()
+    await nav('Compare & Visualize').click()
+    await page.locator('.rw-top h2').waitFor()
+  })
   await step('Dhan error is visible, safe and the batch arrow opens failed stock details',async()=>{
     // A simulated Dhan refusal only: no token, no real vendor request, no raw
     // response body. The browser must surface the failing symbol/status
@@ -206,6 +221,11 @@ try {
     await page.getByRole('button',{name:'Plot selected observations'}).click()
     await page.locator('.ra-result svg').first().waitFor()
     assert.match(await page.locator('.ra-result').innerText(),/SHA-256/i)
+    const graph=page.locator('.ra-result .ql-svg-chart').first()
+    await graph.hover({position:{x:320,y:140}})
+    await page.locator('.ra-result .ql-active-observation').first().waitFor()
+    assert.ok((await page.locator('.ra-result .ql-active-observation').textContent()).length>3,
+      'Hover must expose actual data values, not a non-interactive line')
     await screenshot('02-plot-scatter')
     const figure=await apiJson('/api/workspace/plot-builder/columns/upload_ci_browser_smoke')
     assert.equal(figure.total_columns,4)

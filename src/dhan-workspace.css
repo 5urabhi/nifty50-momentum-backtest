@@ -296,3 +296,21 @@
   .dh-batch-open-label{font-size:10px}
   .dh-batch-numbers{display:none}
 }
+
+
+/* Batch-level queue cleanup, separate from protected canonical candle cache. */
+.dh-batch-entry{display:flex;gap:8px;align-items:center;min-width:0}
+.dh-batch-entry>.dh-batch-row{flex:1;min-width:0}
+.dh-batch-delete{display:flex;align-items:center;justify-content:center;gap:5px;flex-shrink:0;
+  padding:11px 12px;border:1px solid #915f63;color:#ffc2ca;background:#32242d;
+  border-radius:8px;cursor:pointer;font-size:11px;font-weight:700}
+.dh-batch-delete:hover:not(:disabled){background:#4b303b}
+.dh-batch-delete:disabled{opacity:.45;cursor:not-allowed}
+.dh-deleted-list{display:grid;gap:8px;margin:12px 15px 16px}
+.dh-deleted-list .dh-batch-entry{background:#0c1b26;border:1px solid #345260;
+  border-radius:9px;padding:12px;flex-wrap:wrap}
+.dh-deleted-name{flex:1;min-width:160px}
+.dh-deleted-name strong{display:block;color:#d5eee6;font-size:12px}
+.dh-deleted-name small{color:#98b3bf;font-size:10px;overflow-wrap:anywhere}
+.dh-deleted-downloads>p{padding:0 15px}
+@media(max-width:650px){.dh-batch-entry>.dh-batch-row{flex-wrap:wrap}.dh-batch-entry>.dh-batch-delete{padding:9px}}

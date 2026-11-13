@@ -18,3 +18,63 @@
 .ws-context-tabs button:focus-visible{outline:2px solid #7de7c8;outline-offset:2px}
 @media(max-width:700px){.ws-context-tabs{overflow-x:auto;flex-wrap:nowrap}
 .ws-context-tabs button{white-space:nowrap}}
+
+
+/* Guided original benchmark source and locally managed research datasets. */
+.ws-complete-guide{margin:16px 0;padding:18px;background:#102b33;border:1px solid #41786d;
+  border-radius:11px;color:#dcefee}
+.ws-complete-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  flex-wrap:wrap;margin-bottom:10px}
+.ws-complete-heading strong{font-size:14px;color:#c6ffee}
+.ws-complete-heading span{background:#304b42;color:#e6edc1;padding:6px 9px;
+  border-radius:20px;font-size:10px}
+.ws-tri-import p{font-size:12px;line-height:1.7;color:#b6c9cb}
+.ws-tri-import a{display:inline-flex;margin:8px 0;color:#86efd1;
+  text-decoration:underline;text-underline-offset:3px;font-size:12px}
+.ws-file-input{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:650;
+  margin:13px 0;color:#c5e8e6}
+.ws-file-input input{min-height:42px;background:#0b1d28;border:1px solid #3e6063;
+  border-radius:8px;padding:10px;color:#c7efe5;max-width:100%}
+.ws-file-input small{font-size:11px;color:#93c9b7;overflow-wrap:anywhere}
+.ws-tri-advanced{border:1px solid #355963;background:#10212d;border-radius:9px;
+  padding:12px 14px;margin:12px 0}
+.ws-tri-advanced summary{cursor:pointer;color:#9feacf;font-size:12px;font-weight:700}
+.ws-tri-advanced label{display:flex;flex-direction:column;gap:6px;font-size:11px;margin-top:12px}
+.ws-tri-advanced input,.ws-tri-advanced select{padding:9px;border-radius:6px;border:1px solid #3c6563;
+  color:#e0fff7;background:#0c2530;width:min(100%,340px)}
+.ws-tri-ack{display:flex;align-items:flex-start;gap:10px;font-size:11px;line-height:1.6;
+  color:#cfdfdf;margin:15px 0}
+.ws-tri-ack input{accent-color:#6deac5;margin-top:3px;flex-shrink:0}
+.ws-dataset-manage-list{display:grid;gap:7px;margin:12px 0}
+.ws-dataset-manage-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  background:#101f2c;border:1px solid #34515b;border-radius:9px;padding:12px}
+.ws-dataset-manage-row>div{flex:1;min-width:200px}
+.ws-dataset-manage-row strong{font-size:12px;display:block;overflow-wrap:anywhere}
+.ws-dataset-manage-row small{font-size:10px;color:#8caeb4;overflow-wrap:anywhere}
+.ws-dataset-manage-row .ws-button{min-height:37px}
+.ws-dataset-manage-row .ws-delete{border-color:#975d60;color:#ffced1;background:#412832}
+.ws-protected-label{font-size:10px;color:#9ab2b4}
+.ws-dataset-trash{margin-top:13px}
+@media(max-width:700px){.ws-dataset-manage-row>div{flex-basis:100%}}
+
+
+/* Actual computed return series: switch chart semantics and inspect values. */
+.ws-interactive-chart{position:relative}
+.ws-chart-views{display:flex;gap:6px;flex-wrap:wrap}
+.ws-chart-views button{border:1px solid #385968;border-radius:7px;
+  background:#112b38;color:#a9c4cb;padding:7px 10px;cursor:pointer;
+  font-size:11px;line-height:1.25}
+.ws-chart-views button.active,.ws-chart-views button[aria-pressed=true]{
+  background:#1d514b;border-color:#67deba;color:#e6fff5;font-weight:700}
+.ws-chart-views button:focus-visible{outline:2px solid #9bf4d5;outline-offset:3px}
+.ws-chart-legend{display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;font-size:11px;color:#9dbec7;margin:10px 0}
+.ws-chart-legend .ws-dot{margin-left:8px;margin-right:3px}
+.ws-interactive-svg{cursor:crosshair;width:100%;max-width:100%}
+.ws-interactive-svg:focus-visible{outline:2px solid #89e7c7;outline-offset:3px}
+.ws-chart-focus text{pointer-events:none}
+.ws-interactive-chart .ws-caption{margin:10px 0 0;color:#a6bdc9}
+@media(max-width:650px){
+  .ws-chart-views{width:100%}
+  .ws-chart-views button{flex:1 1 115px}
+}

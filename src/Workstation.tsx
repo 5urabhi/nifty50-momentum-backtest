@@ -4,7 +4,7 @@ import {
   CheckCircle2, ChevronRight, CircleAlert, Clock3, Database, FileArchive,
   FileText, FlaskConical, Gauge, LoaderCircle,
   LockKeyhole, Menu, Play, RefreshCw, Settings2,
-  ShieldCheck, Sigma, Upload, X
+  ShieldCheck, Sigma, Upload, Trash2, RotateCcw, X
 } from 'lucide-react'
 import './workstation.css'
 import DhanDataManager from './DhanDataManager'
@@ -19,6 +19,8 @@ type Job = {id:string; kind:string; status:'queued'|'running'|'complete'|'error'
 type Detail = {id:string;meta:{config:Dict; metrics_by_split:Record<string,Dict>; coverage:Dict; limitations:string[]; first_price_date:string;last_price_date:string; generated_utc:string};source:Dict;returns:Dict[];latest_weights:{name:string;weight:number}[];rank_ic:Dict[];factor_exposures:Dict[];concentration:Dict[];rolling:Dict[];cost_sensitivity:Dict[];robustness:Dict[];methodologies:Dict[];audit:Dict;data_quality:Dict;artifacts:string[]}
 type Health = {ok:boolean; mode:string; framework:string; read_only_market_data:boolean; broker_orders_enabled:boolean; dhan_token_configured:boolean; datasets:number;completed_runs:number}
 type DhanStatus = {token_configured:boolean;instrument_master_available:boolean;instrument_master_bytes:number;read_only:boolean}
+type DatasetTrash = {id:string;kind:string;title:string;trashed:boolean;protected:boolean}
+
 type RunConfig = {
   name:string;factor_weights:Record<string,number>;top_n:number;weighting:string;
   max_weight:number;rebalance_every:number;cost_bps:number;execution_lag:number;
@@ -75,32 +77,142 @@ function Table({rows,max=15}:{rows:Dict[];max?:number}){
   const keys=Object.keys(rows[0]).slice(0,11)
   return <div className="ws-table-scroll"><table><thead><tr>{keys.map(k=><th key={k}>{label(k)}</th>)}</tr></thead><tbody>{rows.slice(0,max).map((row,i)=><tr key={i}>{keys.map(k=><td key={k} title={String(row[k]??'')}>{typeof row[k]==='number'?number(row[k],4):String(row[k]??'—')}</td>)}</tr>)}</tbody></table></div>
 }
-function EquityChart({rows,caption='Strategy vs benchmark',height=270}:{rows:Dict[];caption?:string;height?:number}){
+function EquityChart({rows,caption='Strategy vs benchmark',height=300}:{rows:Dict[];caption?:string;height?:number}){
+  type View='wealth'|'excess'|'drawdown'
+  const [view,setView]=useState<View>('wealth')
+  const [hover,setHover]=useState<number|null>(null)
   const points=useMemo(()=>{
-    let a=1,b=1
-    return rows.map((r,i)=>{const sa=Number(r.strategy_net), sb=Number(r.benchmark)
-      if(Number.isFinite(sa)&&sa>-1)a*=1+sa
-      if(Number.isFinite(sb)&&sb>-1)b*=1+sb
-      return {x:i, strategy:a, benchmark:b,date:String(r.date??'')}
+    let strategy=1,benchmark=1,strategyHigh=1,benchmarkHigh=1
+    return rows.flatMap(r=>{
+      const sr=Number(r.strategy_net),br=Number(r.benchmark)
+      if(!Number.isFinite(sr)||!Number.isFinite(br)||sr<=-1||br<=-1)return []
+      strategy*=1+sr;benchmark*=1+br
+      strategyHigh=Math.max(strategyHigh,strategy)
+      benchmarkHigh=Math.max(benchmarkHigh,benchmark)
+      return [{
+        date:String(r.date||''),strategy,benchmark,
+        excess:(sr-br)*100,
+        strategyDrawdown:(strategy/strategyHigh-1)*100,
+        benchmarkDrawdown:(benchmark/benchmarkHigh-1)*100,
+      }]
     })
   },[rows])
-  if(points.length<2)return <Empty title="Awaiting return series">The chart is built from saved Python run results, never placeholder performance data.</Empty>
-  const all=points.flatMap(p=>[p.strategy,p.benchmark]).filter(Number.isFinite)
-  const low=Math.min(...all),high=Math.max(...all),range=Math.max(.001,high-low)
-  const path=(key:'strategy'|'benchmark')=>points.map((p,i)=>{
-    const x=46+(i/(points.length-1))*894
-    const y=240-((p[key]-low)/range)*206
-    return (i===0?'M':'L')+x.toFixed(2)+' '+y.toFixed(2)
-  }).join(' ')
-  return <div className="ws-chart"><div className="ws-chartheader"><span>{caption}</span><div><i className="ws-dot mint"/> Strategy <i className="ws-dot gold"/> Benchmark</div></div>
-    <svg viewBox="0 0 980 282" preserveAspectRatio="none" style={{height}} role="img" aria-label="Cumulative wealth chart computed from saved net monthly strategy returns and benchmark returns">
-      {[0,.25,.5,.75,1].map(v=><g key={v}><line x1="46" x2="940" y1={240-v*206} y2={240-v*206} stroke="#253143" strokeDasharray="3 7"/><text x="8" y={244-v*206} fill="#8396a9" fontSize="12">{number(low+v*range,1)}x</text></g>)}
-      <path d={path('benchmark')} stroke="#e3b675" fill="none" strokeWidth="2.4" vectorEffect="non-scaling-stroke"/>
-      <path d={path('strategy')} stroke="#64dbc2" fill="none" strokeWidth="3" vectorEffect="non-scaling-stroke"/>
-      <text x="46" y="269" fill="#8295aa" fontSize="12">{points[0].date.slice(0,10)}</text>
-      <text x="830" y="269" fill="#8295aa" fontSize="12">{points[points.length-1].date.slice(0,10)}</text>
+  if(points.length<2)return <Empty title="Awaiting observed return series">
+    A saved backtest needs at least two valid strategy and benchmark returns.
+    Demo or missing returns are never filled in.
+  </Empty>
+  const read=(p:(typeof points)[number],which:'strategy'|'benchmark')=>
+    view==='wealth'?p[which]:view==='drawdown'?
+      which==='strategy'?p.strategyDrawdown:p.benchmarkDrawdown:p.excess
+  const values=points.flatMap(p=>view==='excess'?[p.excess]:[read(p,'strategy'),read(p,'benchmark')])
+  const low=Math.min(...values,...(view==='wealth'?[]:[0]))
+  const high=Math.max(...values,...(view==='wealth'?[]:[0]))
+  const pad=Math.max(.0001,(high-low)*.08)
+  const floor=low-pad,ceil=high+pad,range=ceil-floor
+  const left=65,right=935,top=29,bottom=238,width=right-left
+  const xAt=(i:number)=>left+(i/(points.length-1))*width
+  const yAt=(value:number)=>bottom-(value-floor)/range*(bottom-top)
+  const path=(key:'strategy'|'benchmark')=>points.map((p,i)=>
+    (i===0?'M':'L')+xAt(i).toFixed(2)+' '+yAt(read(p,key)).toFixed(2)).join(' ')
+  const selected=hover!==null?points[hover]:null
+  const valueLabel=(n:number)=>view==='wealth'?n.toFixed(3)+'×':n.toFixed(2)+'%'
+  const whichLabel=view==='drawdown'?'Drawdown':view==='excess'?'Monthly excess return':'Cumulative wealth'
+  const captionText=view==='wealth'?
+    'Normalized to 1.00× at the first valid month; from saved Python returns.':
+    view==='drawdown'?'Drawdown from the previous observed cumulative peak; negative means underwater.':
+      'Monthly net strategy return minus benchmark return, in percentage points.'
+  return <div className="ws-chart ws-interactive-chart">
+    <div className="ws-chartheader">
+      <span>{caption}</span>
+      <div className="ws-chart-views" role="group" aria-label="Performance graph type">
+        {([['wealth','Growth line'],['excess','Monthly difference'],['drawdown','Drawdown area']] as const)
+          .map(([id,name])=><button type="button" key={id}
+            className={view===id?'active':''} aria-pressed={view===id}
+            onClick={()=>{setView(id);setHover(null)}}>{name}</button>)}
+      </div>
+    </div>
+    <div className="ws-chart-legend">
+      <span>{whichLabel}</span>
+      {view!=='excess'&&<span><i className="ws-dot mint"/> Strategy <i className="ws-dot gold"/> Benchmark</span>}
+      {view==='excess'&&<span>Mint = outperformance · Amber = underperformance</span>}
+    </div>
+    <svg viewBox="0 0 980 280" preserveAspectRatio="none" style={{height}}
+      className="ws-interactive-svg" tabIndex={0} role="img"
+      aria-label={whichLabel+' from saved return observations. Hover for values, or use arrow keys.'}
+      onMouseMove={event=>{
+        const rect=event.currentTarget.getBoundingClientRect()
+        if(!rect.width)return
+        const relative=(event.clientX-rect.left)/rect.width*980
+        setHover(Math.max(0,Math.min(points.length-1,Math.round(
+          (relative-left)/width*(points.length-1)
+        ))))
+      }}
+      onMouseLeave={()=>setHover(null)}
+      onFocus={()=>setHover(points.length-1)}
+      onBlur={()=>setHover(null)}
+      onKeyDown={event=>{
+        if(event.key==='ArrowLeft'||event.key==='ArrowRight'){
+          event.preventDefault()
+          setHover(v=>Math.max(0,Math.min(points.length-1,
+            (v??points.length-1)+(event.key==='ArrowRight'?1:-1))))
+        }
+        if(event.key==='Home'){event.preventDefault();setHover(0)}
+        if(event.key==='End'){event.preventDefault();setHover(points.length-1)}
+      }}>
+      {[0,.25,.5,.75,1].map(t=><g key={t}>
+        <line x1={left} x2={right} y1={top+t*(bottom-top)}
+          y2={top+t*(bottom-top)} stroke="#34485a" strokeDasharray="3 7"/>
+        <text x={left-7} y={top+t*(bottom-top)+4} fill="#9db5c2"
+          fontSize="12" textAnchor="end">{valueLabel(ceil-t*range)}</text>
+      </g>)}
+      {view==='excess'?<>
+        <line x1={left} x2={right} y1={yAt(0)} y2={yAt(0)}
+          stroke="#b3bac6" strokeWidth="1.2"/>
+        {points.map((p,i)=>{
+          const x=xAt(i),zero=yAt(0),value=yAt(p.excess)
+          const barWidth=Math.max(1.6,Math.min(18,width/points.length*.7))
+          return <rect key={i} x={x-barWidth/2}
+            y={Math.min(zero,value)} width={barWidth}
+            height={Math.max(1,Math.abs(zero-value))}
+            fill={p.excess>=0?'#65ddc3':'#ecaf75'}
+            opacity={hover===i?1:.82}/>
+        })}
+      </>:<>
+        {view==='drawdown'&&(['benchmark','strategy'] as const).map((k,i)=>
+          <path key={k} d={path(k)+' L '+right+','+yAt(0)+' L '+left+','+yAt(0)+' Z'}
+            fill={i?'#58dcc4':'#e6b77b'} opacity=".13"/>)}
+        <path d={path('benchmark')} stroke="#e3b675" fill="none" strokeWidth="2.2"
+          vectorEffect="non-scaling-stroke"/>
+        <path d={path('strategy')} stroke="#64dbc2" fill="none" strokeWidth="2.9"
+          vectorEffect="non-scaling-stroke"/>
+      </>}
+      {selected&&hover!==null&&<g className="ws-chart-focus">
+        <line x1={xAt(hover)} x2={xAt(hover)} y1={top} y2={bottom}
+          stroke="#d2ecdf" strokeDasharray="4 4" strokeWidth="1.1"/>
+        {view!=='excess'&&(['strategy','benchmark'] as const).map(k=>
+          <circle key={k} cx={xAt(hover)} cy={yAt(read(selected,k))} r="4.6"
+            stroke="#0b2230" strokeWidth="2" fill={k==='strategy'?'#64dbc2':'#e3b675'}/>)}
+        <rect x={Math.min(xAt(hover)+12,right-202)} y={top+3}
+          width="201" height={view==='excess'?63:87} rx="9" fill="#0c2533"
+          stroke="#73938f" strokeOpacity=".8"/>
+        <text x={Math.min(xAt(hover)+23,right-191)} y={top+21}
+          fontSize="12" fill="#e3f5ed">{selected.date.slice(0,10)}</text>
+        {view==='excess'?<text x={Math.min(xAt(hover)+23,right-191)} y={top+43}
+          fill={selected.excess>=0?'#70efd0':'#ffc48f'} fontSize="12">
+          {'Strategy − Benchmark: '+valueLabel(selected.excess)}
+        </text>:<>
+          <text x={Math.min(xAt(hover)+23,right-191)} y={top+43}
+            fill="#6fe8ce" fontSize="12">Strategy: {valueLabel(read(selected,'strategy'))}</text>
+          <text x={Math.min(xAt(hover)+23,right-191)} y={top+64}
+            fill="#ffc98e" fontSize="12">Benchmark: {valueLabel(read(selected,'benchmark'))}</text>
+        </>}
+      </g>}
+      <text x={left} y="271" fill="#9eb6c8" fontSize="11">{points[0].date.slice(0,10)}</text>
+      <text x={right} y="271" fill="#9eb6c8" textAnchor="end"
+        fontSize="11">{points[points.length-1].date.slice(0,10)}</text>
     </svg>
-    <p className="ws-caption">Normalized to 1.00 at the start of the saved return series. Descriptive research only; not proof of investability.</p>
+    <p className="ws-caption">{captionText} Hover to inspect dates and exact values.
+      The chart is descriptive, not proof of investability.</p>
   </div>
 }
 function BarRows({rows,valueKey='weight',nameKey='name'}:{rows:Dict[];valueKey?:string;nameKey?:string}){
@@ -124,6 +236,12 @@ function App(){
   const [health,setHealth]=useState<Health|null>(null)
   const [datasets,setDatasets]=useState<Dataset[]>([])
   const [selectedDataset,setSelectedDataset]=useState('')
+  const [deletedDatasets,setDeletedDatasets]=useState<DatasetTrash[]>([])
+  const [triFile,setTriFile]=useState<File|null>(null)
+  const [triDateColumn,setTriDateColumn]=useState('Date')
+  const [triLevelColumn,setTriLevelColumn]=useState('Total Returns Index')
+  const [triConfirmed,setTriConfirmed]=useState(false)
+  const [triConvention,setTriConvention]=useState('gross_total_return')
   const [runs,setRuns]=useState<Run[]>([])
   const [selectedRun,setSelectedRun]=useState('')
   const [detail,setDetail]=useState<Detail|null>(null)
@@ -148,11 +266,13 @@ function App(){
   const notify=(text:string,error=false)=>setNotice({text,error})
   const refresh=useCallback(async()=>{
     try {
-      const [h, ds, rr, dh]=await Promise.all([
+      const [h, ds, rr, dh, resources]=await Promise.all([
         request<Health>('/health'),request<{datasets:Dataset[]}>('/datasets'),
-        request<{runs:Run[]}>('/runs'),request<DhanStatus>('/dhan/status')
+        request<{runs:Run[]}>('/runs'),request<DhanStatus>('/dhan/status'),
+        request<{resources:DatasetTrash[]}>('/workspace/resources?include_trashed=true')
       ])
       setHealth(h);setDatasets(ds.datasets);setRuns(rr.runs);setDhan(dh)
+      setDeletedDatasets(resources.resources.filter(r=>r.kind==='dataset'&&r.trashed))
       setSelectedDataset(s=>{
         const existing=ds.datasets.find(d=>d.id===s)
         if(existing&&existing.kind!=='synthetic')return s
@@ -209,6 +329,40 @@ function App(){
       return request<Dataset>('/datasets/import',{method:'POST',body:form})
     },r=>{void refresh();setSelectedDataset(r.id);notify('Dataset imported for internal validation; provenance remains unverified.')})
   }
+  const attachTri=async()=>{
+    if(!dataset||!triFile||!triConfirmed)return
+    await execute(async()=>{
+      const form=new FormData()
+      form.append('file',triFile)
+      form.append('confirmed_tri','true')
+      form.append('date_column',triDateColumn)
+      form.append('level_column',triLevelColumn)
+      form.append('convention',triConvention)
+      form.append('index_name',dataset.label.toLowerCase().includes('bank')?'NIFTY BANK TRI':'NIFTY 50 TRI')
+      return request<Dataset & {benchmark_caveat:string}>(
+        '/datasets/'+encodeURIComponent(dataset.id)+'/add-tri',{method:'POST',body:form})
+    },r=>{
+      void refresh();setSelectedDataset(r.id);setTriFile(null);setTriConfirmed(false)
+      notify('New data version created with aligned TRI benchmark. Original source reviews and dividends remain unverified.')
+    })
+  }
+  const trashDataset=(d:Dataset)=>{
+    if(!window.confirm('Move '+d.label+' to recoverable Trash? Original Dhan candle history is protected. Saved runs referring to this dataset may block deletion.'))return
+    void execute(()=>post('/workspace/resources/action',{
+      kind:'dataset',item_id:d.id,action:'trash',confirm:true,
+    }),()=>{void refresh();notify('Dataset moved to Trash. Original market cache is intact.')})
+  }
+  const restoreDataset=(id:string)=>{
+    void execute(()=>post('/workspace/resources/action',{
+      kind:'dataset',item_id:id,action:'restore',
+    }),()=>{void refresh();setSelectedDataset(id);notify('Dataset restored.')})
+  }
+  const purgeDataset=(id:string)=>{
+    if(!window.confirm('Permanently delete this trashed derived dataset? This cannot be undone. Shared original candles are not removed.'))return
+    void execute(()=>post('/workspace/resources/action',{
+      kind:'dataset',item_id:id,action:'purge',confirm:true,
+    }),()=>{void refresh();notify('Derived dataset permanently removed.')})
+  }
   const downloadReport=()=>execute(()=>post<{job_id:string}>('/runs/'+selectedRun+'/reports',{}),r=>{setJob({id:r.job_id,kind:'reports',status:'queued'});notify('Report export queued.')})
   const runPicker=<select aria-label="Select completed experiment" className="ws-select" value={selectedRun} onChange={e=>setSelectedRun(e.target.value)}>{runs.length===0?<option value="">No runs yet</option>:runs.map(r=><option key={r.id} value={r.id}>{r.name} · {r.id}</option>)}</select>
   const dataPicker=<select className="ws-select" aria-label="Select research dataset" value={selectedDataset} onChange={e=>{setSelectedDataset(e.target.value)}}><option value="">Choose dataset</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.label}{d.ready?'':' (incomplete)'}</option>)}</select>
@@ -252,12 +406,89 @@ function App(){
           <div className="ws-grid halves"><Card title="Research datasets" extra={<button className="ws-textlink" onClick={()=>begin('data')}>Manage <ArrowRight size={13}/></button>}><div className="ws-item-list">{datasets.slice(0,5).map(d=><button className="ws-dataset-row" key={d.id} onClick={()=>{setSelectedDataset(d.id);begin('data')}}><Database size={17}/><span><strong>{d.label}</strong><small>{d.basis}</small></span><Tag tone={d.ready?'good':'warn'}>{d.ready?'READY':'INCOMPLETE'}</Tag></button>)}{datasets.length===0&&<p className="ws-caption">No datasets found.</p>}</div></Card><Card title="Recent experiments" extra={<button className="ws-textlink" onClick={()=>begin('history')}>View history <ArrowRight size={13}/></button>}><div className="ws-item-list">{runs.slice(0,5).map(r=><button className="ws-dataset-row" key={r.id} onClick={()=>{setSelectedRun(r.id);begin('history')}}><Clock3 size={17}/><span><strong>{r.name}</strong><small>{r.id} · {date(r.created_utc)}</small></span><Tag tone={r.dataset_kind==='synthetic'?'warn':'blue'}>{r.dataset_kind}</Tag></button>)}{runs.length===0&&<p className="ws-caption">No completed runs yet.</p>}</div></Card></div>
         </>}
         {tab==='data'&&<>
-          <div className="ws-grid halves"><Card title="Select research dataset" extra={dataPicker}><p className="ws-caption">Need data? Use the guided downloader: choose stocks, choose dates, download, then prepare. Completed downloads stay saved locally. Historical investment claims still require source checks.</p><div className="ws-actions"><button className="ws-button primary" onClick={()=>begin('dhan')}><Database size={15}/> Download market data</button><button className="ws-button" disabled={busy} onClick={synthetic}><Beaker size={15}/> Create synthetic test dataset</button><label className={'ws-button secondary '+(busy?'disabled':'')}><Upload size={15}/> Import research ZIP<input hidden type="file" accept=".zip" disabled={busy} onChange={e=>{const f=e.target.files?.[0];if(f)void upload(f);e.target.value=''}}/></label></div><p className="ws-caption">ZIP requires prices.csv, membership.csv and benchmark.csv; optionally fundamentals.csv, sectors.csv and corporate_actions.csv. Import does not certify the data.</p></Card><Card title="Selected dataset readiness">{dataset?<><div className="ws-selected-dataset"><strong>{dataset.label}</strong><Tag tone={dataset.ready?'good':'warn'}>{dataset.ready?'FILES COMPLETE':'MISSING INPUTS'}</Tag></div>
+          <div className="ws-grid halves"><Card title="Select research dataset" extra={dataPicker}><p className="ws-caption">Need data? Use the guided downloader: choose stocks, choose dates, download, then prepare. Completed downloads stay saved locally. Historical investment claims still require source checks.</p><div className="ws-actions"><button className="ws-button primary" onClick={()=>begin('dhan')}><Database size={15}/> Download market data</button><button className="ws-button" disabled={busy} onClick={synthetic}><Beaker size={15}/> Create synthetic test dataset</button><label className={'ws-button secondary '+(busy?'disabled':'')}><Upload size={15}/> Import research ZIP<input hidden type="file" accept=".zip" disabled={busy} onChange={e=>{const f=e.target.files?.[0];if(f)void upload(f);e.target.value=''}}/></label></div><p className="ws-caption">ZIP requires prices.csv, membership.csv and benchmark.csv; optionally fundamentals.csv, sectors.csv and corporate_actions.csv. Import does not certify the data.</p></Card><Card title="Selected dataset readiness">{dataset?<><div className="ws-selected-dataset"><strong>{dataset.label}</strong><Tag tone={dataset.ready?'good':'warn'}>{dataset.ready?'CORE FILES PRESENT':'MISSING CORE INPUTS'}</Tag></div>
+          {!dataset.ready&&dataset.has_prices&&<div className="ws-complete-guide">
+            <div className="ws-complete-heading">
+              <strong>Complete the missing dataset inputs</strong>
+              <span>{dataset.missing.includes('benchmark.csv')?'1 essential input missing':'Check required data below'}</span>
+            </div>
+            {dataset.missing.includes('benchmark.csv')?<div className="ws-tri-import">
+              <p><b>Missing: Official NIFTY total-return benchmark.</b> Your stock prices and
+                historical membership are already saved. Don't download those again.</p>
+              <a href="https://www.niftyindices.com/reports/historical-data"
+                target="_blank" rel="noreferrer">Get NIFTY Total Returns Index levels from the exchange ↗</a>
+              <p>Choose an original TRI levels CSV covering the entire stock period,
+                <b> including the prior month.</b> A Dhan spot price index is not TRI.</p>
+              <label className="ws-file-input"><span>1. Choose TRI CSV</span>
+                <input aria-label="Choose NIFTY TRI levels CSV" type="file" accept=".csv,text/csv"
+                  onChange={e=>{setTriFile(e.target.files?.[0]||null);e.target.value=''}}/>
+                {triFile&&<small>Selected: {triFile.name}</small>}
+              </label>
+              <details className="ws-tri-advanced"><summary>CSV column names (change only if different)</summary>
+                <label>Date column <input aria-label="TRI date column" value={triDateColumn}
+                  onChange={e=>setTriDateColumn(e.target.value)}/></label>
+                <label>TRI index level column <input aria-label="TRI level column" value={triLevelColumn}
+                  onChange={e=>setTriLevelColumn(e.target.value)}/></label>
+                <label>Index return convention <select aria-label="TRI return convention"
+                    value={triConvention} onChange={e=>setTriConvention(e.target.value)}>
+                    <option value="gross_total_return">Gross total return</option>
+                    <option value="net_total_return">Net total return</option>
+                  </select></label>
+              </details>
+              <label className="ws-tri-ack"><input type="checkbox" checked={triConfirmed}
+                onChange={e=>setTriConfirmed(e.target.checked)}/>
+                I confirm this authorized CSV contains original total-return <b>levels</b>, not price-index closes.
+              </label>
+              <button className="ws-button primary" type="button"
+                disabled={busy||!triFile||!triConfirmed} onClick={()=>void attachTri()}>
+                {busy?<LoaderCircle size={14}/>:<Upload size={14}/>} 2. Validate and add TRI benchmark
+              </button>
+              <p className="ws-caption">QuantLab creates a <b>new</b> dataset version, verifies exact monthly
+                alignment, and leaves the original dataset unchanged. Adding TRI does not automatically verify
+                constituent dividends, corporate events or research publication rights.</p>
+            </div>:<p className="ws-caption">The dataset is missing required monthly price or
+              historical membership records. Use Download market data to prepare them.</p>}
+            <p className="ws-caption"><b>Optional inputs:</b> fundamentals.csv for Value/Quality/Size/Yield
+              factors; sectors.csv for sector constraints. These are not required for price-only
+              momentum and volatility research.</p>
+          </div>}
           {dataset.benchmark_kind==='price_index_spot_only'&&<div className="ws-warning">
             <p>PRICE-INDEX BENCHMARK ONLY — Dhan NIFTY spot data does not include reinvested dividends. Files may be structurally complete for exploratory comparisons, but this is NOT an independently verified total-return benchmark or research certification. Stock splits, dividends and corporate actions still require review.</p>
-          </div>}<p className="ws-caption">{dataset.basis}</p><div className="ws-checklist">{['prices.csv','daily_prices.csv','membership.csv','benchmark.csv','fundamentals.csv','sectors.csv'].map(name=><div key={name}>{dataset.files.includes(name)?<Check size={16}/>:<CircleAlert size={16}/>}<span>{name}</span><small>{dataset.files.includes(name)?'PRESENT':'NOT SUPPLIED'}</small></div>)}</div><div className="ws-actions"><button className="ws-button secondary" disabled={!dataset.ready||busy} onClick={()=>execute(()=>request<Dict>('/datasets/'+dataset.id+'/audit'),r=>{notify('Internal consistency audit completed; external validation remains required.');setAuditResult(r)})}>Run data audit</button><button className="ws-button primary" onClick={()=>begin('research')}>Use in research <ArrowRight size={14}/></button></div></>:<Empty title="Choose a dataset">Upload verified input files or create a synthetic software demonstration.</Empty>}</Card></div>
+          </div>}<p className="ws-caption">{dataset.basis}</p><div className="ws-checklist">{['prices.csv','daily_prices.csv','membership.csv','benchmark.csv','fundamentals.csv','sectors.csv'].map(name=><div key={name}>{dataset.files.includes(name)?<Check size={16}/>:<CircleAlert size={16}/>}<span>{name}</span><small>{dataset.files.includes(name)?'PRESENT':(['daily_prices.csv','fundamentals.csv','sectors.csv'].includes(name)?'OPTIONAL':'MISSING')}</small></div>)}</div><div className="ws-actions"><button className="ws-button secondary" disabled={!dataset.ready||busy} onClick={()=>execute(()=>request<Dict>('/datasets/'+dataset.id+'/audit'),r=>{notify('Internal consistency audit completed; external validation remains required.');setAuditResult(r)})}>Run data audit</button><button className="ws-button primary" onClick={()=>begin('research')}>Use in research <ArrowRight size={14}/></button></div></>:<Empty title="Choose a dataset">Upload verified input files or create a synthetic software demonstration.</Empty>}</Card></div>
           {auditResult&&<Card title="Internal consistency audit"><div className="ws-data-audit">{Object.entries(auditResult).filter(([k])=>k!=='warnings').map(([k,v])=><div key={k}><span>{label(k)}</span><strong>{typeof v==='object'?JSON.stringify(v):String(v)}</strong></div>)}</div>{Array.isArray(auditResult.warnings)&&<div className="ws-warning">{auditResult.warnings.map((w,i)=><p key={i}>• {String(w)}</p>)}</div>}</Card>}
           <Card title="Imported dataset library"><Table rows={datasets.map(d=>({name:d.label,kind:d.kind,ready:d.ready,benchmark:d.benchmark_kind==='price_index_spot_only'?'PRICE INDEX (not TRI)':d.benchmark_kind||'missing',daily_prices:d.has_daily_prices?'yes':'no',source_resolution:d.source_interval_minutes===null?'daily':d.source_interval_minutes?d.source_interval_minutes+' min':'unreported',missing:d.missing.join(', ')||'none',basis:d.basis}))}/></Card>
+          <Card title="Saved datasets · manage & delete">
+            <p className="ws-caption">You can delete uploaded datasets and derived Dhan research views here.
+              Original shared Dhan candles are protected, and referenced datasets cannot be deleted until dependent results are removed.</p>
+            <div className="ws-dataset-manage-list">
+              {datasets.map(d=><div className="ws-dataset-manage-row" key={d.id}>
+                <div><strong>{d.label}</strong>
+                  <small>{d.id} · {d.ready?'Core inputs present':'Missing '+(d.missing.join(', ')||'inputs')}</small>
+                </div>
+                <button className="ws-button" type="button"
+                  onClick={()=>{setSelectedDataset(d.id);window.scrollTo({top:0,behavior:'smooth'})}}>
+                  Select
+                </button>
+                {(d.id.startsWith('upload_')||d.id.startsWith('dhan_batch_'))?
+                  <button type="button" className="ws-button ws-delete" disabled={busy}
+                    aria-label={'Delete dataset '+d.label} onClick={()=>trashDataset(d)}>
+                    <Trash2 size={14}/> Delete
+                  </button>:<small className="ws-protected-label">Protected source</small>}
+              </div>)}
+            </div>
+            <details className="ws-tri-advanced ws-dataset-trash">
+              <summary>Deleted datasets ({deletedDatasets.length}) · restore or permanently delete</summary>
+              {deletedDatasets.length===0?<p className="ws-caption">No deleted datasets.</p>:
+                <div className="ws-dataset-manage-list">{deletedDatasets.map(d=>
+                  <div className="ws-dataset-manage-row" key={d.id}>
+                    <div><strong>{d.title}</strong><small>{d.id}</small></div>
+                    <button type="button" className="ws-button" disabled={busy}
+                      onClick={()=>restoreDataset(d.id)}><RotateCcw size={14}/> Restore</button>
+                    <button type="button" className="ws-button ws-delete" disabled={busy}
+                      onClick={()=>purgeDataset(d.id)}><Trash2 size={14}/> Delete permanently</button>
+                  </div>)}</div>}
+            </details>
+          </Card>
         </>}
         {tab==='dhan'&&<DhanDataManager onDataChanged={refresh}/>}
         {(tab==='workspace'||tab==='projects')&&<ResearchWorkspace key={tab}

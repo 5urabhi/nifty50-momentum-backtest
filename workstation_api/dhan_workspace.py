@@ -16,6 +16,7 @@ from collections import deque
 import os
 from pathlib import Path
 import re
+import shutil
 import threading
 import uuid
 
@@ -417,6 +418,88 @@ def batch_details(batch_id: str, page: int = 1, per_page: int = 60,
     start = (page - 1) * per_page
     return {**_summarize(data), "items": items[start:start + per_page],
             "page": page, "per_page": per_page, "filtered_total": len(items)}
+
+
+
+def _trash_batches() -> Path:
+    return service.DATA / "dhan" / "batches_trash"
+
+
+def _deleted_batch_folder(batch_id: str) -> Path:
+    if not BATCH_ID.fullmatch(batch_id):
+        raise ValueError("Invalid batch ID")
+    dest = _trash_batches() / batch_id
+    if dest.is_symlink() or not dest.is_dir() or not (dest / "manifest.json").is_file():
+        raise FileNotFoundError("Download not found in Trash")
+    return dest
+
+
+def list_trashed_batches() -> list[dict]:
+    dest = _trash_batches()
+    if not dest.is_dir():
+        return []
+    rows = []
+    for folder in sorted(dest.iterdir(), reverse=True):
+        if not BATCH_ID.fullmatch(folder.name) or folder.is_symlink() or not folder.is_dir():
+            continue
+        manifest = folder / "manifest.json"
+        if not manifest.is_file() or manifest.is_symlink():
+            continue
+        try:
+            data = json.loads(manifest.read_text())
+            if data["id"] != folder.name:
+                continue
+            rows.append({**_summarize(data), "original_status": data["status"],
+                         "status": "trashed"})
+        except (OSError, ValueError, KeyError):
+            continue
+    return rows[:100]
+
+
+def trash_batch(batch_id: str) -> dict:
+    """Move only the batch's queued/progress manifest into recoverable Trash.
+
+    Never remove shared OHLCV caches. Never touch a currently running batch.
+    """
+    with ACTIVE_LOCK:
+        if batch_id in ACTIVE_BATCHES:
+            raise ValueError("Cannot delete a running batch. Stop it first.")
+        source = _batch_path(batch_id).parent
+        data = _load_batch(batch_id)
+        dest = _trash_batches() / batch_id
+        if dest.exists() or dest.is_symlink():
+            raise ValueError("Batch is already in Trash; restore or purge it first.")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        source.rename(dest)
+    return {"id": batch_id, "status": "trashed",
+            "warning": "The download queue was moved to recoverable Trash. "
+                       "The shared Dhan candle cache and independent datasets "
+                       "are NOT deleted."}
+
+
+def restore_trashed_batch(batch_id: str) -> dict:
+    """Reinstall the exact old manifest, retaining completed cached windows."""
+    source = _deleted_batch_folder(batch_id)
+    dest = _batches() / batch_id
+    if dest.exists() or dest.is_symlink():
+        raise ValueError("An active download batch with this ID already exists")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    source.rename(dest)
+    return {"id": batch_id, "status": "restored",
+            "message": "Download restored. Completed shared candles remain cached."}
+
+
+def purge_trashed_batch(batch_id: str) -> dict:
+    """Purge ONLY a trashed manifest, never market caches or live research."""
+    source = _deleted_batch_folder(batch_id)
+    prepared = service.DATA / "dhan" / "monthly_research" / batch_id
+    if prepared.exists() or prepared.is_symlink():
+        raise ValueError("This batch has a prepared research dataset. Delete the "
+                         "derived dataset first or keep this original batch as evidence.")
+    shutil.rmtree(source)
+    return {"id": batch_id, "status": "purged",
+            "warning": "Batch metadata removed permanently. Canonical cached "
+                       "Dhan candles were deliberately preserved."}
 
 
 def _uncovered(start: date, end: date, spans: list[list[str]]) -> list[tuple[date, date]]:

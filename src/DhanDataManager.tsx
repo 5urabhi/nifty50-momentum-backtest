@@ -3,7 +3,7 @@ import {
   ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight,
   CircleAlert, Clock3, Database, FileSpreadsheet, History, Info, Layers3,
   LoaderCircle, LockKeyhole, Pause, Play, RefreshCw, Search,
-  ShieldCheck, UploadCloud, X
+  ShieldCheck, UploadCloud, Trash2, RotateCcw, X
 } from 'lucide-react'
 import PITIndexPanel, {type MembershipPlan, type PITMode} from './PITIndexPanel'
 import './dhan-workspace.css'
@@ -103,6 +103,7 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const [pitPreview,setPitPreview]=useState<MembershipPlan|null>(null)
   const [pitSyncBusy,setPitSyncBusy]=useState(false)
   const [batches,setBatches]=useState<BatchSummary[]>([])
+  const [deletedBatches,setDeletedBatches]=useState<BatchSummary[]>([])
   const [batchId,setBatchId]=useState('')
   const [details,setDetails]=useState<BatchDetails|null>(null)
   const [statusFilter,setStatusFilter]=useState('all')
@@ -139,7 +140,11 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const loadBatches=useCallback(async()=>{
     const data=await api<{batches:BatchSummary[]}>('/dhan/batches')
     setBatches(data.batches)
-    setBatchId(old=>old||data.batches[0]?.id||'')
+    setBatchId(old=>data.batches.some(b=>b.id===old)?old:data.batches[0]?.id||'')
+  },[])
+  const loadDeletedBatches=useCallback(async()=>{
+    const data=await api<{batches:BatchSummary[]}>('/dhan/batches/trash')
+    setDeletedBatches(data.batches)
   },[])
   const loadCounts=useCallback(async()=>{
     const [nse,bse]=await Promise.all([
@@ -150,11 +155,11 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   },[])
   useEffect(()=>{
     let cancelled=false
-    void Promise.all([loadConnection(),loadBatches()]).then(([status])=>{
+    void Promise.all([loadConnection(),loadBatches(),loadDeletedBatches()]).then(([status])=>{
       if(status.instrument_master_available&&!cancelled)void loadCounts().catch(e=>tell(String(e),true))
     }).catch(e=>{if(!cancelled)tell(e instanceof Error?e.message:String(e),true)})
     return()=>{cancelled=true}
-  },[loadBatches,loadConnection,loadCounts])
+  },[loadBatches,loadConnection,loadCounts,loadDeletedBatches])
   useEffect(()=>{
     if(!connection?.instrument_master_available){setCatalog(null);return}
     let cancelled=false
@@ -275,6 +280,30 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
   const resume=()=>{if(!batchId)return;void run(()=>post<Job>('/dhan/batches/'+batchId+'/resume'),r=>{
     setTask({id:r.job_id,kind:'batch'});tell('Resuming the pending and failed instruments.')
   })}
+  const deleteBatch=(batch:BatchSummary)=>{
+    if(!window.confirm('Move '+interpretMode(batch.selection)+' download batch '+batch.id+
+      ' to Trash? This removes its queue/progress, but preserves cached Dhan candles and prepared datasets.'))return
+    void run(()=>api<{status:string}>('/dhan/batches/'+batch.id+'?confirm=true',{
+      method:'DELETE',
+    }),()=>{
+      if(batchId===batch.id){setBatchId('');setDetails(null)}
+      void Promise.all([loadBatches(),loadDeletedBatches()])
+      tell('Download moved to Trash. Saved shared candles have NOT been deleted.')
+    })
+  }
+  const restoreBatch=(batch:BatchSummary)=>{
+    void run(()=>post('/dhan/batches/trash/'+batch.id+'/restore'),()=>{
+      void Promise.all([loadBatches(),loadDeletedBatches()])
+      tell('Download restored. Existing cached data is still available.')
+    })
+  }
+  const purgeBatch=(batch:BatchSummary)=>{
+    if(!window.confirm('Permanently remove the deleted queue '+batch.id+
+      '? This cannot be undone. Shared candle history is preserved.'))return
+    void run(()=>api('/dhan/batches/trash/'+batch.id+'?confirm=true',{
+      method:'DELETE',
+    }),()=>{void loadDeletedBatches();tell('Deleted queue permanently removed; shared candles preserved.')})
+  }
   const cancel=()=>{if(!batchId)return;void run(()=>post('/dhan/batches/'+batchId+'/cancel'),()=>{
     tell('Stop requested. The current Dhan request can finish before the queue pauses.')
   })}
@@ -568,21 +597,41 @@ export default function DhanDataManager({onDataChanged}:{onDataChanged:()=>void}
       <div><h3>Download progress & prepare data</h3>
         <p>Once a download finishes, select “Prepare data for models” here.</p></div>
     </div>
-    <Section title="Your downloads" aside={<button className="dh-small-btn" type="button" onClick={()=>void loadBatches()}><RefreshCw size={14}/> Refresh</button>}>
+    <Section title="Your downloads" aside={<button className="dh-small-btn" type="button"
+      onClick={()=>void Promise.all([loadBatches(),loadDeletedBatches()])}><RefreshCw size={14}/> Refresh</button>}>
       {!details&&<p className="dh-simple-help" role="status">
         {batches.length?'Loading the selected download…':'No downloads yet. Start in Step 3; progress will appear here automatically.'}
       </p>}
       <details className="dh-simple-details dh-previous-downloads">
         <summary>Past downloads ({batches.length}) · select a different batch</summary>
       {batches.length>0?<div className="dh-library">
-        {batches.slice(0,14).map(b=><button type="button" key={b.id} className={'dh-batch-row '+(batchId===b.id?'active':'')} onClick={()=>viewBatch(b)} aria-label={'View '+interpretMode(b.selection)+' download details'+(b.counts.failed?' and errors':'')}>
+        {batches.slice(0,100).map(b=><div key={b.id} className="dh-batch-entry">
+        <button type="button" className={'dh-batch-row '+(batchId===b.id?'active':'')} onClick={()=>viewBatch(b)} aria-label={'View '+interpretMode(b.selection)+' download details'+(b.counts.failed?' and errors':'')}>
           <span className="dh-batch-icon"><History size={17}/></span>
           <span className="dh-batch-name"><strong>{interpretMode(b.selection)}</strong><small>{b.from_date} → {b.to_date} · {b.interval===null?'Daily':b.interval+' min'}</small></span>
           <span className="dh-batch-numbers">{fmt(b.processed)} / {fmt(b.total)}</span>
           <Pill tone={b.status==='completed'?'good':b.status==='running'?'blue':'warning'}>{statusText(b.status)}</Pill>
           <span className="dh-batch-open-label">{b.counts.failed?'View errors':'View details'} <ChevronRight size={16}/></span>
-        </button>)}
+        </button>
+        <button type="button" className="dh-batch-delete" disabled={working||Boolean(task)}
+          aria-label={'Delete queued download '+b.id} title="Move download queue to Trash"
+          onClick={()=>deleteBatch(b)}><Trash2 size={16}/> Delete</button>
+      </div>)}
       </div>:<div className="dh-empty"><Clock3 size={27}/><strong>No download batches yet</strong><p>Choose a universe and start downloading. The results will appear here and remain available after a restart.</p></div>}
+      </details>
+      <details className="dh-simple-details dh-deleted-downloads">
+        <summary>Deleted downloads ({deletedBatches.length}) · restore or permanently remove queues</summary>
+        <p className="dh-simple-help">Deleting a download queue does not delete shared Dhan candle history.
+          Remove derived datasets separately in Data Manager.</p>
+        {deletedBatches.length===0?<p className="dh-simple-help">Trash is empty.</p>:
+          <div className="dh-deleted-list">{deletedBatches.map(b=><div className="dh-batch-entry" key={b.id}>
+            <div className="dh-deleted-name"><strong>{interpretMode(b.selection)}</strong>
+              <small>{b.id} · {b.total} stocks</small></div>
+            <button className="dh-small-btn" disabled={working||Boolean(task)} type="button"
+              onClick={()=>restoreBatch(b)}><RotateCcw size={14}/> Restore</button>
+            <button className="dh-small-btn" disabled={working||Boolean(task)} type="button"
+              onClick={()=>purgeBatch(b)}><Trash2 size={14}/> Delete permanently</button>
+          </div>)}</div>}
       </details>
       {details&&<div className="dh-batch-detail">
         <div className="dh-batch-title"><div><strong>Batch {details.id.slice(-8)}</strong><span> · {interpretMode(details.selection)} · {fmt(details.total)} instruments</span></div>
