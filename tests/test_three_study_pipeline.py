@@ -59,6 +59,21 @@ class ThreeStudyPipelineTests(unittest.TestCase):
         self.assertEqual(result["price_only_benchmark"]["status"], "unavailable")
         self.assertAlmostEqual(result["cost_sensitivity"]["mean_model_cost_drag_per_month"], .01)
 
+    def test_all_three_studies_run_without_certifying_synthetic_performance(self):
+        from scripts.complete_research_studies import run_studies
+        config_file = Path(self.tmp.name) / "settings.json"
+        from dataclasses import asdict
+        config_file.write_text(json.dumps(asdict(self.config)))
+        output = Path(self.tmp.name) / "finished"
+        results = run_studies(self.root, output, config_file)
+        self.assertEqual(results["status"], "exploratory_complete_not_certified")
+        self.assertTrue((output / "THREE_STUDIES_RESULTS.json").is_file())
+        self.assertTrue((output / "PUBLICATION_SAFE_EVIDENCE.zip").is_file())
+        self.assertFalse(json.loads((output / "THREE_STUDIES_RESULTS.json").read_text())["external_research_certified"])
+        self.assertEqual(results["studies"]["study_B_factor_active_risk"], "unavailable")
+        with self.assertRaises(FileExistsError):
+            run_studies(self.root, output, config_file)
+
     def test_inference_requires_ex_ante_later_period(self):
         out = Path(self.tmp.name) / "report"
         out.mkdir()
