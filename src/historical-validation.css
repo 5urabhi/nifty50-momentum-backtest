@@ -110,3 +110,22 @@
 @media(max-width:1150px){.hv-evidence-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:750px){.hv-source-actions{grid-template-columns:1fr}}
 @media(max-width:520px){.hv-evidence-stats{grid-template-columns:1fr}.hv-source-worklist{padding:12px}}
+
+/* Official source navigator: public-report action and approval are distinct. */
+.hv-public-guide{border:1px solid #3b6962;border-radius:10px;background:#102a30;
+ padding:13px;margin:13px 0}
+.hv-public-guide h4{font:600 13px 'Space Grotesk',sans-serif;margin:5px 0 0}
+.hv-public-guide .hv-muted{font-size:11px;color:#b4d0cb;line-height:1.6}
+.hv-public-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:13px 0}
+.hv-public-card{border:1px solid #4a626a;border-radius:9px;background:#122535;
+ padding:12px;min-width:0}
+.hv-public-card-top{display:flex;align-items:start;gap:8px}
+.hv-public-card-top span{color:#a2dbcc;font-size:10px;font-weight:700;flex-shrink:0}
+.hv-public-card-top strong{color:#e7f5e9;font-size:12px;line-height:1.4}
+.hv-public-card p{font-size:11px;line-height:1.55;margin:8px 0;color:#bfced5;overflow-wrap:anywhere}
+.hv-public-card small{display:block;color:#9cb4c3;font-size:10px;margin-top:8px;line-height:1.5}
+.hv-public-card .hv-buttons{flex-wrap:wrap;gap:7px}
+.hv-public-approval{border:1px solid #655845;background:#2b292e;border-radius:8px;padding:11px}
+.hv-public-approval>summary{color:#f2d7a3;font-size:11px;font-weight:700;cursor:pointer}
+.hv-public-approval>summary:focus-visible{outline:2px solid #84e6d1;outline-offset:3px}
+@media(max-width:740px){.hv-public-grid{grid-template-columns:1fr}.hv-public-guide{padding:10px}}
