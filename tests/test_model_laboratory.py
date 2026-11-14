@@ -64,7 +64,8 @@ class ModelLaboratoryTests(unittest.TestCase):
         self.assertEqual(len({m["id"] for m in models}),len(models))
         self.assertEqual(len({m["group"] for m in models}),6)
         self.assertTrue(all(m["status"]=="runnable" for m in models))
-        self.assertEqual({m["mode"] for m in models},{"synthetic","theoretical","historical"})
+        self.assertEqual({m["mode"] for m in models},{"synthetic","theoretical","historical","market"})
+        self.assertEqual(sum(m["mode"]=="market" for m in models),5)
 
     def test_mathematical_simulations_are_seeded_and_not_mislabeled_market_data(self):
         one=self.run_model("gbm",{"seed":2026,"steps":25,"paths":50},False)
