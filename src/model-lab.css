@@ -249,3 +249,66 @@
 .ql-dhan-quote-controls button:disabled{opacity:.45;cursor:not-allowed}
 .ql-dhan-quote-fetch .ql-note{margin-top:10px}
 @media(max-width:650px){.ql-dhan-quote-controls{flex-direction:column;align-items:stretch}}
+
+
+/* Guided model laboratory: visible next step, explicit stock choice, compact evidence. */
+.ql-guided-next{background:linear-gradient(115deg,#103c42,#112a3a 80%);
+ border:1px solid #43827e;border-radius:12px;padding:14px 18px;margin:0 0 17px}
+.ql-guided-track{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.ql-guided-track span{display:flex;align-items:center;gap:8px;color:#8fa9bb;
+ font-size:10px;font-weight:650;border-bottom:2px solid #344455;padding:5px 2px 10px}
+.ql-guided-track span b{border:1px solid #355668;border-radius:50%;width:23px;height:23px;
+ display:grid;place-items:center;color:#a8bfcb;font-size:10px;flex-shrink:0}
+.ql-guided-track span.active{color:#beffe8;border-color:#74e4bd}
+.ql-guided-track span.active b{background:#6bdebc;border-color:#6bdebc;color:#073735}
+.ql-guided-track span.done{color:#9bc9c1;border-color:#3c9887}
+.ql-guided-track span.done b{border-color:#70c7a8;color:#b4fadb}
+.ql-guided-next>p{display:flex;align-items:center;gap:9px;margin:11px 0 0;
+ color:#ccf1e5;font-size:11px;font-weight:680;line-height:1.6}
+.ql-guided-next>p svg{color:#6cddbd;flex-shrink:0}
+.ql-model-filters{display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 14px}
+.ql-model-filters button{border:1px solid #34596a;border-radius:6px;background:#11283a;
+ color:#a9bccf;padding:8px 9px;font-size:9px;font-weight:750}
+.ql-model-filters button[aria-pressed="true"]{color:#c7fce8;background:#20564d;border-color:#70d8b4}
+.ql-model-check{font-size:9px;border-radius:4px;padding:4px 6px;font-weight:750}
+.ql-model-check.ready{background:#173b34;color:#9df3cf}
+.ql-model-check.missing{background:#47332b;color:#f3c398}
+.ql-source-picker{background:#0f2a36;border:1px solid #3f6871;padding:14px;
+ border-radius:10px;margin:12px 0 16px}
+.ql-source-picker .ql-panel-title{margin-bottom:12px}
+.ql-source-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ql-source-option{padding:13px;background:#11202e;border-radius:8px;
+ border:1px solid #32515e;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.ql-source-option strong{font-size:12px;color:#deedea}
+.ql-source-option small{font-size:10px;color:#99bcc7;line-height:1.55}
+.ql-source-option button{display:flex;align-items:center;gap:7px;
+ border:1px solid #448f82;background:#1c4845;color:#aef0d9;
+ border-radius:7px;font-size:10px;font-weight:750;padding:9px 11px}
+.ql-source-option button:hover{border-color:#70d9bd}
+.ql-pill-ready,.ql-pill-missing{font-size:9px;font-weight:800;border-radius:5px;padding:5px 8px}
+.ql-pill-ready{color:#91edc8;background:#173e36}
+.ql-pill-missing{color:#f8cf9e;background:#4b332a}
+.ql-advanced-import{border-top:1px solid #355465;margin-top:14px;padding:14px 0 0}
+.ql-advanced-import summary{cursor:pointer;font-size:11px;font-weight:740;color:#afdaca}
+.ql-advanced-import summary:hover{color:#d5ffee}
+.ql-advanced-import p{margin:12px 0;color:#95aebf}
+.ql-chart-title-row{display:flex;align-items:center;justify-content:space-between;
+ flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.ql-chart-title-row h4{margin:0}
+.ql-chart-export{display:flex;flex-wrap:wrap;gap:7px}
+.ql-chart-export button{background:#163440;border:1px solid #446779;
+ color:#c7ecf3;border-radius:6px;padding:8px 10px;font-size:10px;font-weight:730}
+.ql-chart-export button:hover{background:#23606a;color:#fff}
+.ql-chart-data{margin:12px 0 8px;background:#122331;border:1px solid #2e4f5f;
+ border-radius:8px;padding:11px 13px;max-height:310px;overflow:auto}
+.ql-chart-data summary{cursor:pointer;color:#9dd9cb;font-size:10px;font-weight:760}
+.ql-chart-data .ql-table-scroll{margin-top:12px}
+.ql-chart-data table{min-width:max-content;width:100%;border-collapse:collapse}
+.ql-chart-data th,.ql-chart-data td{border-bottom:1px solid #354758;
+ color:#afcdd3;font-size:10px;padding:8px 11px;text-align:right;white-space:nowrap}
+.ql-chart-data th{color:#c9ede9;background:#183643}
+.ql-chart-data .ql-note{margin:8px 0}
+@media(max-width:860px){.ql-guided-track{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:710px){.ql-source-options{grid-template-columns:1fr}}
+@media(max-width:510px){.ql-chart-title-row{align-items:flex-start;flex-direction:column}
+ .ql-guided-track span{font-size:9px}}
