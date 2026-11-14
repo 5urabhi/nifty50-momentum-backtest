@@ -3,6 +3,7 @@ import {Activity,ArrowRight,BarChart3,BookOpen,ChevronDown,Download,
   FlaskConical,Layers3,LoaderCircle,RefreshCw,Save,Search,ShieldAlert,
   ShieldCheck,SlidersHorizontal,X} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
+import {formatMetric} from './metricDisplay'
 import './results-studio.css'
 
 type Row=Record<string,unknown>
@@ -432,8 +433,8 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
               aria-current={tab===v.id?'page':undefined} onClick={()=>setTab(v.id)}>{v.label}</button>)}</nav>
           {tab==='brief'&&<div className="rs-stack">
             <div className="rs-kpi-grid">{topMetrics.length?topMetrics.map(m=><article key={m.name}>
-              <small>{m.name}</small><strong>{typeof m.value==='number'?pretty(m.value,4):String(m.value??'—')}</strong>
-              <span>{m.unit==='decimal fraction'?'Decimal fraction · inspect units':m.unit||'Saved measurement'}</span>
+              <small>{m.name}</small><strong>{formatMetric(m.name,m.value,m.unit).value}</strong>
+              <span>{formatMetric(m.name,m.value,m.unit).unit}</span>
             </article>):<div className="rs-empty">No numerical metrics saved for this run.</div>}</div>
             <div className="rs-two"><section className="rs-panel"><div className="rs-panel-heading"><h3>Research interpretation</h3>
               <select aria-label="Explanation depth" value={explainLevel} onChange={e=>setExplainLevel(e.target.value)}>

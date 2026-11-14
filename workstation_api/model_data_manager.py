@@ -13,6 +13,41 @@ EXTRA_FRACTION = 0.20
 MAX_AUTO_ASSETS = 18
 MAX_BACKFILL_YEARS = 15
 
+def recommend_next_action(plan: dict) -> dict:
+    """One evidence-safe next step from the model's real readiness result."""
+    mode = str(plan.get("mode", ""))
+    runnable = bool(plan.get("runnable"))
+    remaining = plan.get("missing_to_target")
+    if mode not in {"historical", "market"}:
+        return {"kind": "run", "label": "Run mathematical model",
+                "detail": "Uses explicitly assumed inputs; no observed prices are required."}
+    if mode == "market":
+        if runnable:
+            return {"kind": "run", "label": "Run with selected original quote",
+                    "detail": "Option valuation is calculated from a saved bid/ask snapshot."}
+        return {"kind": "option_quotes", "label": "Fetch or import original option quotes",
+                "detail": "Dhan option-chain capture is read-only; an authorized CSV import is also available. "
+                          "A current snapshot is not historical option-chain data."}
+    if plan.get("status") == "select_ticker":
+        return {"kind": "select_stock", "label": "Choose a stock (including incomplete history)",
+                "detail": "After choosing a named instrument, QuantLab checks its exact returns and +20% target."}
+    if plan.get("status") == "select_dataset":
+        return {"kind": "select_dataset", "label": "Choose an observed dataset",
+                "detail": "Choose saved market observations before requesting an extension."}
+    if plan.get("can_download") and isinstance(remaining, (int, float)) and remaining > 0:
+        return {"kind": "download", "label": "Get missing Dhan history (+20%)",
+                "detail": "Reuses SHA-checked local candles and requests only uncovered windows. "
+                          "Insufficient vendor history remains incomplete."}
+    if runnable:
+        return {"kind": "run", "label": "Run model with available evidence",
+                "detail": ("Minimum observations are met; a larger validation buffer is preferred."
+                           if isinstance(remaining, (int, float)) and remaining > 0
+                           else "Required observed inputs are available for this calculation.")}
+    return {"kind": "data_library", "label": "Resolve missing source in Data Library",
+            "detail": str(plan.get("download_explanation") or plan.get("message")
+                          or "This requirement cannot be completed automatically.")}
+
+
 
 def requirement(model_id: str, params: dict | None = None) -> dict:
     config=dict(params or {})
@@ -200,6 +235,8 @@ def execute(model_id: str, dataset_id: str, params: dict | None = None,
     if model_id in single_series_completion.SINGLE:
         return single_series_completion.execute(
             model_id, dataset_id, params or {}, progress=progress)
+    if progress:
+        progress(2, "Checking verified mappings and existing Dhan market history")
     plan = inspect(model_id, dataset_id, params)
     if plan["mode"] != "historical":
         raise ValueError("Selected model has no empirical price-data requirement")
@@ -212,7 +249,10 @@ def execute(model_id: str, dataset_id: str, params: dict | None = None,
     events = []
     # Explicitly prefer the canonical shared set; existing batch-specific
     # datasets remain immutable snapshots and PIT members remain separate.
-    for row in rows:
+    for i, row in enumerate(rows):
+        if progress:
+            progress(5 + 25 * i / max(1, len(rows)),
+                     "Reusing cached candles for instrument " + str(i + 1) + "/" + str(len(rows)))
         reused = shared_market_data.reuse_cached(row)
         events.append({"instrument_id": row["id"], "cache_rows_added": reused["rows_appended"]})
     try:
@@ -220,6 +260,8 @@ def execute(model_id: str, dataset_id: str, params: dict | None = None,
     except ValueError:
         before = {"status": "insufficient", "runnable": False}
     if before["status"] == "ready_with_buffer":
+        if progress:
+            progress(100, "Existing cached observations already satisfy the preferred buffer")
         return {"status": "ready", "dataset_id": shared_market_data.SHARED_ID,
                 "message": "Shared dataset already has sufficient observations.",
                 "before": plan, "after": before, "instruments": events}
@@ -235,16 +277,32 @@ def execute(model_id: str, dataset_id: str, params: dict | None = None,
         state = dhan_auth.check_profile()
         if not state["ok"]:
             raise ValueError(state["message"])
+    total_windows = sum(len(windows) for windows in uncovered.values())
+    finished_windows = 0
     for row, event in zip(rows, events):
+        if progress:
+            progress(30 + 58 * finished_windows / max(1, total_windows),
+                     "Checking uncovered windows for " + row["id"])
         event["missing_windows"] = len(uncovered[row["id"]])
         event["rows_added"] = 0
         for first, last in uncovered[row["id"]]:
+            if progress:
+                progress(30 + 58 * finished_windows / max(1, total_windows),
+                         "Requesting missing Dhan window " + str(finished_windows + 1) + "/" + str(total_windows))
             downloaded = dhan_workspace._fetch_history(
                 row, first.isoformat(), last.isoformat(), None)
             event["rows_added"] += downloaded["rows_added"]
+            finished_windows += 1
+        if progress:
+            progress(30 + 58 * finished_windows / max(1, total_windows),
+                     "Appending verified observations into the shared store")
         imported = shared_market_data.reuse_cached(row)
         event["shared_rows_appended"] = imported["rows_appended"]
+    if progress:
+        progress(93, "Rechecking actual common returns and the preferred buffer")
     after = inspect(model_id, shared_market_data.SHARED_ID, params)
+    if progress:
+        progress(99, "Saving source-bound readiness after incremental download")
     return {"status": "ready" if after["runnable"] else "incomplete",
             "dataset_id": shared_market_data.SHARED_ID, "before": plan,
             "after": after, "instruments": events,

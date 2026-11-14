@@ -213,6 +213,10 @@ try {
     await page.getByRole('heading',{name:'OU · Historical Volatility Fit'}).waitFor()
     const ouGate=page.locator('.ql-coverage-panel')
     await ouGate.getByText(/No stock is selected yet|Choose a stock|needs daily stock closes|no prepared stock prices|Choose a saved observed-data source/i).first().waitFor()
+    const remediation=ouGate.getByRole('region',{name:'Recommended next action'})
+    await remediation.waitFor({timeout:20000})
+    assert.ok((await remediation.innerText()).includes('Next action:'),
+      'Blocked historical models should provide a source-specific actionable recovery path')
     await page.locator('.ql-family-tabs').getByRole('button',{name:/Derivatives & Options/}).click()
     await page.locator('.ql-model-list').getByRole('button',{name:/Black–Scholes–Merton & Greeks/}).click()
     await page.getByRole('button',{name:'Use observed option bid/ask'}).click()
