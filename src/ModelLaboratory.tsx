@@ -5,11 +5,11 @@ import ResearchPlot, {type ResearchPlotData} from './ResearchPlots'
 import './model-lab.css'
 
 type Parameter={
-  key:string;type:'number'|'integer'|'select'|'symbol';default:number|string;
+  key:string;type:'number'|'integer'|'select'|'symbol'|'quote';default:number|string;
   min?:number;max?:number;step?:number;options?:string[];description?:string
 }
 type ModelSpec={
-  id:string;group:string;title:string;mode:'synthetic'|'theoretical'|'historical';
+  id:string;group:string;title:string;mode:'synthetic'|'theoretical'|'historical'|'market';
   min_observations:number;description:string;formula:string;status:string;
   parameters:Parameter[];chart:string
 }
@@ -30,6 +30,9 @@ type Readiness={dataset_id:string;frequency?:string;observed_dates?:number;
   eligible_assets_60?:number;eligible_assets_180?:number;has_prices:boolean;
   sample_start?:string;sample_end?:string;benchmark_kind?:string;warning?:string;
   available_symbols?:string[]}
+type MarketQuoteSnapshot={id:string;dataset_id:string;captured_at:string;source_sha256:string;
+  contracts:{provider:string;underlying:string;strike:number;option_type:string;
+    captured_at:string;expiry_at:string;row_index:number;bid:number;ask:number;quote_age_days:number}[]}
 type DataPlan={model_id:string;mode:string;status:string;runnable:boolean;min_returns:number;target_returns:number;
   buffer_returns:number;common_returns?:number;assets_requested:number;assets_found?:number;
   missing_minimum?:number;missing_to_target?:number;can_download?:boolean;download_explanation?:string;
@@ -54,8 +57,20 @@ type ResultView='configure'|'figures'|'numbers'|'method'
 const SECTIONS=['Stochastic Processes','Volatility & Econometrics','Derivatives & Options',
   'Portfolio Optimization','Tail Risk & Inference','3D Visual Laboratory']
 const MODE_LABELS:Record<ModelSpec['mode'],string>={
-  synthetic:'SEEDED SIMULATION · DEMO',theoretical:'THEORETICAL',historical:'OBSERVED MARKET DATA'
+  synthetic:'SEEDED SIMULATION · DEMO',theoretical:'THEORETICAL',
+  historical:'HISTORICAL DATA MODEL',market:'OBSERVED QUOTE · MODEL VALUE'
 }
+const MARKET_PAIRS=[
+  {base:'gbm',market:'gbm_fit',label:'Fit to historical data (train / test)'},
+  {base:'ou',market:'ou_fit',label:'Fit from historical daily volatility'},
+  {base:'merton',market:'merton_fit',label:'Fit historical jump proxy'},
+  {base:'heston',market:'heston_proxy',label:'Historical variance proxy (not option calibration)'},
+  {base:'black_scholes',market:'black_scholes_quote',label:'Use observed option bid/ask'},
+  {base:'binomial',market:'binomial_quote',label:'Use observed option bid/ask'},
+  {base:'implied_vol',market:'implied_vol_quote',label:'Calculate from actual quoted premium'},
+  {base:'mc_option',market:'mc_option_quote',label:'Use real quote + simulated payoff'},
+  {base:'option_surface',market:'option_surface_quote',label:'Anchor scenarios to observed quote'},
+] as const
 const valueText=(value:unknown)=>{
   if(value===null||value===undefined)return 'Unavailable'
   if(typeof value==='number')return Number.isFinite(value)
@@ -98,6 +113,12 @@ function exportResult(modelId:string,result:LabResult,format:'json'|'csv'){
   URL.revokeObjectURL(url)
 }
 export default function ModelLaboratory({section,datasets,selectedDataset,onSelectDataset,onOpenGuide,onDataChanged,onOpenWorkspace}:Props){
+  const [quoteSnapshots,setQuoteSnapshots]=useState<MarketQuoteSnapshot[]>([])
+  const [quoteFile,setQuoteFile]=useState<File|null>(null)
+  const [quoteConfirmed,setQuoteConfirmed]=useState(false)
+  const [quoteLoading,setQuoteLoading]=useState(false)
+  const [quoteError,setQuoteError]=useState('')
+  const [quoteMessage,setQuoteMessage]=useState('')
   const [catalog,setCatalog]=useState<ModelSpec[]>([])
   const [catalogError,setCatalogError]=useState<string|null>(null)
   const [group,setGroup]=useState(section==='mathematics'?SECTIONS[0]:SECTIONS[3])
@@ -140,6 +161,35 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   const [dataPlan,setDataPlan]=useState<DataPlan|null>(null)
   const [planError,setPlanError]=useState<string|null>(null)
   const [planLoading,setPlanLoading]=useState(false)
+  const refreshQuotes=useCallback(async()=>{
+    if(!selectedDataset){setQuoteSnapshots([]);return}
+    try{
+      const data=await getJSON<{snapshots:MarketQuoteSnapshot[]}>(
+        '/lab/option-quotes?dataset_id='+encodeURIComponent(selectedDataset))
+      setQuoteSnapshots(data.snapshots)
+    }catch(e){setQuoteError(e instanceof Error?e.message:String(e))}
+  },[selectedDataset])
+  useEffect(()=>{setQuoteError('');setQuoteMessage('');setQuoteFile(null)
+    void refreshQuotes()},[refreshQuotes])
+  const uploadOptionQuotes=async()=>{
+    if(!quoteFile||!selectedDataset||!quoteConfirmed||quoteLoading)return
+    setQuoteLoading(true);setQuoteError('');setQuoteMessage('')
+    try{
+      const form=new FormData()
+      form.append('dataset_id',selectedDataset)
+      form.append('file',quoteFile)
+      form.append('confirm_original_quote','true')
+      const response=await fetch('/api/lab/option-quotes/import',{
+        method:'POST',credentials:'same-origin',body:form})
+      if(!response.ok)throw new Error(await errorText(response))
+      const created=await response.json() as {id:string;contracts:unknown[];warning:string}
+      setQuoteMessage('Original source snapshot saved. '+created.warning)
+      setQuoteFile(null);setQuoteConfirmed(false)
+      setParams(prev=>({...prev,quote:created.id+':0'}))
+      await refreshQuotes()
+    }catch(e){setQuoteError(e instanceof Error?e.message:String(e))}
+    finally{setQuoteLoading(false)}
+  }
   const [extensionJob,setExtensionJob]=useState<ExtensionJob|null>(null)
   const [extensionMessage,setExtensionMessage]=useState<string|null>(null)
   const [extensionError,setExtensionError]=useState<string|null>(null)
@@ -171,6 +221,12 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   },[section])
   const groupModels=catalog.filter(spec=>spec.group===group)
   const selected=catalog.find(spec=>spec.id===modelId)
+  const modelPair=MARKET_PAIRS.find(pair=>pair.base===selected?.id||pair.market===selected?.id)
+  const quoteRefs=quoteSnapshots.flatMap(snapshot=>snapshot.contracts.map(contract=>({
+    value:snapshot.id+':'+contract.row_index,
+    label:contract.provider+' · '+contract.underlying+' '+contract.strike+' '+contract.option_type+
+      ' · '+contract.expiry_at.slice(0,10)+' · '+contract.captured_at.slice(0,16).replace('T',' ')
+  })))
   const defaultParams=useCallback((spec:ModelSpec)=>Object.fromEntries(
     spec.parameters.map(p=>[p.key,p.default])
   ),[])
@@ -252,28 +308,29 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   const changeModel=(id:string)=>{
     setModelId(id);setResult(null);setError(null);setView('configure')
   }
-  const observedNeeded=selected?.mode==='historical'
-  const syntheticHistory=observedNeeded&&selectedDataset==='synthetic'
+  const observedNeeded=selected?.mode==='historical'||selected?.mode==='market'
+  const syntheticHistory=selected?.mode==='historical'&&selectedDataset==='synthetic'
   const min=selected?.min_observations||0
   const requestedAssets=Number(params.assets??8)
   const requestedWindow=Number(params.train_window??60)
   useEffect(()=>{
     setDataPlan(null);setPlanError(null)
-    if(!selected||selected.mode!=='historical'||!selectedDataset)return
+    if(!selected||!['historical','market'].includes(selected.mode)||!selectedDataset)return
     let active=true
     setPlanLoading(true)
     const query=new URLSearchParams({model_id:selected.id,dataset_id:selectedDataset,
       assets:String(requestedAssets),train_window:String(requestedWindow)})
-    if(selected.id==='gbm_fit'){
-      query.set('target',String(params.target||'benchmark_tri'))
+    if(['gbm_fit','ou_fit','merton_fit','heston_proxy'].includes(selected.id)){
+      query.set('target',String(params.target||(selected.id==='gbm_fit'?'benchmark_tri':'stock')))
       query.set('ticker',String(params.ticker||''))
     }
+    if(selected.mode==='market')query.set('quote',String(params.quote||''))
     getJSON<DataPlan>('/lab/data-requirements?'+query.toString())
       .then(plan=>{if(active)setDataPlan(plan)})
       .catch(e=>{if(active)setPlanError(e instanceof Error?e.message:String(e))})
       .finally(()=>{if(active)setPlanLoading(false)})
     return()=>{active=false}
-  },[selected?.id,selected?.mode,selectedDataset,requestedAssets,requestedWindow,extensionJob?.status,params.target,params.ticker])
+  },[selected?.id,selected?.mode,selectedDataset,requestedAssets,requestedWindow,extensionJob?.status,params.target,params.ticker,params.quote])
   useEffect(()=>{
     if(!extensionJob||!['queued','running'].includes(extensionJob.status))return
     let active=true
@@ -323,7 +380,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
         method:'POST',credentials:'same-origin',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model_id:selected.id,
-          dataset_id:selected.mode==='historical'?selectedDataset:null,params}),
+          dataset_id:observedNeeded?selectedDataset:null,params}),
       })
       if(!response.ok)throw new Error(await errorText(response))
       const data=await response.json() as LabResult
@@ -346,12 +403,13 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     finally{setWorking(false)}
   }
   const dataHint=useMemo(()=>{
-    if(!observedNeeded)return 'This experiment does not fit to a stock dataset.'
+    if(!observedNeeded)return 'Mathematical engine ready. Inputs are assumptions; any simulated paths are artificial.'
+    if(selected?.mode==='market')return 'Use a saved original option bid/ask and expiry; option model outputs remain theoretical valuations.'
     if(!selectedDataset)return 'Select the saved NIFTY/BANK NIFTY research dataset first.'
     if(!readiness)return 'Inspecting local sample availability…'
     return (readiness.frequency||'unknown')+' observations · '+readiness.observed_dates+
       ' recorded dates · at least '+min+' common returns required.'
-  },[observedNeeded,selectedDataset,readiness,min])
+  },[observedNeeded,selected?.mode,selectedDataset,readiness,min])
   return <div className="ql-workbench">
     <header className="ql-intro">
       <div><span className="ql-kicker">QUANTLAB / MODEL LABORATORY</span>
@@ -397,14 +455,16 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
         {selected?<><section className="ql-card ql-selected-header">
           <div><span className={'ql-mode '+selected.mode}>{MODE_LABELS[selected.mode]}</span>
             <h3>{selected.title}</h3><p>{selected.description}</p>
-            {(selected.id==='gbm'||selected.id==='gbm_fit')&&
-              <div className="ql-gbm-mode-choice" role="group" aria-label="Choose GBM research approach">
-                <button type="button" aria-pressed={selected.id==='gbm'}
-                  onClick={()=>changeModel('gbm')} className={selected.id==='gbm'?'active':''}>
+            {modelPair&&
+              <div className="ql-gbm-mode-choice" role="group" aria-label="Choose model research approach">
+                <button type="button" aria-pressed={selected.id===modelPair.base}
+                  onClick={()=>changeModel(modelPair.base)}
+                  className={selected.id===modelPair.base?'active':''}>
                   Explore mathematics (assumed parameters)</button>
-                <button type="button" aria-pressed={selected.id==='gbm_fit'}
-                  onClick={()=>changeModel('gbm_fit')} className={selected.id==='gbm_fit'?'active':''}>
-                  Fit to historical data (train / test)</button>
+                <button type="button" aria-pressed={selected.id===modelPair.market}
+                  onClick={()=>changeModel(modelPair.market)}
+                  className={selected.id===modelPair.market?'active':''}>
+                  {modelPair.label}</button>
               </div>}
             {selected.id==='gbm_fit'&&
               <div className="ql-alert good" role="note">
@@ -412,6 +472,16 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
                 when the source is observed. The first 80% calibrates the parameters;
                 the final 20% is used only for diagnostics. All fan paths are computer simulations.
               </div>}
+            {selected.mode==='market'&&<div className="ql-alert warning" role="note">
+              <Database size={16}/> A genuine market quote supplies bid, ask, spot, strike
+              and expiry. The valuation is still a mathematical MODEL using explicitly
+              assumed interest rate and dividend yield. No artificial market premium.
+            </div>}
+            {selected.id==='heston_proxy'&&<div className="ql-alert warning" role="note">
+              <CircleAlert size={16}/> Historical realized-variance proxy only:
+              stock prices cannot uniquely identify the risk-neutral Heston volatility surface.
+              A full options-chain calibration needs market quotes across strikes and expiries.
+            </div>}
             {selected.mode==='synthetic'&&<div className="ql-seed-explain" role="note">
               <strong>SIMULATED EXAMPLE — NOT LIVE OR HISTORICAL MARKET DATA</strong>
               <p><b>Seeded simulation</b> means the model generates artificial scenarios
@@ -494,12 +564,47 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
             {extensionMessage&&<p className="ql-alert good" role="status"><CheckCircle2 size={16}/>{extensionMessage}</p>}
             {extensionError&&<p className="ql-alert bad" role="alert">{extensionError}</p>}
           </div>}
-          {selected.id==='gbm_fit'&&
+          {selected.mode==='market'&&<div className="ql-quote-import" role="region"
+             aria-label="Import original provider option quotes">
+            <div className="ql-panel-title"><Database size={16}/>
+              <h3>Original option quote snapshots · source-bound</h3>
+              <span>{quoteRefs.length} saved contracts</span></div>
+            <p>Quote CSV must contain <code>captured_at, provider, underlying, underlying_spot,
+              expiry_at, strike, option_type, bid, ask</code>.
+              Both timestamps must include a UTC offset (for example
+              <code> 2026-11-14T10:00:00+05:30</code>).
+              QuantLab reads actual bid/ask; it never fabricates a market premium.</p>
+            <div className="ql-actions">
+              <button type="button" onClick={()=>{
+                const text='captured_at,provider,underlying,underlying_spot,expiry_at,strike,option_type,bid,ask\n'
+                const url=URL.createObjectURL(new Blob([text],{type:'text/csv'}))
+                const anchor=document.createElement('a');anchor.href=url
+                anchor.download='quantlab_option_quotes_blank_template.csv'
+                anchor.click();URL.revokeObjectURL(url)
+              }}><Download size={14}/> Download blank CSV template</button>
+            </div>
+            <label className="ql-field"><span>Choose original option quote CSV</span>
+              <input type="file" accept=".csv,text/csv"
+                disabled={!selectedDataset||quoteLoading}
+                onChange={e=>setQuoteFile(e.target.files?.[0]||null)}/></label>
+            <label className="ql-quote-ack"><input type="checkbox"
+              checked={quoteConfirmed} onChange={e=>setQuoteConfirmed(e.target.checked)}/>
+              I confirm this is a source-provided quote export; these are not generated prices.</label>
+            <div className="ql-actions"><button type="button"
+              disabled={!selectedDataset||!quoteFile||!quoteConfirmed||quoteLoading}
+              onClick={()=>void uploadOptionQuotes()}>
+              <Database size={14}/>{quoteLoading?'Importing original quote…':'Import & version quote snapshot'}</button>
+              <button type="button" disabled={!selectedDataset||quoteLoading}
+                onClick={()=>void refreshQuotes()}><Activity size={14}/> Refresh saved quotes</button></div>
+            {quoteError&&<div className="ql-alert bad" role="alert">{quoteError}</div>}
+            {quoteMessage&&<div className="ql-alert good" role="status">{quoteMessage}</div>}
+          </div>}
+          {['gbm_fit','ou_fit','merton_fit','heston_proxy'].includes(selected.id)&&
             <p className="ql-note">NIFTY TRI is the right choice to fit the actual index.
               For an individual security, choose <b>target: stock</b> and select its exact ticker.
               Dhan daily prices are split/bonus adjusted, but that doesn't establish reinvested dividends.
               Fitting never requires an independent vendor to approve every candle.</p>}
-          {selected.id==='gbm_fit'&&<datalist id="ql-available-stock-symbols">
+          {['gbm_fit','ou_fit','merton_fit','heston_proxy'].includes(selected.id)&&<datalist id="ql-available-stock-symbols">
             {readiness?.available_symbols?.map(name=><option value={name} key={name}/>)}
           </datalist>}
           <div className="ql-param-grid">{selected.parameters.map(spec=><label className="ql-field" key={spec.key}>
@@ -507,10 +612,15 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
             {spec.type==='select'?<select value={String(params[spec.key]??spec.default)}
               onChange={e=>setParams({...params,[spec.key]:e.target.value})}>
               {spec.options?.map(opt=><option key={opt} value={opt}>{opt}</option>)}
+            </select>:spec.type==='quote'?<select
+              value={String(params[spec.key]??spec.default)}
+              onChange={e=>setParams({...params,[spec.key]:e.target.value})}>
+              <option value="">Select saved original option quote / contract</option>
+              {quoteRefs.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}
             </select>:spec.type==='symbol'?<input type="text" list="ql-available-stock-symbols"
               autoComplete="off" value={String(params[spec.key]??spec.default)}
               placeholder="Choose ticker from dataset" maxLength={32}
-              disabled={selected.id==='gbm_fit'&&params.target!=='stock'}
+              disabled={['gbm_fit','ou_fit','merton_fit','heston_proxy'].includes(selected.id)&&params.target!=='stock'}
               onChange={e=>setParams({...params,[spec.key]:e.target.value})}/>:
             <input type="number" value={params[spec.key]??spec.default}
               min={spec.min} max={spec.max} step={spec.step}
@@ -553,12 +663,19 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
           <span>Read-only · No trading orders · Deterministic seeds where applicable</span></div>
         </section>}
         {view==='figures'&&<section className="ql-figures">
-          {result&&result.model_id==='gbm_fit'&&
+          {result&&['gbm_fit','ou_fit','merton_fit','heston_proxy'].includes(result.model_id)&&
             <div className="ql-alert warning" role="note">
               <CircleAlert size={16}/> <strong>HISTORICAL PARAMETERS · SEEDED SIMULATION</strong>
-              <span> The observed holdout is genuine dataset history if the dataset is historical.
-                Fan bands and prospective paths are synthetic; this is not a validated market forecast.
-                Compare held-out error with the zero-drift baseline before drawing conclusions.</span>
+              <span> Observed returns/volatility come from the selected dataset; forward fans are seeded simulations.
+                Heston is a historical volatility PROXY, not a uniquely identified options calibration.
+                Consult the model-specific holdout and baseline measurements.</span>
+            </div>}
+          {result&&result.model_id===selected.id&&result.mode==='market'&&
+            <div className="ql-alert warning" role="note">
+              <CircleAlert size={16}/> <strong>OBSERVED QUOTE INPUTS · THEORETICAL MODEL OUTPUTS</strong>
+              <span> Vendor bid/ask are real source inputs. Model premium, implied volatility,
+                simulated payoffs or 3D surface are analytical/numerical outputs,
+                not a historical options backtest or guaranteed executable trade.</span>
             </div>}
           {result&&result.model_id===selected.id&&result.mode==='synthetic'&&
             <div className="ql-alert warning" role="note">
@@ -610,7 +727,9 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
           <div className="ql-panel-title"><BookOpen size={17}/><h3>Mathematics and research interpretation</h3></div>
           <div className="ql-method"><h4>Mathematical definition</h4><p className="ql-formula">{selected.formula}</p>
             <h4>What this model computes</h4><p>{selected.description}</p>
-            <h4>Evidence requirement</h4><p>{selected.mode==='historical'?
+            <h4>Evidence requirement</h4><p>{selected.mode==='market'?
+              'Use original source-dated option bid/ask snapshots for one named contract. Rate and dividend yield are assumptions; the same-quote implied volatility fit is not independent market validation.'
+              :selected.mode==='historical'?
               'Fits to observed local prices. At least '+selected.min_observations+' common finite return observations are required; incomplete sessions are not filled. Reported fit is in-sample unless a strict validation algorithm is explicitly selected.'
               :selected.mode==='synthetic'?
               'This is a seeded synthetic simulation; select a seed to reproduce paths. It is not an empirical forecast or trading signal.'
