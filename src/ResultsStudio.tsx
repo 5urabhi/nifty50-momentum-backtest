@@ -432,10 +432,12 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
           <nav className="rs-tabs" aria-label="Research results sections">{VIEWS.map(v=>
             <button key={v.id} className={tab===v.id?'active':''}
               aria-current={tab===v.id?'page':undefined} onClick={()=>setTab(v.id)}>{v.label}</button>)}</nav>
-          {tab==='assistant'&&<ResearchAssistant key={active.key}
-            run={{id:active.id,kind:active.kind,title:active.title}}
-            onTab={destination=>setTab(destination)} onData={onData}
-            onModels={onModels} onExperiments={onExperiments}/>}
+          <div style={{display:tab==='assistant'?'block':'none'}} aria-hidden={tab!=='assistant'}>
+            <ResearchAssistant key={active.key}
+              run={{id:active.id,kind:active.kind,title:active.title}}
+              onTab={destination=>setTab(destination)} onData={onData}
+              onModels={onModels} onExperiments={onExperiments}/>
+          </div>
           {tab==='brief'&&<div className="rs-stack">
             <div className="rs-kpi-grid">{topMetrics.length?topMetrics.map(m=><article key={m.name}>
               <small>{m.name}</small><strong>{formatMetric(m.name,m.value,m.unit).value}</strong>
