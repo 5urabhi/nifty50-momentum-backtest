@@ -283,7 +283,12 @@ function Surface3D({plot}:{plot:ResearchPlotData}){
       <span>Z: {fmt(Math.min(...zs.flat()))} → {fmt(Math.max(...zs.flat()))}</span></div>
   </div>
 }
-const csvCell=(value:unknown)=>'"'+String(value??'').replaceAll('"','""').replace(/^[=+@\-]/,'\u0027$&')+'"'
+const csvCell=(value:unknown)=>{
+  if(typeof value==='number'&&Number.isFinite(value))return String(value)
+  const text=String(value??'')
+  const safe=/^[=+@\\-]/.test(text)?"'"+text:text
+  return '"'+safe.replaceAll('"','""')+'"'
+}
 function dataTable(plot:ResearchPlotData):{columns:string[];rows:unknown[][]}{
   if(plot.kind==='surface3d'){
     const xs=plot.x||[],ys=plot.y||[],z=plot.z||[]
