@@ -23,20 +23,37 @@ DAILY_ONLY = frozenset({"ou_fit", "heston_proxy"})
 
 
 def inspect_stock(series: pd.Series, frequency: str, minimum: int) -> dict:
-    """Return exact observed-source coverage; reject gaps rather than filling."""
-    n = len(series) - 1
-    result = {"returns": max(n, 0), "runnable": False, "reason": ""}
-    if n < minimum:
-        result["reason"] = f"Needs at least {minimum} returns; found {max(n,0)}"
+    """Measure one stock's contiguous observed history without imputation.
+
+    Wide historical panels have different first and last trading dates per
+    stock. Leading/trailing unavailable dates are not a data quality error,
+    but internal holes cannot be silently filled or skipped.
+    """
+    first, last = series.first_valid_index(), series.last_valid_index()
+    if first is None or last is None:
+        return {"returns": 0, "runnable": False, "extendable": True,
+                "reason": "No original closes for this stock",
+                "missing_minimum": minimum,
+                "missing_to_target": math.ceil(minimum*1.2),
+                "from_date": None, "to_date": None}
+    observed = series.loc[first:last]
+    n = max(0, len(observed)-1)
+    target = math.ceil(minimum * 1.2)
+    result = {"returns": n, "runnable": False, "extendable": False,
+              "reason": "", "missing_minimum": max(0, minimum-n),
+              "missing_to_target": max(0, target-n),
+              "from_date": str(pd.Timestamp(first).date()),
+              "to_date": str(pd.Timestamp(last).date()),
+              "available_closes": int(observed.notna().sum()),
+              "raw_panel_dates": len(series)}
+    if observed.isna().any():
+        result["reason"] = "Missing price observations inside the stock's available date range; no forward fill"
         return result
-    if series.isna().any():
-        result["reason"] = "Missing price observations; no forward fill is permitted"
-        return result
-    values = series.to_numpy(dtype=float)
+    values = observed.to_numpy(dtype=float)
     if not np.isfinite(values).all() or (values <= 0).any():
         result["reason"] = "Nonfinite or nonpositive historical closes"
         return result
-    dates = series.index
+    dates = observed.index
     if dates.has_duplicates or not dates.is_monotonic_increasing:
         result["reason"] = "Dates must be unique and chronologically ordered"
         return result
@@ -52,9 +69,19 @@ def inspect_stock(series: pd.Series, frequency: str, minimum: int) -> dict:
     else:
         result["reason"] = "Unsupported historical price frequency"
         return result
+    result["extendable"] = True
+    if n < minimum:
+        result["reason"] = (
+            f"{n} actual returns; needs {minimum-n} for minimum and "
+            f"{target-n} to meet preferred +20% target")
+        return result
+    if n < 2:
+        result["reason"] = "At least two nonconstant observed returns are required"
+        return result
     log_returns = np.diff(np.log(values))
     if not np.isfinite(log_returns).all() or np.std(log_returns, ddof=1) <= 1e-10:
         result["reason"] = "Constant/invalid log returns cannot calibrate volatility"
+        result["extendable"] = False
         return result
     result.update(runnable=True, reason=f"{n} complete {frequency} returns, no imputation")
     return result
@@ -78,7 +105,8 @@ def rank_stocks(prices: pd.DataFrame | None, frequency: str,
     for name in prices.columns:
         status = inspect_stock(prices[name], frequency, minimum)
         rows.append({"ticker": str(name), **status})
-    rows.sort(key=lambda row: (not row["runnable"], -row["returns"], row["ticker"]))
+    rows.sort(key=lambda row: (not row["runnable"], not row.get("extendable", False),
+                               -row["returns"], row["ticker"]))
     return rows[:300]
 
 
@@ -126,7 +154,28 @@ def inspect(dataset_id: str, model_id: str) -> dict:
         prices = read_matrix(folder / file, positive=True)
     candidates = rank_stocks(prices, frequency, MINIMUM[model_id],
                              daily_only=model_id in DAILY_ONLY)
+    # Canonical shared Dhan columns use exchange segment + security ID.
+    # Preserve exact identifiers for execution but show readable display
+    # symbols in the picker; do not alias different instruments together.
+    label_path = (folder / "SHARED_MARKET_PROVENANCE.json" if
+                  dataset_id == "dhan_shared" else
+                  folder / "DHAN_BATCH_PROVENANCE.json")
+    if label_path.is_file() and not label_path.is_symlink():
+        try:
+            info = json.loads(label_path.read_text(encoding="utf-8"))
+            labels = {str(row["column"]): str(row.get("display_symbol") or
+                      row["column"]) for row in info.get("columns", [])}
+            for candidate in candidates:
+                candidate["display_name"] = labels.get(
+                    candidate["ticker"], candidate["ticker"])
+        except (ValueError, OSError, KeyError, TypeError):
+            for candidate in candidates:
+                candidate["display_name"] = candidate["ticker"]
+    else:
+        for candidate in candidates:
+            candidate["display_name"] = candidate["ticker"]
     valid = [item for item in candidates if item["runnable"]]
+    suggested = next((item for item in candidates if item.get("extendable")), None)
     tri = tri_source_info(folder, MINIMUM[model_id]) if model_id in {
         "gbm_fit", "merton_fit"} else {
         "runnable": False, "returns": 0,
@@ -139,7 +188,13 @@ def inspect(dataset_id: str, model_id: str) -> dict:
         "synthetic_fixture": bool(synthetic),
         "source_file": file if prices is not None else None,
         "eligible_count": len(valid), "candidates": candidates, "tri": tri,
+        "candidate_count": len(candidates),
+        "auto_download_supported": record.get("kind") == "dhan"
+                                   and record.get("has_daily_prices", False),
+        "recommended_ticker": suggested["ticker"] if suggested else None,
+        "extendable_count": sum(bool(item.get("extendable")) for item in candidates),
         "selection_is_explicit": True, "no_missing_prices_imputed": True,
-        "help": ("Select one eligible ticker explicitly. These are input checks, "
-                 "not a guarantee of a successful stochastic fit or a trading signal."),
+        "help": ("Select an eligible or incomplete named ticker. If it lacks data, "
+                 "use Get missing data (+20%) to reuse local Dhan candles and download "
+                 "uncovered windows. No ticker is chosen silently; no prices are fabricated."),
     }

@@ -5,6 +5,7 @@ stochastic estimator converges on every numerically pathological series.
 """
 from __future__ import annotations
 
+import math
 import numpy as np
 import pandas as pd
 
@@ -76,8 +77,15 @@ def overview(dataset_id: str | None = None) -> dict:
             if model_id in model_input_selector.DAILY_ONLY and not daily:
                 return (False,"This stochastic model needs original daily stock closes",
                         "Select a daily Dhan dataset, not monthly-only returns")
+            best=next((candidate for candidate in eligible if candidate.get("extendable")),None)
+            if best:
+                target=math.ceil(need*1.2)
+                return (False,f"{best['ticker']} has {best['returns']} observed returns; "
+                        f"{target} preferred (+20%), "
+                        f"{max(0,target-best['returns'])} more needed",
+                        "Open this model and click Get missing data (+20%) for a named stock")
             return (False, f"No ticker passes the {need}-return/gap/no-imputation checks",
-                    "Inspect eligible tickers and source gaps in Model Laboratory")
+                    "Inspect source gaps in Data Library before extending")
         if prices is None or returns is None:
             return (False, "No historical price panel available",
                     "Import or download original Dhan stock prices")

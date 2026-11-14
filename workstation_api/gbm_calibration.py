@@ -73,8 +73,15 @@ def _series(dataset_id: str, target: str, ticker: str) -> tuple[pd.Series, pd.Se
             options = ", ".join(map(str, list(prices.columns)[:8]))
             raise ValueError("Stock ticker " + ticker + " is not present. Available examples: " + options)
         levels_raw = prices[ticker]
+        # A canonical Dhan panel is the UNION of all securities' dates.
+        # A stock may start later/end earlier than its peers. Trim ONLY its
+        # entirely unobserved outer dates; internal holes are never filled.
+        first, last = levels_raw.first_valid_index(), levels_raw.last_valid_index()
+        if first is None or last is None:
+            raise ValueError("Selected stock has no observed prices in this dataset")
+        levels_raw = levels_raw.loc[first:last]
         if levels_raw.isna().any() or not np.isfinite(levels_raw.to_numpy(dtype=float)).all():
-            raise ValueError("Selected stock has missing or invalid price observations; no forward fill")
+            raise ValueError("Selected stock has internal missing or invalid prices; no forward fill")
         if len(levels_raw) - 1 < MIN_RETURNS:
             raise ValueError(f"GBM needs {MIN_RETURNS} stock returns; found {len(levels_raw)-1}")
         frequency = "daily" if source == "daily_prices.csv" else "monthly"
