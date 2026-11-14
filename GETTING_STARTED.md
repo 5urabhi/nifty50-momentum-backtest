@@ -54,7 +54,7 @@ This guide describes the verified `main` release. Feature-branch reviewers shoul
 
 [Researcher walkthrough](docs/START_HERE_RESEARCHER.md) · [Model Laboratory](docs/MODEL_LABORATORY_GUIDE.md) · [Research Workspace](docs/RESEARCH_WORKSPACE_GUIDE.md) · [Reproducibility](docs/QUANTLAB_REPRODUCIBILITY.md) · [Source-aware research](docs/QUANTLAB_STATUS.md).
 
-Run offline checks with `python -m unittest discover -s tests -v` and `npm run build`. GitHub Actions also executes automated Ubuntu Chromium browser acceptance. It uses isolated synthetic fixtures; it does **not** validate a user's live Dhan entitlement or original NSE data.
+Run the complete CURRENT workstation software acceptance with `bash run.sh check` (React/TypeScript build, Python unit/integration and mathematics checks, and a read-only historical-source doctor). For a synthetic research evaluation and 2D/3D report, use `bash run.sh evaluate`. The archived Streamlit UI is optional and is not the default acceptance path. You may also run `python -m unittest discover -s tests -v` and `npm run build` separately. GitHub Actions also executes automated Ubuntu Chromium browser acceptance. It uses isolated synthetic fixtures; it does **not** validate a user's live Dhan entitlement or original NSE data.
 
 ### Advanced research features
 
