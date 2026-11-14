@@ -56,8 +56,8 @@ export default function ModelResultBrief({
   onOpenMethod:()=>void;
 }){
   const calibration=result.calibration
-  const training=calibration?.train_count
-  const testing=calibration?.test_count
+  const training=typeof calibration?.train_count==='number'?calibration.train_count:null
+  const testing=typeof calibration?.test_count==='number'?calibration.test_count:null
   const split=Number.isInteger(training)&&Number.isInteger(testing)&&
     Number(training)>0&&Number(testing)>0
   const fixture=!!result.source?.is_synthetic_fixture||
