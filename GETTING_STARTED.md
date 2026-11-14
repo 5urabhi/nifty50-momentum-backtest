@@ -56,6 +56,14 @@ This guide describes the verified `main` release. Feature-branch reviewers shoul
 
 Run the complete CURRENT workstation software acceptance with `bash run.sh check` (React/TypeScript build, Python unit/integration and mathematics checks, and a read-only historical-source doctor). For a synthetic research evaluation and 2D/3D report, use `bash run.sh evaluate`. The archived Streamlit UI is optional and is not the default acceptance path. You may also run `python -m unittest discover -s tests -v` and `npm run build` separately. GitHub Actions also executes automated Ubuntu Chromium browser acceptance. It uses isolated synthetic fixtures; it does **not** validate a user's live Dhan entitlement or original NSE data.
 
+### Last-mile cleanup and recovery
+
+**Jobs:** For an interrupted local calculation, select **Research Projects → Jobs → Recheck inputs & retry**. This action is available only for supported deterministic research sweeps, chronological validation, reports and learning experiments. It checks the exact saved local source bytes, edited notebook and corresponding calculation code. If sources changed, reopen the study and start a new run. Dhan reads and single-use frozen evaluations are NEVER automatically restarted.
+
+**Data Quality:** Scan for exact duplicate prepared views. The hash includes every regular file and nested provenance record; a user-confirmed redundant copy may be moved to recoverable Trash only after rescan and dependency checks. The first copy and raw Dhan market cache remain untouched. Restore from Dataset Library if needed.
+
+**Plot Builder:** Declare INR/₹ or USD/$ only when you know the input price currency. This is a user-supplied display declaration, not certified by Dhan or NSE. Returns remain decimal fractions (0.01 = 1%), Sharpe/beta unitless, costs in bps and wealth indices base 100. Dated 2D figures can link zoom/pan and pointers on exactly matching observed dates, never invented intermediate dates.
+
 ### Advanced research features
 
 **Results Studio → Overfitting & regimes** provides retrospective CSCV/PBO, declared-trial Deflated Sharpe statistics, and trailing benchmark-volatility regimes for compatible saved index experiments (at least 48 aligned monthly returns; more for six/eight blocks). The calculations are exploratory, not purged CPCV or a prospectively untouched final test. See [advanced validation methods](docs/ADVANCED_SELECTION_VALIDATION.md).
