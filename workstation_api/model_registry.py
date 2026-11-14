@@ -26,6 +26,12 @@ def symbol_input(name: str, default: str = "", description: str = "") -> dict:
     return {"key": name, "type": "symbol", "default": default, "description": description}
 
 
+def market_quote_input() -> dict:
+    """Strict immutable quote snapshot + contract selector."""
+    return {"key": "quote", "type": "quote", "default": "",
+            "description": "Select one actual source-dated option bid/ask contract."}
+
+
 SEED = numeric("seed", 2026, 0, 2147483647, 1, integer=True)
 PATHS = numeric("paths", 180, 20, 600, 20, integer=True)
 STEPS = numeric("steps", 100, 12, 260, 10, integer=True)
@@ -146,6 +152,38 @@ MODELS = [
           "Risk-neutral European option estimate with standard error and 95% Monte Carlo CI.",
           "C ≈ e⁻ʳᵀ (1/N) Σ max(Sₜ−K,0)",
           [SPOT, STRIKE, YEARS, RATE, VOL, OPTION, SEED], "line2d"),
+    model("black_scholes_quote", "Derivatives & Options",
+          "Black–Scholes · Observed Market Quote", "market", 0,
+          "European BSM and Greeks with actual vendor spot/strike/expiry/bid/ask; "
+          "volatility inverted from that SAME quote. Rate and yield remain stated assumptions.",
+          "BSM(S_quote,K_quote,T_quote,r_assumed,σ_IV_quote)",
+          [market_quote_input(),RATE,numeric("dividend_yield",0.,-.2,.4,.01)],"line2d"),
+    model("binomial_quote", "Derivatives & Options",
+          "CRR Binomial · Observed Market Quote", "market", 0,
+          "American/European tree using an original option quote and midpoint-derived "
+          "European implied volatility; no claim of an observed exercise premium.",
+          "V_tree=CRR(S_quote,K_quote,T_quote,σ_IV_quote,r_assumed)",
+          [market_quote_input(),RATE,numeric("dividend_yield",0.,-.2,.4,.01),
+           choice("exercise","european",["european","american"]),
+           numeric("steps",160,20,400,20,integer=True)],"line2d"),
+    model("implied_vol_quote", "Derivatives & Options",
+          "Implied Volatility · Observed Bid/Ask", "market", 0,
+          "Extract European implied volatility from original bid/ask and midpoint "
+          "using an explicit risk-free rate and dividend-yield assumption.",
+          "σ_IV=BSM⁻¹(bid,mid,ask,S,K,T,r,q)",
+          [market_quote_input(),RATE,numeric("dividend_yield",0.,-.2,.4,.01)],"line2d"),
+    model("mc_option_quote", "Derivatives & Options",
+          "Monte Carlo · Observed Market Quote", "market", 0,
+          "Quote-anchored antithetic Monte Carlo pricing with numerical error "
+          "bands; simulated payoffs are NEVER actual option-market observations.",
+          "C_MC≈e⁻ʳᵀ E[(Sᵀ−K)⁺ | σ_IV_quote]",
+          [market_quote_input(),RATE,numeric("dividend_yield",0.,-.2,.4,.01),SEED],"line2d"),
+    model("option_surface_quote", "3D Visual Laboratory",
+          "3D Option Surface · Quote-Anchored", "market", 0,
+          "Actual bid/ask underpins a hypothetical BSM spot/volatility surface. "
+          "This is NOT a calibrated multi-contract market volatility surface.",
+          "BSM(S_scenario,σ_scenario | original_quote)",
+          [market_quote_input(),RATE,numeric("dividend_yield",0.,-.2,.4,.01)],"surface3d"),
     model("option_surface", "3D Visual Laboratory", "3D BSM Price Surface", "theoretical", 0,
           "Interactive theoretical option-price surface over underlying spot and volatility.",
           "V(S,σ)=BSM(S,K,T,r,σ)", [SPOT, STRIKE, YEARS, RATE, OPTION], "surface3d"),
@@ -217,6 +255,10 @@ def validate_parameters(model_id: str, supplied: dict | None) -> dict:
             if not isinstance(value, str) or len(value) > 32 or (
                     value and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._&-]{0,31}", value)):
                 raise ValueError(key + " must be an exact dataset stock symbol, max 32 characters")
+        elif spec["type"] == "quote":
+            if not isinstance(value,str) or (value and not re.fullmatch(
+                    r"oq_[0-9a-f]{20}:[0-9]{1,3}",value)):
+                raise ValueError("Select an actual saved source-quoted option contract")
         else:
             if isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value):
                 raise ValueError(key + " must be a finite number")
