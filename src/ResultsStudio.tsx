@@ -433,7 +433,11 @@ export default function ResultsStudio({selectedIndexRunId,selectedModelRunId,onS
             <h3>{active.title}</h3><p>{active.id} · {active.created?new Date(active.created).toLocaleString():'Saved date not recorded'}</p>
           </div><div className="rs-identity-right"><span className={'rs-evidence '+(sourceKind==='synthetic'?'demo':sourceKind==='theoretical'?'theory':'observed')}>{evidence}</span>
             <button onClick={()=>saveFile('quantlab_'+active.id+'_result.json',
-              JSON.stringify(runDetails,null,2),'application/json')}><Download size={14}/> Exact run JSON</button></div></section>
+              JSON.stringify(runDetails,null,2),'application/json')}><Download size={14}/> Exact run JSON</button>
+            <a className="rs-bundle-link" download
+              href={'/api/workspace/evidence-bundles/'+active.kind+'/'+
+                encodeURIComponent(active.id)+'.zip'}>
+              <Download size={14}/> Reproducible evidence ZIP</a></div></section>
           <nav className="rs-tabs" aria-label="Research results sections">{VIEWS.map(v=>
             <button key={v.id} className={tab===v.id?'active':''}
               aria-current={tab===v.id?'page':undefined} onClick={()=>setTab(v.id)}>{v.label}</button>)}</nav>
