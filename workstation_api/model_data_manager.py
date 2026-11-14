@@ -14,7 +14,13 @@ MAX_BACKFILL_YEARS = 15
 
 
 def requirement(model_id: str, params: dict | None = None) -> dict:
-    settings = model_registry.validate_parameters(model_id, params or {})
+    config=dict(params or {})
+    # Inspect readiness before the user has selected a single stock. Runtime
+    # execution still validates the actual ticker and never auto-chooses one.
+    if model_id in {"ou_fit","merton_fit","heston_proxy"} and (
+            config.get("target","stock")=="stock" and not config.get("ticker")):
+        config["ticker"]="SELECTION_PENDING"
+    settings = model_registry.validate_parameters(model_id, config)
     spec = model_registry.CATALOG[model_id]
     minimum = int(spec["min_observations"])
     if model_id == "rolling_vol":
