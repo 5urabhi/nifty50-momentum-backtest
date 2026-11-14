@@ -24,7 +24,8 @@ type ModelRun={id:string;model_id:string;title:string;group:string;mode:string;
 type IndexRun={id:string;name:string;dataset_id?:string;created_utc?:string}
 type RunOption={key:string;kind:'model_run'|'research_run';id:string;label:string;model?:string;figures:number}
 type Job={id:string;kind:string;status:string;result?:Raw;error?:string;
-  created_utc?:string;stage?:string;percent?:number;cancellable?:boolean}
+  created_utc?:string;stage?:string;percent?:number;cancellable?:boolean;
+  retryable?:boolean;queue_position?:number|null;next_action?:string}
 type ModelSpec={id:string;title:string;group:string;mode:string;parameters:{
   key:string;default:number|string;type:string;min?:number;max?:number}[]}
 type NotebookCell={id:string;type:'markdown'|'run'|'chart'|'table';content?:string;run_id?:string;chart_id?:string;previous_run_ids?:string[]}
@@ -1321,12 +1322,12 @@ function JobsPanel({jobs,busy,perform,onPage}:{
         key={j.id}><button className="rw-plain" onClick={()=>setSelected(j.id)}>
           <strong>{j.kind.replaceAll('_',' ')}</strong><small>{j.id} · {j.created_utc?.slice(0,16)||''}</small></button>
         <span className={'rw-pill '+j.status}>{j.status}</span>
+        {j.queue_position!=null&&<small>Queue #{j.queue_position}</small>}
         {(j.status==='queued'||(j.status==='running'&&j.cancellable))&&
           <button disabled={busy} onClick={()=>cancel(j)}><X size={14}/>
             {j.status==='running'?'Request safe cancellation':'Cancel queued'}</button>}
         {(j.status==='error'||j.status==='cancelled')&&
-          ['workspace_parameter_sweep','workspace_grid_sweep','workspace_validation',
-           'workspace_report'].includes(j.kind)&&<button disabled={busy}
+          j.retryable===true&&<button disabled={busy}
           onClick={()=>perform(()=>api<Raw>('/workspace/jobs/'+j.id+'/retry',{},'POST'))}>
           <RotateCcw size={14}/> Retry</button>}
       </div>)}
@@ -1341,7 +1342,11 @@ function JobsPanel({jobs,busy,perform,onPage}:{
             <span>{item.percent.toFixed(0)}%</span></div>
           <progress aria-label="Research job progress" max="100" value={item.percent}/>
         </div>}
-      {item.error&&<p className="rw-error">{item.error}</p>}
+      {item.error&&<p className="rw-error">Failure: {item.error}</p>}
+      {item.next_action&&<p className={item.status==='error'?'rw-caution':'rw-help'}>
+        <strong>Next:</strong> {item.next_action}</p>}
+      {item.queue_position!=null&&<p className="rw-help">Waiting in local queue,
+        position {item.queue_position}. One numerical/data job runs at a time.</p>}
       {item.status==='interrupted'&&<p className="rw-caution">
         The previous Python process exited while this job was active. Reopen the saved study or rerun its configuration; do not mistake this status for a completed research result.</p>}
       {item.result&&<><div className="rw-button-group">
