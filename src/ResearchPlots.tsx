@@ -44,7 +44,7 @@ function Canvas2D({plot,syncHover=true}:{plot:ResearchPlotData;syncHover?:boolea
       if(pinned)return
       if(target===null){setActiveIndex(null);return}
       if(typeof target==='string'){
-        const match=x.findIndex(v=>String(v)===target)
+        const match=x.findIndex(v=>(exactDateKey(v)||String(v))===target)
         if(match>=0)setActiveIndex(match)
       }
     }
@@ -54,7 +54,7 @@ function Canvas2D({plot,syncHover=true}:{plot:ResearchPlotData;syncHover?:boolea
   const emitCursor=(index:number|null)=>{
     if(!syncHover)return
     window.dispatchEvent(new CustomEvent('quantlab:chart-cursor',{
-      detail:{x:index===null?null:String(x[index])}}))
+      detail:{x:index===null?null:(exactDateKey(x[index])||String(x[index]))}}))
   }
   const width=GRID_RIGHT-GRID_LEFT,height=GRID_BOTTOM-GRID_TOP
   const [lo,hi]=useMemo(()=>yBounds(plot),[plot])
