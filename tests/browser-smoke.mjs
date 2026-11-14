@@ -169,6 +169,13 @@ try {
     await page.locator('.ws-dataset-trash summary').click()
     await page.locator('.ws-dataset-trash').evaluate(el=>el.open===true)
     await nav('Model Laboratory').click()
+    // <details> is a semantic group in Chromium; use the stable class when
+    // accessible role differs among browser versions.
+    const overview=page.locator('.ql-model-matrix')
+    await overview.locator('summary').click()
+    await overview.getByRole('heading',{name:'What can run with the selected data?'}).waitFor()
+    await overview.getByText(/Math and simulations runnable/).waitFor()
+    await overview.locator('summary').click()
     await page.locator('.ql-family-tabs').getByRole('button',{name:/Stochastic Processes/}).click()
     await page.getByText('SIMULATED EXAMPLE — NOT LIVE OR HISTORICAL MARKET DATA').waitFor()
     await page.getByRole('button',{name:'Fit to historical data (train / test)'}).click()

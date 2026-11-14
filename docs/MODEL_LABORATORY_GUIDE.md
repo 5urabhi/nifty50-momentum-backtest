@@ -250,3 +250,18 @@ third-party review.
 
 Regression checks:
 `python -m unittest tests.test_model_market_workflows tests.test_gbm_historical_calibration -v`.
+
+### All-model readiness, not a misleading single Ready badge
+
+Model Laboratory includes a **What can run with the selected data?** panel,
+populated from one local Python dataset audit. It identifies per-model:
+**Math runnable**, **Historical source available**, **Quoted-market source
+available**, or **Needs inputs**, and supplies the next concrete action.
+The counts are calculated from actual saved local files; they are not fixed
+UI metrics or a blanket statement that the model is publication certified.
+For individual model runs, source availability is checked again with its
+exact ticker, option contract and parameters.
+
+API: `GET /api/lab/model-readiness?dataset_id=<saved-id>`.
+The panel never submits live orders or assumes that source sufficiency
+guarantees optimizer convergence or empirical predictive power.

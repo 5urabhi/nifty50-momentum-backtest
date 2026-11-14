@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from fastapi.testclient import TestClient
 
-from workstation_api import model_lab, model_registry, option_quotes, service
+from workstation_api import model_lab, model_registry, model_readiness, option_quotes, service
 from workstation_api.app import app
 
 
@@ -159,6 +159,27 @@ class CompleteModelWorkflowsTests(unittest.TestCase):
             self.assertTrue(any("ASSUMPTIONS" in x for x in d["limitations"]))
             self.assertGreater(len(d["plots"]),0)
             self.assertTrue((self.folder/"results"/"model_laboratory"/(d["run_id"]+".json")).is_file())
+
+    def test_model_matrix_separates_math_historical_sources_and_quotes(self):
+        before=model_readiness.overview("market_fixture")
+        self.assertGreaterEqual(before["math_ready"],9)
+        self.assertGreaterEqual(before["historical_source_ready"],3)
+        self.assertEqual(before["option_source_ready"],0)
+        self.assertEqual(before["total_models"],len(model_registry.MODELS))
+        self.assertTrue(before["not_a_market_performance_certification"])
+        imported=option_quotes.import_quotes("market_fixture",self.quote_csv)
+        after=self.client.get("/api/lab/model-readiness",params={
+            "dataset_id":"market_fixture"})
+        self.assertEqual(after.status_code,200,after.text)
+        data=after.json()
+        self.assertEqual(data["option_source_ready"],5)
+        self.assertEqual(data["available_original_option_contracts"],1)
+        self.assertEqual(data["total_models"],len(model_registry.MODELS))
+        models={m["id"]:m for m in data["models"]}
+        self.assertEqual(models["heston"]["status"],"math_ready")
+        self.assertEqual(models["heston_proxy"]["status"],"source_available")
+        self.assertTrue(models["implied_vol_quote"]["source_ready"])
+        self.assertFalse(models["implied_vol"]["source_ready"])
 
     def test_market_readiness_requires_exact_saved_quote(self):
         empty=self.client.get("/api/lab/data-requirements",params={
