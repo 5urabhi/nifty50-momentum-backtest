@@ -261,6 +261,16 @@ export default function HistoricalValidationPanel({datasetId,config,hasDailyPric
               <small>{source.limitations}</small>
             </article>)}
         </div>
+        <div className="hv-mcp-info">
+          <strong>Automatic source checks — official NSE MCP, not website scraping</strong>
+          <p>NSE publishes an informational API for stock-history and corporate-action
+            lookups. QuantLab's local source collector can query one official MCP tool at a time
+            and safely prepare already-downloaded NSE ZIP/CSV reports. The result is not an
+            approved trading simulator or a verified research price history.</p>
+          <code>python scripts/quantlab_nse_sources.py mcp-tools --server bhavcopy</code>
+          <a className="hv-source-link" href="https://www.nseindia.com/nse-mcp"
+            target="_blank" rel="noopener noreferrer">Official NSE MCP documentation <ArrowRight size={12}/></a>
+        </div>
         <details className="hv-public-approval">
           <summary>Approval-only NSE research programs (separate from public reports)</summary>
           <div className="hv-public-grid">
