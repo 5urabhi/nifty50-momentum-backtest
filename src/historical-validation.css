@@ -129,3 +129,10 @@
 .hv-public-approval>summary{color:#f2d7a3;font-size:11px;font-weight:700;cursor:pointer}
 .hv-public-approval>summary:focus-visible{outline:2px solid #84e6d1;outline-offset:3px}
 @media(max-width:740px){.hv-public-grid{grid-template-columns:1fr}.hv-public-guide{padding:10px}}
+
+/* Existing TRI receipt: clear no-duplicate-import guidance. */
+.hv-tri-present{display:flex;align-items:flex-start;gap:11px;border:1px solid #3e8365;
+ border-radius:10px;background:#123329;padding:13px;margin:13px 0}
+.hv-tri-present svg{color:#8fe3b7;flex-shrink:0}
+.hv-tri-present strong{font:600 12px 'Space Grotesk',sans-serif;color:#ddffec}
+.hv-tri-present p{font-size:11px;line-height:1.55;color:#c4e7d6;margin:5px 0 0}
