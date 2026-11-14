@@ -129,7 +129,7 @@ def fit(model_id: str, dataset_id: str, params: dict) -> dict:
                         "Actual trading session","Log 20-session realized volatility"),
                      fan("OU · hypothetical forward log-realized-volatility scenarios",
                          simulated,horizon,"Years after fitted sample")],
-            "notes":["OU models log 20-session trailing realized VOLATILITY, not stock-price levels.",
+            "notes":["OU models log 20-session trailing realized VOLATILITY, NOT stock-price levels.",
                      "AR(1) exact discretization: phi=exp(-kappa * 1/252).",
                      "One-step holdout predictions use the preceding observed volatility proxy only."],
             "calibration":{"method":"AR1_exact_OU_on_log_trailing_realized_vol",
