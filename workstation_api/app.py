@@ -895,6 +895,21 @@ def inspect_duplicate_datasets():
     except (ValueError, OSError, FileNotFoundError, KeyError) as exc:
         bad(exc)
 
+class DuplicateTrashRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    signature_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    confirm: bool = False
+
+
+@app.post("/api/workspace/data-maintenance/duplicates/{dataset_id}/trash")
+def trash_verified_duplicate(dataset_id: str, body: DuplicateTrashRequest):
+    try:
+        return source_inventory.trash_exact_duplicate(
+            dataset_id, body.signature_sha256, confirm=body.confirm)
+    except (ValueError, OSError, FileNotFoundError, KeyError) as exc:
+        bad(exc)
+
+
 
 def _job_next_action(job: dict) -> str:
     status = job.get("status")
