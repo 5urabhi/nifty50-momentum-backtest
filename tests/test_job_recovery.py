@@ -27,7 +27,7 @@ class JobRecoveryTests(unittest.TestCase):
         self.root=Path(temp.name)
         self.dataset=self.root/"original"
         self.dataset.mkdir()
-        (self.dataset/"prices.csv").write_text("date,SECURITY_A\\n2020-01-31,100\\n")
+        (self.dataset/"prices.csv").write_text("date,SECURITY_A\n2020-01-31,100\n")
         self.source={"kind":"uploaded"}
         self.patcher=patch.object(job_recovery.service,"DATA",self.root)
         self.patcher.start()
@@ -45,10 +45,10 @@ class JobRecoveryTests(unittest.TestCase):
         self.assertTrue(job_recovery.available("0123456789abcdef"))
         restored=job_recovery.restore("0123456789abcdef")
         self.assertEqual(restored,(kind,[],kwargs))
-        self.assertNotIn("100\\n",(
+        self.assertNotIn("100\n",(
             self.root/"research_workspace"/"restart_retries"/"0123456789abcdef.json"
         ).read_text())
-        (self.dataset/"prices.csv").write_text("date,SECURITY_A\\n2020-01-31,101\\n")
+        (self.dataset/"prices.csv").write_text("date,SECURITY_A\n2020-01-31,101\n")
         with self.assertRaisesRegex(ValueError,"changed"):
             job_recovery.restore("0123456789abcdef")
 
@@ -100,9 +100,9 @@ class JobRecoveryTests(unittest.TestCase):
         job_recovery.save(original_id,"workspace_validation",(),
                           {"dataset_id":"upload_mydata","model":"min_variance"})
         old={"id":original_id,"status":"interrupted","kind":"workspace_validation"}
-        with patch.object(api.research_library,"list_job_history",return_value=[old]), \\
-             patch.object(api,"RUNNER",worker), \\
-             patch.object(api,"_persist_job"), \\
+        with patch.object(api.research_library,"list_job_history",return_value=[old]), \
+             patch.object(api,"RUNNER",worker), \
+             patch.object(api,"_persist_job"), \
              patch.object(api.research_library,"store_job"):
             board=api.workspace_jobs()
             item=next(x for x in board["jobs"] if x["id"]==original_id)
@@ -117,7 +117,7 @@ class JobRecoveryTests(unittest.TestCase):
         job_id="ffffeeee00001111"
         job_recovery.save(job_id,"workspace_validation",(),
                           {"dataset_id":"upload_mydata","model":"min_variance"})
-        (self.dataset/"prices.csv").write_text("date,SECURITY_A\\n2020-01-31,80\\n")
+        (self.dataset/"prices.csv").write_text("date,SECURITY_A\n2020-01-31,80\n")
         with patch.object(api.research_library,"list_job_history",return_value=[
             {"id":job_id,"status":"interrupted","kind":"workspace_validation"}]):
             with self.assertRaises(HTTPException) as raised:
