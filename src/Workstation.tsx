@@ -12,6 +12,7 @@ import ModelLaboratory from './ModelLaboratory'
 import ResearchGuide from './ResearchGuide'
 import ResearchWorkspace from './ResearchWorkspace'
 import ResultsStudio from './ResultsStudio'
+import ResearchJourney from './ResearchJourney'
 import HistoricalValidationPanel from './HistoricalValidationPanel'
 
 type Dict = Record<string, unknown>
@@ -30,8 +31,9 @@ type RunConfig = {
   validation_start:string;final_test_start:string;sector_cap:number|null
 }
 const defaultConfig:RunConfig = {name:'quant_research_v1', factor_weights:{momentum:1,low_volatility:0,value:0,quality:0,size:0},top_n:10,weighting:'equal',max_weight:.2,rebalance_every:3,cost_bps:10,execution_lag:1,momentum_formation:12,momentum_skip:1,volatility_lookback:12,validation_start:'',final_test_start:'',sector_cap:null}
-type Tab = 'overview'|'workspace'|'projects'|'data'|'dhan'|'research'|'factors'|'construction'|'comparisons'|'mathematics'|'rolling'|'models'|'risk'|'robustness'|'visual'|'reports'|'history'|'settings'|'guide'
+type Tab = 'journey'|'overview'|'workspace'|'projects'|'data'|'dhan'|'research'|'factors'|'construction'|'comparisons'|'mathematics'|'rolling'|'models'|'risk'|'robustness'|'visual'|'reports'|'history'|'settings'|'guide'
 const primarySections:{id:Tab;label:string;icon:typeof Activity;tabs:Tab[]}[]=[
+ {id:'journey',label:'Guided Research',icon:Play,tabs:['journey']},
  {id:'overview',label:'Home',icon:Gauge,tabs:['overview']},
  {id:'data',label:'Data Library',icon:Database,tabs:['data','dhan']},
  {id:'mathematics',label:'Model Laboratory',icon:Sigma,
@@ -45,7 +47,7 @@ const primarySections:{id:Tab;label:string;icon:typeof Activity;tabs:Tab[]}[]=[
  {id:'guide',label:'Help & Settings',icon:Settings2,tabs:['guide','settings']},
 ]
 
-const titles:Record<Tab,string>={overview:'Research command center',workspace:'Research workspace',projects:'Projects and notebooks',data:'Data manager',dhan:'Download market data',research:'Index research engine',factors:'Factor laboratory',construction:'Index construction',comparisons:'Index comparisons',mathematics:'Advanced mathematics',rolling:'Rolling validation',models:'Quantitative models',risk:'Risk attribution',robustness:'Robustness & sensitivity',visual:'Visual validation',reports:'Research reports',history:'Results Studio · Research Intelligence',settings:'Workstation settings',guide:'How to use QuantLab'}
+const titles:Record<Tab,string>={journey:'Guided Research · Five steps',overview:'Research command center',workspace:'Research workspace',projects:'Projects and notebooks',data:'Data manager',dhan:'Download market data',research:'Index research engine',factors:'Factor laboratory',construction:'Index construction',comparisons:'Index comparisons',mathematics:'Advanced mathematics',rolling:'Rolling validation',models:'Quantitative models',risk:'Risk attribution',robustness:'Robustness & sensitivity',visual:'Visual validation',reports:'Research reports',history:'Results Studio · Research Intelligence',settings:'Workstation settings',guide:'How to use QuantLab'}
 const factors=[['momentum','Momentum'],['low_volatility','Low volatility'],['value','Value'],['quality','Quality'],['size','Size']] as const
 const number=(v:unknown,d=2)=>typeof v==='number' && Number.isFinite(v) ? v.toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d}) : '—'
 const percent=(v:unknown,d=2)=>typeof v==='number' && Number.isFinite(v) ? (v*100).toFixed(d)+'%' : '—'
@@ -233,7 +235,7 @@ function Select({label:caption,value,options,onChange}:{label:string;value:strin
 }
 const weighted=(metric:Dict|undefined,key:string)=>metric?.[key]
 function App(){
-  const [tab,setTab]=useState<Tab>('workspace')
+  const [tab,setTab]=useState<Tab>('journey')
   const [menu,setMenu]=useState(false)
   const [health,setHealth]=useState<Health|null>(null)
   const [datasets,setDatasets]=useState<Dataset[]>([])
@@ -314,7 +316,7 @@ function App(){
   useEffect(()=>{
     const navigate=(event:KeyboardEvent)=>{
       if((event.ctrlKey||event.metaKey)&&event.altKey&&
-         !event.shiftKey&&/^[1-8]$/.test(event.key)){
+         !event.shiftKey&&/^[1-9]$/.test(event.key)){
         event.preventDefault()
         const target=primarySections[Number(event.key)-1]
         if(target){setTab(target.id);setMenu(false);window.scrollTo(0,0)}
@@ -394,7 +396,7 @@ function App(){
     <div className="ws-main">
       <header className="ws-topbar"><div className="ws-top-left"><button type="button" className="ws-menu" onClick={()=>setMenu(true)} aria-label="Open navigation"><Menu size={19}/></button><span className="ws-breadcrumb">WORKSTATION</span><ChevronRight size={14}/><strong>{titles[tab]}</strong></div><div className="ws-top-right">{job&&['queued','running'].includes(job.status)&&<Tag tone="blue"><LoaderCircle size={13} className="ws-spin"/> {label(job.kind)} running</Tag>}<Tag tone={health?.ok?'good':'bad'}>{health?.ok?'ENGINE ONLINE':'OFFLINE'}</Tag><button title="Refresh from backend" aria-label="Refresh data" className="ws-icon" onClick={()=>void refresh()}><RefreshCw size={16}/></button></div></header>
       <main className="ws-content">
-        <div className="ws-titlebar"><div><div className="ws-overline">QUANTITATIVE EQUITY INDEX & FACTOR RESEARCH</div><h1>{titles[tab]}</h1><p>Local Python research engine · React/Vite desktop-style interface · Explicit source provenance</p></div><div className="ws-title-actions"><button type="button" className="ws-button secondary" onClick={()=>begin('guide')}><BookOpen size={15}/> Guide</button><button type="button" className="ws-button secondary" onClick={()=>begin('data')}><Database size={15}/> Data</button><button type="button" className="ws-button primary" onClick={()=>begin('research')}><Play size={14}/> New experiment</button></div></div>
+        <div className="ws-titlebar"><div><div className="ws-overline">QUANTITATIVE EQUITY INDEX & FACTOR RESEARCH</div><h1>{titles[tab]}</h1><p>Local Python research engine · React/Vite desktop-style interface · Explicit source provenance</p></div><div className="ws-title-actions"><button type="button" className="ws-button secondary" onClick={()=>begin('guide')}><BookOpen size={15}/> Guide</button><button type="button" className="ws-button secondary" onClick={()=>begin('data')}><Database size={15}/> Data</button><button type="button" className="ws-button primary" onClick={()=>begin('journey')}><Play size={14}/> Start guided study</button></div></div>
         {primarySections.some(section=>section.tabs.includes(tab)&&section.tabs.length>1)&&
           <nav className="ws-context-tabs" aria-label="Modules within selected research destination">
             {primarySections.find(section=>section.tabs.includes(tab))?.tabs.map(module=>
@@ -403,8 +405,14 @@ function App(){
                 {titles[module]}</button>)}
           </nav>}
         {notice&&<div role="status" className={'ws-notice '+(notice.error?'error':'')}><span>{notice.error?<CircleAlert size={17}/>:<CheckCircle2 size={17}/>}</span>{notice.text}<button onClick={()=>setNotice(null)} aria-label="Dismiss"><X size={16}/></button></div>}
+        {tab==='journey'&&<ResearchJourney datasets={datasets}
+          selectedDataset={selectedDataset} onSelectDataset={setSelectedDataset}
+          onDataChanged={refresh} onOpenData={()=>begin('data')}
+          onOpenDhan={()=>begin('dhan')} onOpenWorkspace={()=>begin('workspace')}
+          onOpenGuide={()=>begin('guide')} onOpenExperiments={()=>begin('research')}
+          onOpenModels={()=>begin('mathematics')} onOpenResults={()=>begin('history')}/>}
         {tab==='overview'&&<>
-          <div className="ws-overview-banner"><div><Tag tone="blue">RESEARCH CONTROL DESK / MODEL LAB V1</Tag><h2>One workstation.<br/><em>Every model, traceable.</em></h2><p>Keep datasets, factor experiments, risk calculations and generated evidence in one reproducible local research environment.</p><div className="ws-banner-actions"><button className="ws-button primary" onClick={()=>begin('research')}><Play size={16}/> Run research</button><button className="ws-button secondary" onClick={()=>begin('dhan')}><Database size={16}/> Connect market data</button></div></div><div className="ws-banner-graphic"><div className="ws-orbit one"/><div className="ws-orbit two"/><div className="ws-orbit three"/><span className="ws-center-glow"><Activity size={45}/></span><span className="ws-orbit-label a">MOMENTUM</span><span className="ws-orbit-label b">RISK</span><span className="ws-orbit-label c">FACTOR</span></div></div>
+          <div className="ws-overview-banner"><div><Tag tone="blue">RESEARCH CONTROL DESK / MODEL LAB V1</Tag><h2>One workstation.<br/><em>Every model, traceable.</em></h2><p>Keep datasets, factor experiments, risk calculations and generated evidence in one reproducible local research environment.</p><div className="ws-banner-actions"><button className="ws-button primary" onClick={()=>begin('journey')}><Play size={16}/> Start guided research</button><button className="ws-button secondary" onClick={()=>begin('dhan')}><Database size={16}/> Connect market data</button></div></div><div className="ws-banner-graphic"><div className="ws-orbit one"/><div className="ws-orbit two"/><div className="ws-orbit three"/><span className="ws-center-glow"><Activity size={45}/></span><span className="ws-orbit-label a">MOMENTUM</span><span className="ws-orbit-label b">RISK</span><span className="ws-orbit-label c">FACTOR</span></div></div>
           <div className="ws-metrics-grid"><Metric label="Available datasets" value={String(datasets.length)} caption={datasets.filter(d=>d.ready).length+' ready for research'}/><Metric label="Completed runs" value={String(runs.length)} caption="Stored locally on disk"/><Metric label="DhanHQ data access" value={dhan?.token_configured?'SET':'NOT SET'} caption="Read-only market data"/><Metric label="Python computation" value={health?.ok?'ONLINE':'OFFLINE'} caption="127.0.0.1:8765" highlight/></div>
           <div className="ws-grid two-thirds"><Card title="Portfolio research performance" extra={classification}>{chart??<Empty title="No historical run selected" onAction={()=>begin('research')} action="Configure experiment">Run the research engine to generate actual saved series and metrics.</Empty>}</Card><Card title="Latest research snapshot">{detail?<><div className="ws-overview-stat"><span>Strategy CAGR</span><strong>{percent(weighted(metric,'strategy_cagr'))}</strong></div><div className="ws-overview-stat"><span>Max drawdown</span><strong>{percent(weighted(metric,'max_drawdown'))}</strong></div><div className="ws-overview-stat"><span>Tracking error</span><strong>{percent(weighted(metric,'tracking_error'))}</strong></div><div className="ws-overview-stat"><span>Sample window</span><strong>{detail.meta.first_price_date?.slice(0,7)}–{detail.meta.last_price_date?.slice(0,7)}</strong></div><button className="ws-textlink" onClick={()=>begin('history')}>Inspect full run <ArrowRight size={15}/></button></>:<Empty title="Nothing to report">No metrics will appear until a Python experiment completes.</Empty>}</Card></div>
           <div className="ws-grid halves"><Card title="Research datasets" extra={<button className="ws-textlink" onClick={()=>begin('data')}>Manage <ArrowRight size={13}/></button>}><div className="ws-item-list">{datasets.slice(0,5).map(d=><button className="ws-dataset-row" key={d.id} onClick={()=>{setSelectedDataset(d.id);begin('data')}}><Database size={17}/><span><strong>{d.label}</strong><small>{d.basis}</small></span><Tag tone={d.ready?'good':'warn'}>{d.ready?'READY':'INCOMPLETE'}</Tag></button>)}{datasets.length===0&&<p className="ws-caption">No datasets found.</p>}</div></Card><Card title="Recent experiments" extra={<button className="ws-textlink" onClick={()=>begin('history')}>View history <ArrowRight size={13}/></button>}><div className="ws-item-list">{runs.slice(0,5).map(r=><button className="ws-dataset-row" key={r.id} onClick={()=>{setSelectedRun(r.id);begin('history')}}><Clock3 size={17}/><span><strong>{r.name}</strong><small>{r.id} · {date(r.created_utc)}</small></span><Tag tone={r.dataset_kind==='synthetic'?'warn':'blue'}>{r.dataset_kind}</Tag></button>)}{runs.length===0&&<p className="ws-caption">No completed runs yet.</p>}</div></Card></div>
