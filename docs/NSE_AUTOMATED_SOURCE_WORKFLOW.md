@@ -1,4 +1,22 @@
-# NSE data in QuantLab: official MCP and local report automation
+# NSE data in QuantLab: built-in source assistant
+
+## Normal user workflow — entirely inside QuantLab
+
+Open **Data Library → NSE Sources**, or **Experiment Studio → Historical
+evidence → NSE Source Assistant**. The app automatically chooses the official
+NSE MCP tool for the source task you select. Stock history checks try corporate
+actions first. User-visible errors distinguish a temporary provider outage
+from a confirmed event list; the latter is still not independent certification.
+
+To prepare an authorized report, select ZIP/CSV/XLSX/PDF under **Prepare NSE
+reports inside QuantLab**. The Python API stores original source hashes
+and a safe manifest; no command-line script or manual ZIP extraction is needed.
+The original TRI is detected and preserved.
+
+All commands below are **optional developer tools**, not steps a user must
+execute in the app.
+
+## Advanced command-line reference
 
 QuantLab ALREADY supports an imported TRI benchmark. Do not re-import it.
 The source collector checks existing local benchmark.csv and its provenance,
