@@ -1,6 +1,6 @@
 # QuantLab Model Laboratory — Mathematical & API Reference
 
-> **Scope:** 26 registered mathematical models routed to existing Python implementations, presented through one React family/subtab UI. Algorithms are executable only under their declared evidence requirements. This catalog is descriptive, not evidence of out-of-sample predictive performance.
+> **Scope:** The live Python model registry is authoritative for the current catalog; the original 26-model descriptions below document the foundational methods. Newer historical companions and observed-option workflows are described in the versioned appendix below. Algorithms are executable only under their declared evidence requirements. Catalog counts, UI availability and historical evidence are separate concepts.
 
 ## Model-family map
 
@@ -414,3 +414,16 @@ Read-only APIs: `GET /api/lab/model-inputs`,
 `GET /api/lab/data-requirements`, confirmed
 `POST /api/lab/data-requirements/extend`, and
 `GET /api/jobs/{job_id}`. No broker orders or credential exposure.
+
+
+## November 2026 integrated model readiness and results
+
+The current Model Laboratory shows **one backend-derived recommended next action** alongside the exact input requirement. For stock models, users can select incomplete tickers, inspect model-specific valid returns versus minimum and preferred (+20%), and confirm a read-only Dhan backfill that reuses cached instrument/date windows. Downloads are cancellable between safe checkpoints; already saved original data are retained. A current Dhan option-chain snapshot is not a historical options dataset.
+
+The registry includes separate **historically fitted companion workflows** for GBM, OU volatility, and Merton jump proxies, plus a **historical realized-variance Heston proxy**. These are not identical to the original mathematical `gbm`, `ou`, `merton` and `heston` simulations. Heston's historical variance proxy does **not** establish calibrated risk-neutral Heston parameters from a multi-expiry option surface.
+
+Saved option-quote inputs have source timestamps, contract identities and original quote hashes. Use observed-quote companions where available; output prices and Greeks are still **model-computed**.
+
+Result cards apply explicit unit presentation: fractional portfolio returns (e.g., `0.12`) are displayed as **12%** only for identified return-type metrics; model coefficients and ratios are not blindly converted. Currency formatting requires a declared currency (`INR`, `USD`, `EUR`, or `GBP`). A security listed in India does not automatically mean an arbitrary model output is rupees.
+
+Automated Chromium tests verify the model's recommended remediation is displayed; source eligibility, real vendor entitlement, dividend completeness, official TRI and independent approval remain separate evidence gates. For the current entrypoint use [GETTING_STARTED.md](../GETTING_STARTED.md).
