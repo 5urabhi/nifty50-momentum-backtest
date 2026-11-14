@@ -25,8 +25,11 @@ The checkout might not be nested if you cloned directly under `~/Desktop/codes`;
 
 ## 2. Guided UI navigation
 
+**Beginner default: Guided Research**. The default sidebar destination now provides **Select data → Choose model → Run → Analyze → Save** in one page. It embeds the genuine Model Laboratory and Results Studio, so no separate simulated calculation engine is introduced. In Save you can attach your interpretation and download a source-bound research evidence ZIP. Experimental index construction remains available in Experiment Studio for advanced users.
+
 | Sidebar | When to open | What to expect |
 |---|---|---|
+| **Guided Research** | First study, end-to-end | Select source, model, run, analyze, save/reproduce via actual backend. |
 | **Overview** | Dashboard and recent results | Shows saved Python experiment artifacts and selected dataset status; not an account brokerage portfolio. |
 | **Data Manager** | Select or audit a dataset | Separate **FILES COMPLETE** from total-return correctness or independent verification. |
 | **Dhan Market Data** | Download and resume | API profile check, instrument master, dated NIFTY membership, 1-minute OHLCV, resumption. |
@@ -230,3 +233,13 @@ uploaded data have different acquisition requirements. QuantLab
 explains the source-specific action instead of pretending that Dhan
 spot prices can satisfy every data contract. See
 `docs/MODEL_LABORATORY_GUIDE.md` for details.
+
+## Advanced selection, charts and lifecycle (November 2026)
+
+- **Results Studio → Overfitting & regimes:** CSCV/PBO, declared-trial Deflated Sharpe and trailing benchmark-volatility regimes. These are retrospective tests on identical original source hashes and the same benchmark dates, not prospective trading evidence. See [the numerical method](ADVANCED_SELECTION_VALIDATION.md).
+- **Interactive charts:** 2D zoom in/out, pan, reset and cross-chart hover synchronized only on exact matching date labels. Preserve the complete underlying CSV when zooming. 3D rotates/zooms separately. Uncertainty graphics still require enough observed data and appropriate assumptions.
+- **Jobs:** bounded six-job local queue, one serial worker, cancellation between safe checkpoints, retry only when the original job can be safely replayed, and specific failure actions. Pending jobs survive only as job history after backend restart; do not assume interrupted work completed.
+- **Data quality:** read-only SHA-256 duplicate detection for user-created prepared views, source dependency protection, recoverable Trash and disk usage. A duplicate match never triggers automatic deletion.
+- **Research ZIPs:** saved numerical results, method, source checksums and an offline `verify_bundle.py`, plus replay requirements. They do not bundle raw licensed original market data, so an external reader needs authorized inputs for a full numerical replay.
+
+**Additional evidence needed for real-world research:** original PIT NIFTY membership, delisted securities, corporate-action-adjusted total returns, official matching TRI, publication-dated fundamentals, realistic slippage and costs, frozen tests and independent validation. The app cannot construct those original facts from OHLCV alone.
