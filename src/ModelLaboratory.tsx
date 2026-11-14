@@ -129,6 +129,13 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   const [quoteLoading,setQuoteLoading]=useState(false)
   const [quoteError,setQuoteError]=useState('')
   const [quoteMessage,setQuoteMessage]=useState('')
+  const [dhanUnderlying,setDhanUnderlying]=useState<'NIFTY50'|'BANKNIFTY'>('NIFTY50')
+  const [dhanQuoteJob,setDhanQuoteJob]=useState<{
+    id:string;status:string;error?:string;
+    result?:{id:string;contracts:number;expiry:string;warning:string}
+  }|null>(null)
+  const [dhanQuoteMessage,setDhanQuoteMessage]=useState('')
+  const [dhanQuoteError,setDhanQuoteError]=useState('')
   const [catalog,setCatalog]=useState<ModelSpec[]>([])
   const [catalogError,setCatalogError]=useState<string|null>(null)
   const [group,setGroup]=useState(section==='mathematics'?SECTIONS[0]:SECTIONS[3])
@@ -191,6 +198,42 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   },[selectedDataset])
   useEffect(()=>{setQuoteError('');setQuoteMessage('');setQuoteFile(null)
     void refreshQuotes()},[refreshQuotes])
+  const fetchDhanOptionChain=async()=>{
+    if(!selectedDataset||quoteLoading||dhanQuoteJob&&['queued','running'].includes(dhanQuoteJob.status))return
+    setDhanQuoteError('');setDhanQuoteMessage('')
+    try{
+      const response=await fetch('/api/lab/option-quotes/dhan',{
+        method:'POST',credentials:'same-origin',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({dataset_id:selectedDataset,
+          underlying:dhanUnderlying,confirm_readonly:true})})
+      if(!response.ok)throw new Error(await errorText(response))
+      const job=await response.json() as {job_id:string;status:string}
+      setDhanQuoteJob({id:job.job_id,status:job.status})
+      setDhanQuoteMessage('Authorized read-only Dhan option-chain request queued. No orders will be submitted.')
+    }catch(e){setDhanQuoteError(e instanceof Error?e.message:String(e))}
+  }
+  useEffect(()=>{
+    if(!dhanQuoteJob||!['queued','running'].includes(dhanQuoteJob.status))return
+    let active=true
+    const timer=window.setTimeout(()=>{
+      void getJSON<{status:string;error?:string;
+        result?:{id:string;contracts:number;expiry:string;warning:string}}>('/jobs/'+
+          encodeURIComponent(dhanQuoteJob.id)).then(job=>{
+        if(!active)return
+        setDhanQuoteJob(prev=>prev?{...prev,...job}:null)
+        if(job.status==='complete'&&job.result){
+          setDhanQuoteMessage(job.result.contracts+' actual Dhan quote contracts captured for expiry '+
+            job.result.expiry+'. '+job.result.warning)
+          setParams(prev=>({...prev,quote:job.result!.id+':0'}))
+          void refreshQuotes()
+          void refreshMatrix()
+        }
+        if(job.status==='error')setDhanQuoteError(job.error||'Dhan option-chain read failed.')
+      }).catch(e=>{if(active)setDhanQuoteError(e instanceof Error?e.message:String(e))})
+    },1400)
+    return()=>{active=false;window.clearTimeout(timer)}
+  },[dhanQuoteJob,refreshQuotes,refreshMatrix])
   const uploadOptionQuotes=async()=>{
     if(!quoteFile||!selectedDataset||!quoteConfirmed||quoteLoading)return
     setQuoteLoading(true);setQuoteError('');setQuoteMessage('')
@@ -624,6 +667,36 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
               Both timestamps must include a UTC offset (for example
               <code> 2026-11-14T10:00:00+05:30</code>).
               QuantLab reads actual bid/ask; it never fabricates a market premium.</p>
+            <div className="ql-dhan-quote-fetch">
+              <div className="ql-panel-title"><Activity size={15}/>
+                <h3>Automatic current option chain · Dhan</h3></div>
+              <p>Use your existing local Dhan token to fetch NIFTY 50 or BANK NIFTY best bid/ask
+                and exact strikes. Fetch is read-only; underlying IDs and upcoming expiry
+                are resolved automatically. Quote timestamps are local capture times;
+                the regular-session 15:30 IST expiry time is an explicit assumption.</p>
+              <div className="ql-dhan-quote-controls">
+                <label className="ql-field"><span>Index underlying</span>
+                  <select value={dhanUnderlying}
+                    onChange={e=>setDhanUnderlying(e.target.value as 'NIFTY50'|'BANKNIFTY')}
+                    disabled={!!dhanQuoteJob&&['queued','running'].includes(dhanQuoteJob.status)}>
+                    <option value="NIFTY50">NIFTY 50 · Dhan instrument 13</option>
+                    <option value="BANKNIFTY">BANK NIFTY · Dhan instrument 25</option>
+                  </select></label>
+                <button type="button"
+                  disabled={!selectedDataset||quoteLoading||
+                    !!dhanQuoteJob&&['queued','running'].includes(dhanQuoteJob.status)}
+                  onClick={()=>void fetchDhanOptionChain()}>
+                  <Download size={14}/>
+                  {dhanQuoteJob&&['queued','running'].includes(dhanQuoteJob.status)?
+                    'Fetching Dhan option chain…':'Fetch current Dhan quotes (read-only)'}
+                </button>
+              </div>
+              {dhanQuoteMessage&&<p role="status" className="ql-alert good">{dhanQuoteMessage}</p>}
+              {dhanQuoteError&&<p role="alert" className="ql-alert bad">{dhanQuoteError}</p>}
+              <p className="ql-note">Dhan subscription/token must permit option-chain API access.
+                A live snapshot is not historical options backtest data. No credential
+                or proprietary quote is sent to this browser.</p>
+            </div>
             <div className="ql-actions">
               <button type="button" onClick={()=>{
                 const text='captured_at,provider,underlying,underlying_spot,expiry_at,strike,option_type,bid,ask\n'
