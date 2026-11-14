@@ -557,7 +557,8 @@ def research_lab_requirements(model_id: str, dataset_id: str = "",
             params["ticker"] = ticker
         if model_registry.CATALOG[model_id]["mode"] == "market":
             params["quote"] = quote
-        return model_data_manager.inspect(model_id, dataset_id or None, params)
+        plan = model_data_manager.inspect(model_id, dataset_id or None, params)
+        return {**plan, "next_action": model_data_manager.recommend_next_action(plan)}
     except Exception as exc:
         bad(exc)
 
