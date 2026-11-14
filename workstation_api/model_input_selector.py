@@ -189,6 +189,8 @@ def inspect(dataset_id: str, model_id: str) -> dict:
         "source_file": file if prices is not None else None,
         "eligible_count": len(valid), "candidates": candidates, "tri": tri,
         "candidate_count": len(candidates),
+        "auto_download_supported": record.get("kind") == "dhan"
+                                   and record.get("has_daily_prices", False),
         "recommended_ticker": suggested["ticker"] if suggested else None,
         "extendable_count": sum(bool(item.get("extendable")) for item in candidates),
         "selection_is_explicit": True, "no_missing_prices_imputed": True,
