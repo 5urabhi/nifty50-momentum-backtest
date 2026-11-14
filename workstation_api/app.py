@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, historical_readiness, frozen_study, corporate_action_import
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, historical_readiness, frozen_study, corporate_action_import
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -449,6 +449,16 @@ def research_model_readiness(dataset_id: str):
     except Exception as exc:
         bad(exc)
 
+
+
+
+@app.get("/api/lab/model-readiness")
+def lab_model_readiness_overview(dataset_id: str = ""):
+    """One-pass model-specific source checklist; math-only is not empirical."""
+    try:
+        return model_readiness.overview(dataset_id or None)
+    except (ValueError, OSError, TypeError) as exc:
+        bad(exc)
 
 
 @app.post("/api/lab/option-quotes/import")
