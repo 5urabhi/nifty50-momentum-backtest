@@ -498,7 +498,7 @@ class LabDataRequest(BaseModel):
 @app.get("/api/lab/data-requirements")
 def research_lab_requirements(model_id: str, dataset_id: str = "",
                               assets: int = 8, train_window: int = 60,
-                              target: str = "benchmark_tri", ticker: str = "",
+                              target: str = "", ticker: str = "",
                               quote: str = ""):
     try:
         if model_id not in model_registry.CATALOG:
@@ -511,7 +511,7 @@ def research_lab_requirements(model_id: str, dataset_id: str = "",
         if model_id == "rolling_vol":
             params["train_window"] = train_window
         if model_id in {"gbm_fit","ou_fit","merton_fit","heston_proxy"}:
-            params["target"] = target
+            params["target"] = target or ("benchmark_tri" if model_id=="gbm_fit" else "stock")
             params["ticker"] = ticker
         if model_registry.CATALOG[model_id]["mode"] == "market":
             params["quote"] = quote
