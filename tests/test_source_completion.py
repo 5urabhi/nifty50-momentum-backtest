@@ -45,6 +45,32 @@ class SourceCompletionTests(unittest.TestCase):
         pd.DataFrame({"date": self.dates, "return": [0.01] * 16}).to_csv(
             self.folder / "benchmark.csv", index=False)
 
+    def test_existing_tri_is_preserved_and_never_requested_again(self):
+        (self.folder / "BENCHMARK_PROVENANCE.json").write_text(
+            json.dumps({"is_total_return_index": True,
+                        "source_sha256": "a" * 64}))
+        (self.folder / "BENCHMARK_SOURCE.json").write_text(
+            json.dumps({"return_convention": "gross_total_return",
+                        "index_name": "NIFTY 50 TRI"}))
+        work = source_completion.worklist(self.id)
+        benchmark = work["existing_benchmark"]
+        self.assertTrue(benchmark["is_tri"])
+        self.assertEqual(benchmark["state"], "tri_present_source_unverified")
+        self.assertEqual(benchmark["monthly_returns"], 16)
+        self.assertEqual(benchmark["first_month"], "2023-01-31")
+        self.assertIn("already imported", benchmark["next_action"])
+        self.assertFalse(benchmark["independently_verified"])
+        self.assertEqual(benchmark["source_sha256"], "a" * 64)
+        self.assertEqual(
+            source_completion.existing_benchmark_status(self.folder), benchmark)
+
+    def test_price_index_is_never_misreported_as_tri(self):
+        (self.folder / "BENCHMARK_PROVENANCE.json").write_text(
+            json.dumps({"is_total_return_index": False}))
+        status = source_completion.existing_benchmark_status(self.folder)
+        self.assertEqual(status["state"], "price_index_only")
+        self.assertFalse(status["is_tri"])
+
     def test_exact_missing_observations_and_20_percent_policy(self):
         work = source_completion.worklist(
             self.id, validation_start="2023-09-30",
