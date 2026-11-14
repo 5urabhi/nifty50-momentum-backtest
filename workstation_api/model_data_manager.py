@@ -6,7 +6,8 @@ import math
 import pandas as pd
 
 from index_research.data import read_matrix
-from . import dhan_workspace, gbm_calibration, stochastic_calibration, option_market, model_registry, service, shared_market_data
+from . import (dhan_workspace, gbm_calibration, stochastic_calibration, option_market,
+               model_registry, service, shared_market_data, single_series_completion)
 
 EXTRA_FRACTION = 0.20
 MAX_AUTO_ASSETS = 18
@@ -102,21 +103,8 @@ def inspect(model_id: str, dataset_id: str | None, params: dict | None = None) -
         return {**req, "status": "not_applicable", "runnable": True,
                 "message": "This model does not require observed market data.",
                 "can_download": False}
-    if model_id in stochastic_calibration.MINIMUM:
-        status=stochastic_calibration.inspect(dataset_id, model_id, params or {})
-        return {**req, **status, "assets_requested":1,
-                "missing_minimum":max(0,req["min_returns"]-status.get("common_returns",0)),
-                "missing_to_target":max(0,req["target_returns"]-status.get("common_returns",0))}
-    if model_id == "gbm_fit":
-        status = gbm_calibration.inspect(
-            dataset_id, str((params or {}).get("target", "benchmark_tri")),
-            str((params or {}).get("ticker", "")))
-        # This model fits one selected series, NOT an arbitrary multi-stock
-        # availability-ranked portfolio. Do not propose stock Dhan downloads
-        # when the missing source is an official TRI benchmark.
-        return {**req, **status, "assets_requested": 1,
-                "missing_minimum": max(0, req["min_returns"] - status.get("common_returns", 0)),
-                "missing_to_target": max(0, req["target_returns"] - status.get("common_returns", 0))}
+    if model_id in single_series_completion.SINGLE:
+        return single_series_completion.inspect(model_id, dataset_id, params or {}, req)
     if not dataset_id:
         return {**req, "status": "select_dataset", "runnable": False,
                 "message": "Select a historical dataset to inspect its coverage.",
@@ -201,13 +189,17 @@ def inspect(model_id: str, dataset_id: str | None, params: dict | None = None) -
             )}
 
 
-def execute(model_id: str, dataset_id: str, params: dict | None = None) -> dict:
+def execute(model_id: str, dataset_id: str, params: dict | None = None,
+            *, progress=None) -> dict:
     """Run only after a distinct UI-confirmed POST; append to existing master.
 
     Cached OHLCV is imported even if no network call is necessary. Dhan's
     existing SHA manifests and uncovered-window planner prevent refetching
     dates previously downloaded for NIFTY, BANK NIFTY or any other universe.
     """
+    if model_id in single_series_completion.SINGLE:
+        return single_series_completion.execute(
+            model_id, dataset_id, params or {}, progress=progress)
     plan = inspect(model_id, dataset_id, params)
     if plan["mode"] != "historical":
         raise ValueError("Selected model has no empirical price-data requirement")
