@@ -516,7 +516,8 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
           <strong>{entry.title}</strong><span className={'ql-matrix-status '+entry.status}>
             {entry.status==='math_ready'?'Math runnable':
              entry.status==='source_available'?'Source available':
-             entry.status==='need_option_quote'?'Needs option quote':'Needs historical data'}</span>
+             entry.status==='need_option_quote'?'Needs option quote':
+             entry.status==='fixture_only'?'Synthetic test fixture':'Needs historical data'}</span>
           <small>{entry.detail}</small><em>Next: {entry.next_action}</em>
         </button>)}
       </div></>}
