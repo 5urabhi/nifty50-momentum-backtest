@@ -220,8 +220,8 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,records,onMessage
           <Choice title="Price currency (user declared)" value={priceCurrency}
             onChange={setPriceCurrency} options={[
               {id:'unspecified',name:'Unknown / no currency label'},
-              {id:'INR',name:'INR (rupees)'},{id:'USD',name:'USD (dollars)'},
-              {id:'EUR',name:'EUR (euros)'},{id:'GBP',name:'GBP (pounds)'}]}/>
+              {id:'INR',name:'₹ INR'},{id:'USD',name:'$ USD'},
+              {id:'EUR',name:'€ EUR'},{id:'GBP',name:'£ GBP'}]}/>
           <Field title="Start date" value={first} onChange={setFirst} type="date"/>
           <Field title="End date" value={last} onChange={setLast} type="date"/>
           <Field title="Rolling observations" value={lookback} onChange={setLookback} type="number"/>
