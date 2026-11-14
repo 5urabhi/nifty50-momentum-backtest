@@ -249,8 +249,9 @@ def _receipt(model_id: str, before: dict, after: dict,
     return {
         "status": "ready" if buffer_complete else "minimum_ready" if runnable else "incomplete",
         "model_id": model_id,
-        "dataset_id": shared_market_data.SHARED_ID,
-        "selected_ticker": shared,
+        "dataset_id": (shared_market_data.SHARED_ID if
+                       (after.get("common_returns") or 0)>0 else None),
+        "selected_ticker": (shared if (after.get("common_returns") or 0)>0 else None),
         "original_ticker": original,
         "buffer_complete": buffer_complete,
         "actual_returns": after.get("common_returns"),
