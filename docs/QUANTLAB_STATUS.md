@@ -46,6 +46,12 @@ The Data Quality duplicate scan now fingerprints *all files*, including nested s
 
 These are **software capabilities**, not evidence that a real-market original-source study passed.
 
+## Source completion worklist in Experiment Studio
+
+The **Exact missing history and evidence to collect** panel now consolidates what was formerly scattered between terminal reports and source audit pages. It reports actual eligible stock and forward-return gaps, whole missing months, unresolved historical identities, preferred +20% training-buffer shortfall and source-specific official acquisition links. The **Export missing-source ZIP** action packages only source identifiers, evidence status and hashes; it does not export copyrighted market records or credentials.
+
+The displayed final-test count now follows the actual return labels produced by `backtest_index` (price dates after the first observation), fixing an older one-month undercount in the empirical coverage doctor. A corrupt source panel keeps the repair worklist visible with a blocked audit rather than hiding the next steps. These are **software improvements**, not independent NSE source review.
+
 ## Why empirical research is still blocked
 
 A complete valid historical NIFTY study requires:
