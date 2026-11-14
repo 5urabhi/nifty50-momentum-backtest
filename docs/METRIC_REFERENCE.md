@@ -134,3 +134,42 @@ underlying run manifests, figure CSVs/SVGs, and research-notebook reports.
 `mode=historical` fitted to the synthetic fixture **remains synthetic**,
 regardless of the model algorithm's label. No audit yields a
 “publication-ready” badge automatically.
+
+
+## Historically calibrated Geometric Brownian Motion
+
+The separate `gbm_fit` model is a **historically parameterized simulation**,
+not a replacement for the analytical/seeded `gbm` model.
+
+Let `rₜ = ln(Pₜ/Pₜ₋₁)`, with `K=252` for daily closes or `K=12`
+for monthly returns. On the first 80% of the observed data only:
+
+- `s = sample_std(rₜ, ddof=1)`
+- `σ_fit = s sqrt(K)`
+- `μ_fit = K mean(rₜ) + 0.5 σ_fit²`
+
+This is a **sample-moment** estimator of the GBM physical-process parameters,
+not risk-neutral calibration or a guaranteed market forecast. A fixed
+`seed` generates synthetic fan paths under the estimated parameters.
+The final 20% of the data is NOT used in the fit; the holdout reports one-step
+log-return RMSE versus a zero-log-drift baseline and descriptive Gaussian
+95% one-step coverage. Any user-led model selection based on the same
+historical holdout still induces selection bias; only a truly frozen,
+independently evaluated future sample can address that limitation.
+
+For `target=benchmark_tri`, the stored `benchmark.csv` monthly returns
+must be backed by an original NIFTY TRI source declaration. The initial
+wealth index is normalized to 100 for visualization; no original pre-series
+TRI level is fabricated. For `target=stock`, raw archived stock closes are
+used and the named ticker must exist with no missing observations. Dhan
+documents that *daily* historical prices are split/bonus adjusted, but
+that does not assert dividend reinvestment or complete delisting recovery.
+
+`mode=historical` describes the fitted input. Every future or holdout fan
+remains a **seeded simulation**; plotted observed holdout levels are separate.
+A source fixture remains synthetic even when a historical estimation routine
+runs against it.
+
+Short samples are allowed as explicitly labeled exploratory illustrations
+(minimum 10 returns, 20% held out) rather than falsely claiming sufficient
+power for drift estimation or publication-grade validation.
