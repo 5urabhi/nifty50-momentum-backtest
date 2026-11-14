@@ -322,7 +322,8 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
       onSelectDataset={onSelectDataset} models={models} runs={runs} busy={busy}
       perform={perform} startJob={start}/>}
     {page==='quality'&&<QualityPanel datasets={datasets} selectedDataset={selectedDataset}
-      onSelectDataset={onSelectDataset} onOpenDhan={onOpenDhan}/>}
+      onSelectDataset={onSelectDataset} onOpenDhan={onOpenDhan}
+      onOpenLibrary={()=>setPage('library')}/>}
     {page==='integrity'&&<ResearchCompletion datasets={datasets}
       selectedDataset={selectedDataset} onSelectDataset={onSelectDataset}
       records={library} onOpenDhan={onOpenDhan} onStartJob={start}
@@ -1189,11 +1190,20 @@ function AutomationPanel({datasets,selectedDataset,onSelectDataset,models,runs,b
   </div>
 }
 
-function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan}:{
-  datasets:Datum[];selectedDataset:string;onSelectDataset:(id:string)=>void;onOpenDhan:()=>void
+type DuplicateInventory={scanned_dataset_views:number;scanned_bytes:number;
+  identical_groups:{signature_sha256:string;datasets:{dataset_id:string;title:string;
+    file_bytes:number;file_count:number;dependencies:number;
+    can_trash_without_dependencies:boolean}[];
+    potential_view_bytes_reclaimable:number;safe_action:string}[];
+  skipped:{dataset_id:string;reason:string}[];warning:string}
+function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan,onOpenLibrary}:{
+  datasets:Datum[];selectedDataset:string;onSelectDataset:(id:string)=>void;
+  onOpenDhan:()=>void;onOpenLibrary:()=>void
 }){
   const [quality,setQuality]=useState<Raw|null>(null)
   const [disk,setDisk]=useState<{bytes:Record<string,number>;total_bytes:number}|null>(null)
+  const [duplicates,setDuplicates]=useState<DuplicateInventory|null>(null)
+  const [dupBusy,setDupBusy]=useState(false)
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
   const inspect=async()=>{
@@ -1249,6 +1259,40 @@ function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan}:{
       <button onClick={()=>safeDownload('quantlab_quality_'+selectedDataset+'.json',
         JSON.stringify(quality,null,2),'application/json')}><Download size={15}/> Export audit JSON</button>
     </Box>}
+    <Box title="Find exact duplicate prepared datasets">
+      <p className="rw-help">QuantLab compares user-owned prepared dataset views
+        by the SHA-256 of their actual allowlisted files. This does not merge,
+        overwrite or delete source data. Protected original Dhan candles remain reusable.</p>
+      <button type="button" disabled={dupBusy} onClick={()=>{
+        setDupBusy(true);setError('')
+        void api<DuplicateInventory>('/workspace/data-maintenance/duplicates')
+          .then(setDuplicates)
+          .catch(e=>setError(e instanceof Error?e.message:String(e)))
+          .finally(()=>setDupBusy(false))
+      }}>{dupBusy?<LoaderCircle size={15}/>:<ShieldCheck size={15}/>}
+        Scan for exact duplicates (read-only)</button>
+      {duplicates&&<div className="rw-stack">
+        <p className="rw-note">{duplicates.scanned_dataset_views} prepared views inspected.
+          {' '}{duplicates.identical_groups.length} groups with identical file hashes.
+          Checked {(duplicates.scanned_bytes/(1024*1024)).toFixed(1)} MB.</p>
+        {duplicates.identical_groups.map(group=><div className="rw-caution"
+          key={group.signature_sha256}><strong>{group.datasets.length} byte-identical
+          {' '}prepared views · potential redundant view storage
+          {' '}{(group.potential_view_bytes_reclaimable/(1024*1024)).toFixed(2)} MB</strong>
+          <p>{group.safe_action}</p>
+          {group.datasets.map(row=><div key={row.dataset_id} className="rw-list-item">
+            <div><strong>{row.title}</strong><small>{row.dataset_id} ·
+              {row.dependencies} dependent saved items ·
+              {(row.file_bytes/(1024*1024)).toFixed(2)} MB</small></div>
+            <button type="button" onClick={()=>{onSelectDataset(row.dataset_id);onOpenLibrary()}}>
+              Inspect dependencies & management <ArrowRight size={14}/></button>
+          </div>)}</div>)}
+        {!duplicates.identical_groups.length&&<p className="rw-help">No complete byte-identical
+          user-owned prepared views found in the bounded scan.</p>}
+        {!!duplicates.skipped.length&&<p className="rw-caution">Some files were not hashed.
+          Review source sizes or file links before asserting uniqueness.</p>}
+      </div>}
+    </Box>
     {disk&&<Box title="Local disk usage">
       <NumberStats data={[{label:'Total measured',value:(disk.total_bytes/(1024*1024)).toFixed(1)+' MB'}]}/>
       <div className="rw-list">{Object.entries(disk.bytes).map(([label,bytes])=><div className="rw-list-item" key={label}>
