@@ -22,7 +22,7 @@ import pandas as pd
 from index_research import advanced_models, derivatives, inference, math_models
 from index_research import model_validation, portfolio_extensions, portfolio_math, tail_risk
 from index_research.data import read_matrix
-from . import gbm_calibration, model_registry, service
+from . import gbm_calibration, stochastic_calibration, option_market, option_quotes, model_registry, service
 
 CATALOG = model_registry.CATALOG
 PER_YEAR = {"daily": 252, "monthly": 12}
@@ -184,6 +184,12 @@ def run_model(model_id: str, dataset_id: str | None = None,
         # GBM training is on the first 80%; the last 20% is untouched by fit.
         # Projection fans are nevertheless artificial seeded simulations.
         response.update(gbm_calibration.fit(dataset_id or "", params))
+        return response
+    if model_id in stochastic_calibration.MINIMUM:
+        response.update(stochastic_calibration.fit(model_id, dataset_id or "", params))
+        return response
+    if model_id in option_market.SUPPORTED:
+        response.update(option_market.fit(model_id, dataset_id or "", params))
         return response
     plots=response["plots"]
     metrics=response["metrics"]
@@ -600,11 +606,21 @@ def save_result(result: dict) -> dict:
     snapshot=dict(result)
     source=snapshot.get("source")
     if source:
-        folder,_record=service.dataset_path(source["dataset_id"])
-        selected=folder/source["source_file"]
-        if not selected.is_file() or selected.is_symlink():
-            raise ValueError("Observed source disappeared before result archival")
-        snapshot["source_sha256"]=_sha256_file(selected)
+        if source.get("option_quote_id"):
+            quote_id = source["option_quote_id"]
+            original,_ = option_quotes._entry_path(quote_id)
+            checked = option_quotes.get(quote_id, source["dataset_id"])
+            if original.is_symlink() or not original.is_file():
+                raise ValueError("Option source disappeared before result archival")
+            snapshot["source_sha256"]=_sha256_file(original)
+            if checked["source_sha256"] != snapshot["source_sha256"]:
+                raise ValueError("Original option quote source checksum mismatch")
+        else:
+            folder,_record=service.dataset_path(source["dataset_id"])
+            selected=folder/source["source_file"]
+            if not selected.is_file() or selected.is_symlink():
+                raise ValueError("Observed source disappeared before result archival")
+            snapshot["source_sha256"]=_sha256_file(selected)
     snapshot["execution_environment"]=_engine_version()
     run_id=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")+"_"+uuid.uuid4().hex[:10]
     snapshot["run_id"]=run_id
