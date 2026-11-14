@@ -15,6 +15,13 @@ const COLORS=['#66e3c3','#ffca83','#78a8ff','#ce9dff','#ff8c9b','#a2f6e2']
 const finite=(n:unknown):n is number=>typeof n==='number'&&Number.isFinite(n)
 const fmt=(v:number)=>Math.abs(v)<.001&&v!==0?v.toExponential(1):Math.abs(v)>1000?v.toLocaleString('en-US',{maximumFractionDigits:0}):v.toLocaleString('en-US',{maximumFractionDigits:3})
 const clamp=(v:number,l:number,h:number)=>Math.min(h,Math.max(l,v))
+const exactDateKey=(value:string|number):string|null=>{
+  if(typeof value!=='string')return null
+  // Date-only and midnight UTC are the same daily observation, but do NOT
+  // infer nearest dates, align intraday times or combine unrelated x units.
+  return /^\\d{4}-\\d{2}-\\d{2}(?:T00:00:00(?:\\.000)?Z)?$/.test(value)?
+    value.slice(0,10):null
+}
 const GRID_LEFT=70,GRID_RIGHT=830,GRID_TOP=22,GRID_BOTTOM=280
 function yBounds(plot:ResearchPlotData){
   const ys=(plot.traces||[]).flatMap(t=>t.y).filter(finite)
@@ -348,14 +355,35 @@ export default function ResearchPlot({plot,provenance}:{plot:ResearchPlotData;pr
   const chart=useRef<HTMLElement|null>(null)
   const [view,setView]=useState<{start:number;end:number}|null>(null)
   const [syncHover,setSyncHover]=useState(true)
+  const [syncViewport,setSyncViewport]=useState(true)
   const n=plot.x?.length||0
   const zoomable=n>=8&&plot.kind!=='surface3d'&&plot.kind!=='heatmap2d'
+  const dateKeys=useMemo(()=>(plot.x||[]).map(exactDateKey),[plot.x])
+  const syncable=zoomable&&dateKeys.length===n&&dateKeys.every(v=>v!==null)
   const left=view?.start??0,right=view?.end??n
   useEffect(()=>{setView(null)},[plot.title,n])
+  useEffect(()=>{
+    if(!syncViewport||!syncable)return
+    const handler=(event:Event)=>{
+      const detail=(event as CustomEvent<{first:string|null;last:string|null}>).detail
+      if(!detail||(!detail.first&&!detail.last)){setView(null);return}
+      if(!detail.first||!detail.last)return
+      const start=dateKeys.indexOf(detail.first),end=dateKeys.indexOf(detail.last)
+      if(start<0||end<start+4)return  // No inference between different calendars.
+      setView(start===0&&end===n-1?null:{start,end:end+1})
+    }
+    window.addEventListener('quantlab:chart-viewport',handler)
+    return()=>window.removeEventListener('quantlab:chart-viewport',handler)
+  },[dateKeys,n,syncViewport,syncable])
+  const broadcast=(next:{start:number;end:number}|null)=>{
+    setView(next)
+    if(syncViewport&&syncable)window.dispatchEvent(new CustomEvent('quantlab:chart-viewport',{
+      detail:{first:next?dateKeys[next.start]:null,last:next?dateKeys[next.end-1]:null}}))
+  }
   const clampView=(start:number,span:number)=>{
     const size=Math.max(5,Math.min(n,span))
     const beginning=Math.max(0,Math.min(n-size,start))
-    setView(size===n?null:{start:beginning,end:beginning+size})
+    broadcast(size===n?null:{start:beginning,end:beginning+size})
   }
   const zoomIn=()=>clampView(right-Math.max(5,Math.ceil((right-left)/1.6)),
     Math.max(5,Math.ceil((right-left)/1.6)))
@@ -413,10 +441,13 @@ export default function ResearchPlot({plot,provenance}:{plot:ResearchPlotData;pr
         aria-label={'Pan left '+plot.title}>◀ Earlier</button>
       <button type="button" onClick={()=>pan(1)} disabled={!view||right>=n}
         aria-label={'Pan right '+plot.title}>Later ▶</button>
-      <button type="button" onClick={()=>setView(null)} disabled={!view}
+      <button type="button" onClick={()=>broadcast(null)} disabled={!view}
         aria-label={'Reset zoom '+plot.title}>Reset</button>
       <label><input type="checkbox" checked={syncHover} onChange={e=>setSyncHover(e.target.checked)}/>
         Link crosshair by shared dates</label>
+      {syncable&&<label><input type="checkbox" checked={syncViewport}
+        onChange={e=>setSyncViewport(e.target.checked)}/>
+        Link zoom/pan on exact dates</label>}
       <span>{right-left} of {n} observations visible · full-series CSV export</span>
     </div>}
     {plot.kind==='surface3d'?<Surface3D plot={plot}/>:
