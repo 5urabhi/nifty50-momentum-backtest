@@ -78,7 +78,7 @@ class JobQueueTests(unittest.TestCase):
             {"status":"error","error":"HTTP 429 rate limit"}))
         self.assertIn("Model Laboratory",module._job_next_action(
             {"status":"error","error":"Insufficient source history"}))
-        self.assertIn("local queue",module._job_next_action(
+        self.assertIn("queue order",module._job_next_action(
             {"status":"queued"}))
         self.assertIn("checkpoint",module._job_next_action(
             {"status":"running","cancellable":True}))
