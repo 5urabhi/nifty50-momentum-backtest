@@ -4,6 +4,7 @@ import {Activity,ArrowRight,BarChart3,BookOpen,ChevronDown,Download,
   ShieldCheck,SlidersHorizontal,X} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
 import ResearchAssistant from './ResearchAssistant'
+import SelectionValidation from './SelectionValidation'
 import {formatMetric} from './metricDisplay'
 import './results-studio.css'
 
@@ -42,13 +43,14 @@ type Evidence={id:string;kind:Kind;model:string;evidence_class:string;readiness:
   limitations:string[];method:string;warning:string;source:Row}
 type Paired={baseline:string;challengers:string[];paired_months:number;start:string;end:string;
   evidence_class:string;rows:Row[];plot:ResearchPlotData;method:string;warning:string}
-type View='brief'|'assistant'|'figures'|'diagnostics'|'validation'|'robustness'|'evidence'|'compare'
+type View='brief'|'assistant'|'figures'|'diagnostics'|'validation'|'robustness'|'evidence'|'compare'|'selection'
 type Props={selectedIndexRunId:string;onSelectIndexRun:(run:string)=>void;
   onModels:()=>void;onExperiments:()=>void;onWorkspace:()=>void;onData:()=>void;onReports:()=>void}
 const VIEWS:{id:View;label:string}[]=[
   {id:'brief',label:'Research brief'},{id:'assistant',label:'Ask QuantLab'},{id:'figures',label:'Interactive figures'},
   {id:'diagnostics',label:'Diagnostics'},{id:'validation',label:'Evidence audit'},{id:'robustness',label:'Robustness'},
-  {id:'evidence',label:'Sources & methods'},{id:'compare',label:'Compare runs'}
+  {id:'evidence',label:'Sources & methods'},{id:'compare',label:'Compare runs'},
+  {id:'selection',label:'Overfitting & regimes'}
 ]
 const finite=(value:unknown):number|null=>{
   if(value===null||value===undefined||value==='')return null
@@ -580,6 +582,11 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
                 audit:index.audit,data_quality:index.data_quality,source_hashes:index.meta.input_sha256},null,2)}</pre></section>}
             <button className="rs-action" onClick={onReports}><BookOpen size={15}/> Build / inspect research report <ArrowRight size={14}/></button>
           </div>}
+          {tab==='selection'&&<SelectionValidation
+            key={active.key} currentId={active.kind==='research_run'?active.id:''}
+            runs={runs.map(r=>({id:r.id,title:r.title,kind:r.kind,mode:r.mode,
+              dataset_id:r.dataset_id||undefined}))}
+            onCompare={()=>setTab('compare')}/>}
           {tab==='compare'&&<div className="rs-stack"><div className="rs-two">
             <section className="rs-panel"><h3>Select 2–8 completed runs</h3>
               <p className="rs-small">Overlay requires the same evidence class and compatible axes; incompatible models can be shown in separate panels.</p>
