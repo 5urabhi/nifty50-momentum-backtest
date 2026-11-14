@@ -25,6 +25,7 @@ MAX_GRID_RUNS = 36
 PLOT_KINDS = frozenset({"line", "scatter", "histogram", "kde", "qq",
                         "drawdown", "cumulative", "rolling_volatility", "correlation"})
 TRANSFORMS = frozenset({"price", "return", "log_return", "base100", "zscore"})
+CURRENCIES = {"unspecified": "", "INR": "₹", "USD": "$", "EUR": "€", "GBP": "£"}
 GOALS = {
     "portfolio_allocation": {
         "label": "Compare portfolio allocation methods",
@@ -163,7 +164,10 @@ def _downsample(data: pd.DataFrame, max_points: int = MAX_POINTS) -> pd.DataFram
 
 def build_plot(dataset_id: str, fields: list[str], *, kind: str = "line",
                transform: str = "return", first: str | None = None, last: str | None = None,
-               lookback: int = 20, title: str | None = None) -> dict:
+               lookback: int = 20, title: str | None = None,
+               price_currency: str = "unspecified") -> dict:
+    if price_currency not in CURRENCIES:
+        raise ValueError("Declare a supported price currency or leave units unspecified")
     if kind not in PLOT_KINDS:
         raise ValueError("Unsupported Plot Builder visualization")
     if not 2 <= lookback <= 252:
@@ -251,12 +255,50 @@ def build_plot(dataset_id: str, fields: list[str], *, kind: str = "line",
         traces=[{"name":col,"y":[_to_float(v) for v in compact[col]]} for col in fields]
         plot=model_lab.xy(title or kind.replace("_"," ").title(),[idx.date().isoformat() for idx in compact.index],
                           traces,"Observed date",ylabel)
+    # Raw numeric values are never silently rescaled. A ticker does NOT imply
+    # a currency; users can explicitly declare the price currency for display.
+    numeric_transform = ("return" if kind in {"drawdown", "cumulative",
+                                               "rolling_volatility", "correlation"}
+                         else transform)
+    y_unit = {
+        "price": ("price level (currency unspecified)" if price_currency == "unspecified"
+                  else "price level (" + price_currency + ", user declared)"),
+        "return": "simple return, decimal fraction (0.01 = 1%)",
+        "log_return": "log return (unitless; log(1 + simple return))",
+        "base100": "index points (initial = 100)",
+        "zscore": "standard deviations (unitless)",
+    }[numeric_transform]
+    if kind == "drawdown":
+        y_unit = "drawdown, decimal fraction (-0.10 = -10%)"
+    elif kind == "cumulative":
+        y_unit = "wealth index points (base 100; not money)"
+    elif kind == "rolling_volatility":
+        y_unit = "annualized volatility, decimal fraction (0.20 = 20%)"
+    elif kind == "correlation":
+        y_unit = "Pearson correlation (unitless)"
+    if kind in {"line", "drawdown", "cumulative", "rolling_volatility"}:
+        plot["y_label"] = y_unit
+    elif kind == "scatter":
+        plot["x_label"] = fields[0] + " · " + y_unit
+        plot["y_label"] = fields[1] + " · " + y_unit
+    elif kind in {"histogram", "kde"}:
+        plot["x_label"] = y_unit
+    elif kind == "qq":
+        plot["y_label"] = "Empirical quantiles · " + y_unit
+    plot["units"] = {"numeric": y_unit, "price_currency": price_currency,
+                     "price_currency_declared_by_user":price_currency!="unspecified",
+                     "currency_verified_by_source":False, "stored_values_unscaled":True}
+    source = {**source, "price_currency":price_currency,
+              "currency_declared_by_user":price_currency!="unspecified",
+              "currency_verified_by_source":False}
     return {"plot":plot,"source":source,"sample_observations":count,
             "displayed_observations":len(plot.get("x",[])) if "x" in plot else count,
             "settings":{"kind":kind,"fields":fields,"transform":transform,
-                        "first":first,"last":last,"lookback":lookback},
-            "warning":"Charts are descriptive observations. Unadjusted prices, corporate actions, "
-                      "dividends, survivorship, trading costs and stale sources require independent review."}
+                        "first":first,"last":last,"lookback":lookback,
+                        "price_currency":price_currency},
+            "warning":"Charts are descriptive observations. Declared price currency is user supplied "
+                      "and not source certification. Unadjusted prices, corporate actions, "
+                      "dividends, survivorship, trading costs and stale sources require review."}
 
 
 def _autocorr(values: np.ndarray, lag: int) -> float:
