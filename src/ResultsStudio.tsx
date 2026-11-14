@@ -44,7 +44,7 @@ type Evidence={id:string;kind:Kind;model:string;evidence_class:string;readiness:
 type Paired={baseline:string;challengers:string[];paired_months:number;start:string;end:string;
   evidence_class:string;rows:Row[];plot:ResearchPlotData;method:string;warning:string}
 type View='brief'|'assistant'|'figures'|'diagnostics'|'validation'|'robustness'|'evidence'|'compare'|'selection'
-type Props={selectedIndexRunId:string;onSelectIndexRun:(run:string)=>void;
+type Props={selectedIndexRunId:string;selectedModelRunId?:string;onSelectIndexRun:(run:string)=>void;
   onModels:()=>void;onExperiments:()=>void;onWorkspace:()=>void;onData:()=>void;onReports:()=>void}
 const VIEWS:{id:View;label:string}[]=[
   {id:'brief',label:'Research brief'},{id:'assistant',label:'Ask QuantLab'},{id:'figures',label:'Interactive figures'},
@@ -219,7 +219,7 @@ function FigureCard({figure,mode,runKey}:{figure:Figure;mode:string;runKey:strin
     <p className="rs-figure-note"><Activity size={14}/> {figure.insight}</p>
   </article>
 }
-export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onModels,
+export default function ResultsStudio({selectedIndexRunId,selectedModelRunId,onSelectIndexRun,onModels,
   onExperiments,onWorkspace,onData,onReports}:Props){
   const [runs,setRuns]=useState<Saved[]>([])
   const [selectedKey,setSelectedKey]=useState('')
@@ -273,7 +273,10 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
     finally{setLoadingList(false);setPaging(false)}
   },[offset.model,offset.index])
   useEffect(()=>{void refresh()},[]) // initial load; refresh button resets the current paging window
-  useEffect(()=>{if(selectedIndexRunId)setSelectedKey('research_run:'+selectedIndexRunId)},[selectedIndexRunId])
+  useEffect(()=>{
+    if(selectedModelRunId)setSelectedKey('model_run:'+selectedModelRunId)
+    else if(selectedIndexRunId)setSelectedKey('research_run:'+selectedIndexRunId)
+  },[selectedIndexRunId,selectedModelRunId])
   useEffect(()=>{if(!selectedKey&&runs.length)setSelectedKey(runs[0].key)},[selectedKey,runs])
   const active=runs.find(r=>r.key===selectedKey)
   useEffect(()=>{
