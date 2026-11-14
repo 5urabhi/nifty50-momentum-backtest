@@ -78,6 +78,21 @@ class DataEvidenceCoverageTests(unittest.TestCase):
         self.assertTrue(any("20% estimation" in x for x in check["warnings"]))
         self.assertEqual(check["preferred_prevalidation_months_with_20_percent_buffer"],44)
 
+    def test_final_test_uses_realized_return_labels_not_price_row_count(self):
+        prices=pd.read_csv(self.data/"prices.csv")
+        dates=pd.to_datetime(prices["date"])
+        check=inspect_empirical_coverage(self.data,self.config)
+        final=pd.Timestamp(self.config["final_test_start"])
+        self.assertEqual(check["observed_final_test_months"],
+                         int((dates.iloc[1:]>=final).sum()))
+        after_last=inspect_empirical_coverage(self.data,{
+            **self.config,"final_test_start":"2090-01-31"})
+        self.assertEqual(after_last["observed_final_test_months"],0,
+                         "A future final-test window cannot have -1 realized returns")
+        at_beginning=inspect_empirical_coverage(self.data,{
+            **self.config,"final_test_start":str(dates.iloc[0].date())})
+        self.assertEqual(at_beginning["observed_final_test_months"],len(dates)-1)
+
     def test_missing_PIT_blocks_membership_coverage(self):
         (self.data/"membership.csv").unlink()
         check=inspect_empirical_coverage(self.data,self.config)
