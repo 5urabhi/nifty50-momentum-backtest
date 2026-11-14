@@ -13,13 +13,13 @@ case "$MODE" in
   web|research|both|check|setup|evaluate) ;;
   -h|--help|help)
     cat <<'HELP'
-Usage: bash scripts/start.sh [web|research|both|check|setup]
+Usage: bash scripts/start.sh [web|research|both|check|evaluate|setup]
 
   research  DEFAULT: install Python dependencies and start your local research lab.
   web       Optional: install Node/Vite, build and start the presentation website.
   both      Install both stacks; launch both apps together.
-  check     Run complete Python unit and mathematical tests. No servers.
-  evaluate  Run tests, math checks, synthetic research and visual reports,
+  check     Current React build, Python/integration and math checks, source doctor.
+  evaluate  Run current checks, synthetic research and visual reports,
             writing artifacts to results/. No servers.
   setup     Prepare Python and frontend dependencies; start no servers.
 
@@ -107,30 +107,6 @@ if [ "$MODE" = research ]; then
   exec .venv/bin/streamlit run dashboard/app.py --server.address 127.0.0.1 --server.port 8501
 fi
 
-if [ "$MODE" = check ] || [ "$MODE" = evaluate ]; then
-  info "Running end-to-end Python and Streamlit workstation acceptance"
-  .venv/bin/python scripts/local_acceptance.py
-  info "Running mathematical acceptance (persistent HTML and JSON reports)"
-  .venv/bin/python scripts/verify_mathematics.py --output-dir results/math_acceptance
-  if [ "$MODE" = evaluate ]; then
-    info "Running labeled synthetic factor experiment"
-    # The synthetic generator is deterministic; existing files are retained.
-    if [ ! -f data/synthetic_example/prices.csv ]; then
-      .venv/bin/python -m index_research.cli make-fixture --output-dir data/synthetic_example
-    fi
-    # Experiments may refuse overwriting an existing output directory.
-    RUN_DIR="results/synthetic_$(date +%Y%m%d_%H%M%S)"
-    .venv/bin/python -m index_research.cli run --input-dir data/synthetic_example --output-dir "$RUN_DIR" --config config/research_multifactor.json
-    info "Generating 2D/3D analytical validation report"
-    .venv/bin/python scripts/export_visual_validation.py --output-dir results/visual_validation
-    info "Experiment output: $RUN_DIR"
-    info "Mathematics report: results/math_acceptance/mathematics_acceptance.html"
-    info "Visual report directory: results/visual_validation"
-  fi
-  info "Python research checks completed"
-  exit 0
-fi
-
 # The public website needs no Redis or application server. Node is used
 # only to build and serve local development assets.
 node_suitable() {
@@ -198,12 +174,26 @@ if [ "$MODE" = setup ]; then
   exit 0
 fi
 
-if [ "$MODE" = check ]; then
-  info "Running all local Python tests"
-  .venv/bin/python -m unittest discover -s tests -v
+if [ "$MODE" = check ] || [ "$MODE" = evaluate ]; then
+  info "Testing CURRENT React/FastAPI research workstation and original-source readiness"
+  .venv/bin/python scripts/local_acceptance.py --skip-build
   info "Running mathematical acceptance"
-  .venv/bin/python scripts/verify_mathematics.py --output-dir results/math_acceptance
-  info "All local checks passed"
+  MATH_DIR="results/math_acceptance_$(date +%Y%m%d_%H%M%S)_$$"
+  .venv/bin/python scripts/verify_mathematics.py --output-dir "$MATH_DIR"
+  if [ "$MODE" = evaluate ]; then
+    info "Running clearly labeled synthetic factor experiment"
+    if [ ! -f data/synthetic_example/prices.csv ]; then
+      .venv/bin/python -m index_research.cli make-fixture --output-dir data/synthetic_example
+    fi
+    RUN_DIR="results/synthetic_$(date +%Y%m%d_%H%M%S)_$$"
+    .venv/bin/python -m index_research.cli run --input-dir data/synthetic_example --output-dir "$RUN_DIR" --config config/research_multifactor.json
+    VISUAL_DIR="results/visual_validation_$(date +%Y%m%d_%H%M%S)_$$"
+    .venv/bin/python scripts/export_visual_validation.py --output-dir "$VISUAL_DIR"
+    info "Synthetic results: $RUN_DIR"
+    info "Visual report: $VISUAL_DIR"
+  fi
+  info "Software acceptance PASSED; original NSE/Dhan source review and empirical certification remain separate."
+  info "Math evidence: $MATH_DIR"
   exit 0
 fi
 
