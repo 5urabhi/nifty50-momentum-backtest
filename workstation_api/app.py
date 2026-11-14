@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, model_input_selector, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, historical_readiness, frozen_study, corporate_action_import
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, model_input_selector, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, research_assistant, historical_readiness, frozen_study, corporate_action_import
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -1665,12 +1665,28 @@ class PairedResultsRequest(BaseModel):
     challenger_ids: list[str] = Field(min_length=1, max_length=7)
 
 
+class ResearchAssistantRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question: str = Field(min_length=2, max_length=400)
+    level: Literal["beginner", "researcher", "mathematical"] = "beginner"
+
+
 @app.get("/api/workspace/results/{kind}/{run_id}/evidence")
 def research_saved_result_evidence(kind: Literal["model_run", "research_run"], run_id: str):
     """No broker calls: reproducible diagnostics of already saved local artifacts."""
     try:
         return result_evidence.summarize(kind, run_id)
     except Exception as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/results/{kind}/{run_id}/ask")
+def ask_research_assistant(kind: Literal["model_run", "research_run"],
+                           run_id: str, body: ResearchAssistantRequest):
+    """Offline answers from one archived run; never request broker data or place orders."""
+    try:
+        return research_assistant.answer(kind, run_id, body.question, body.level)
+    except (ValueError, FileNotFoundError, KeyError, OSError) as exc:
         bad(exc)
 
 
