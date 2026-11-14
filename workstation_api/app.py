@@ -1023,6 +1023,7 @@ class PlotBuildRequest(BaseModel):
     kind: Literal["line","scatter","histogram","kde","qq","drawdown",
                   "cumulative","rolling_volatility","correlation"] = "line"
     transform: Literal["price","return","log_return","base100","zscore"] = "return"
+    price_currency: Literal["unspecified","INR","USD","EUR","GBP"] = "unspecified"
     first: str | None = None
     last: str | None = None
     lookback: int = Field(default=20,ge=2,le=252)
