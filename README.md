@@ -4,7 +4,7 @@
 stochastic and portfolio mathematics, historical source management, risk
 attribution, visual experiments, reproducibility and publication tooling.
 
-**Release scope (November 13, 2026):** software and synthetic-browser acceptance
+**Release scope (November 14, 2026):** software and synthetic-browser acceptance
 are tested. **No independently validated NIFTY historical investment result is
 published.** Real TRI, point-in-time constituents, historical filings, dividends
 and other corporate events still require an original-source audit.
@@ -66,6 +66,10 @@ Open http://127.0.0.1:5173. The local Python engine reads broker tokens only
 from the ignored local environment. QuantLab does not submit trading orders.
 
 ## Start a research study
+
+**Recommended:** launch the React workstation and open **Guided Research**. The default five-step flow is Select data → Choose model → Run → Analyze → Save. It uses the actual Model Laboratory, source-aware +20% downloader, saved Results Studio, and portable evidence ZIPs; no extra scripts to download. More advanced workflows remain under Experiment Studio and Research Workspace.
+
+[One-page beginner guide](GETTING_STARTED.md) · [12-point completion audit](docs/QUANTLAB_COMPLETION_AUDIT.md) · [Advanced statistical validation](docs/ADVANCED_SELECTION_VALIDATION.md).
 
 ### 1. Learn the workstation
 - [Five-minute researcher tour](docs/START_HERE_RESEARCHER.md)
