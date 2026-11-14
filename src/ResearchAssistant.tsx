@@ -92,7 +92,7 @@ export default function ResearchAssistant({run,onTab,onData,onModels,onExperimen
     <form className="rqa-form" onSubmit={e=>{e.preventDefault();void ask(draft)}}>
       <label htmlFor="rqa-question">Ask about the selected saved run</label>
       <textarea id="rqa-question" value={draft} maxLength={400} rows={2}
-        disabled={busy} placeholder="Example: Which metrics are saved, and what evidence is missing?"
+        disabled={busy} placeholder="Example: Which evidence checks are blocking this result?"
         onChange={e=>setDraft(e.target.value)}/>
       <div className="rqa-form-bottom">
         <label>Explanation depth
