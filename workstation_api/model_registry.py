@@ -269,7 +269,8 @@ def validate_parameters(model_id: str, supplied: dict | None) -> dict:
                     raise ValueError(key + " must be an integer")
                 value = int(value)
         result[key] = value
-    if model_id == "gbm_fit" and result["target"] == "stock" and not result["ticker"]:
+    if model_id in {"gbm_fit","ou_fit","merton_fit","heston_proxy"} and (
+            result["target"] == "stock" and not result["ticker"]):
         raise ValueError("Choose a stock symbol when target=stock")
     if model_id == "pca" and result["components"] > result["assets"]:
         raise ValueError("PCA components cannot exceed selected assets")
