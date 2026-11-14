@@ -180,7 +180,7 @@ try {
     await page.getByRole('button',{name:'Fit from historical daily volatility'}).click()
     await page.getByRole('heading',{name:'OU · Historical Volatility Fit'}).waitFor()
     const ouGate=page.locator('.ql-coverage-panel')
-    await ouGate.getByText(/Choose a stock symbol|Select a stock|not present|available/i).first().waitFor()
+    await ouGate.getByText(/Choose a stock symbol|Select an exact stock ticker|not present/i).first().waitFor()
     await page.locator('.ql-family-tabs').getByRole('button',{name:/Derivatives & Options/}).click()
     await page.locator('.ql-model-list').getByRole('button',{name:/Black–Scholes–Merton & Greeks/}).click()
     await page.getByRole('button',{name:'Use observed option bid/ask'}).click()
