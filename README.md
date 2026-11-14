@@ -9,7 +9,7 @@ are tested. **No independently validated NIFTY historical investment result is
 published.** Real TRI, point-in-time constituents, historical filings, dividends
 and other corporate events still require an original-source audit.
 
-## Fast status (default: OK / NOT READY / ERROR)
+## Verify the current workstation end to end\n\n    bash run.sh check\n\nThis checks the React build, Python/math acceptance, synthetic factor research artifacts, and runs the source-aware doctor. Missing authentic market inputs report **HISTORICAL RESEARCH: NOT READY** without pretending software failed. The full browser interaction remains checked on GitHub Actions. Use `bash run.sh evaluate` to add labeled synthetic outputs. The legacy Streamlit checks are explicitly opt-in.\n\n## Fast status (default: OK / NOT READY / ERROR)
 
 The doctor prints a **short, readable status**, never a wall of JSON or
 step-by-step instructions. It saves the optional detailed report separately.
