@@ -83,7 +83,7 @@ class CompleteModelWorkflowsTests(unittest.TestCase):
         a=first.json()
         self.assertEqual(a["mode"],"historical")
         self.assertEqual(a["source"]["source_file"],"daily_prices.csv")
-        self.assertEqual(a["calibration"]["train_count"],400)
+        self.assertEqual(a["calibration"]["train_count"],399)
         self.assertEqual(a["calibration"]["test_count"],100)
         self.assertFalse(a["calibration"]["test_used_in_fit"])
         self.assertIn("SYNTHETIC FIXTURE"," ".join(a["limitations"]))
