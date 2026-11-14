@@ -23,10 +23,12 @@ def overview(dataset_id: str | None = None) -> dict:
     snapshot_count=0
     dataset_label="No dataset selected"
     data_problem=""
+    synthetic_fixture=False
     if dataset_id:
         try:
             folder,info=service.dataset_path(dataset_id)
             dataset_label=info.get("label",dataset_id)
+            synthetic_fixture=info.get("kind")=="synthetic" or (folder/"DO_NOT_CITE.txt").exists()
             file="daily_prices.csv" if info.get("has_daily_prices") else "prices.csv"
             daily=file=="daily_prices.csv"
             if info.get("has_prices"):
@@ -108,7 +110,14 @@ def overview(dataset_id: str | None = None) -> dict:
                     "Use original option quote CSV importer; don't fabricate a premium")
         else:
             source_ready,detail,action=historical_ready(key,int(spec["min_observations"]))
-            status="source_available" if source_ready else "need_historical_data"
+            if synthetic_fixture:
+                source_ready=False
+                detail=("SYNTHETIC FIXTURE ONLY — model can execute, but this is not "
+                        "observed historical market evidence")
+                action="Choose an actual observed Dhan or source-linked NIFTY TRI dataset"
+                status="fixture_only"
+            else:
+                status="source_available" if source_ready else "need_historical_data"
             if key=="heston_proxy":
                 detail+="; proxy only — latent risk-neutral Heston NOT calibrated"
         source_counts[key]={
@@ -127,7 +136,9 @@ def overview(dataset_id: str | None = None) -> dict:
                                       x["mode"]=="historical" for x in values),
         "option_source_ready":sum(x["status"]=="source_available" and
                                   x["mode"]=="market" for x in values),
-        "input_blocked":sum(x["status"] in {"need_option_quote","need_historical_data"} for x in values),
+        "input_blocked":sum(x["status"] in {
+            "need_option_quote","need_historical_data","fixture_only"} for x in values),
+        "synthetic_fixture_selected":synthetic_fixture,
         "available_original_option_contracts":snapshot_count,
         "data_problem":data_problem,
         "models":values,
