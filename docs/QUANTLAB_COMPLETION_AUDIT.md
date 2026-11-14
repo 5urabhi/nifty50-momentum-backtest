@@ -26,7 +26,10 @@
 - Predeclared chronological training/validation and untouched final testing, with independent source review.
 - Comparison against a credible benchmark and realistic portfolio capacity/cost assumptions, not simply an attractive simulated Sharpe.
 
-## Local software acceptance\n\nOn Ubuntu, `bash run.sh check` now validates the current React/FastAPI software path and research-source doctor; the archived Streamlit smoke is opt-in. GitHub Actions Chromium tests remain separate from this terminal command. The source doctor can report **NOT READY** when genuine licensed historical files are absent without causing a false software failure.\n
+## Local software acceptance
+
+On Ubuntu, `bash run.sh check` now validates the current React/FastAPI software path and research-source doctor; the archived Streamlit smoke is opt-in. GitHub Actions Chromium tests remain separate from this terminal command. The source doctor can report **NOT READY** when genuine licensed historical files are absent without causing a false software failure.
+
 
 ```bash
 python -m unittest discover -s tests -v
