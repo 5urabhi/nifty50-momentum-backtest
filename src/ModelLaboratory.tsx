@@ -5,7 +5,7 @@ import ResearchPlot, {type ResearchPlotData} from './ResearchPlots'
 import './model-lab.css'
 
 type Parameter={
-  key:string;type:'number'|'integer'|'select';default:number|string;
+  key:string;type:'number'|'integer'|'select'|'symbol';default:number|string;
   min?:number;max?:number;step?:number;options?:string[];description?:string
 }
 type ModelSpec={
@@ -28,7 +28,8 @@ type SavedRun={id:string;model_id:string;group:string;title:string;mode:string;
   generated_utc:string;dataset_id?:string|null;observations?:number|null;figures:number}
 type Readiness={dataset_id:string;frequency?:string;observed_dates?:number;
   eligible_assets_60?:number;eligible_assets_180?:number;has_prices:boolean;
-  sample_start?:string;sample_end?:string;benchmark_kind?:string;warning?:string}
+  sample_start?:string;sample_end?:string;benchmark_kind?:string;warning?:string;
+  available_symbols?:string[]}
 type DataPlan={model_id:string;mode:string;status:string;runnable:boolean;min_returns:number;target_returns:number;
   buffer_returns:number;common_returns?:number;assets_requested:number;assets_found?:number;
   missing_minimum?:number;missing_to_target?:number;can_download?:boolean;download_explanation?:string;
@@ -263,12 +264,16 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     setPlanLoading(true)
     const query=new URLSearchParams({model_id:selected.id,dataset_id:selectedDataset,
       assets:String(requestedAssets),train_window:String(requestedWindow)})
+    if(selected.id==='gbm_fit'){
+      query.set('target',String(params.target||'benchmark_tri'))
+      query.set('ticker',String(params.ticker||''))
+    }
     getJSON<DataPlan>('/lab/data-requirements?'+query.toString())
       .then(plan=>{if(active)setDataPlan(plan)})
       .catch(e=>{if(active)setPlanError(e instanceof Error?e.message:String(e))})
       .finally(()=>{if(active)setPlanLoading(false)})
     return()=>{active=false}
-  },[selected?.id,selected?.mode,selectedDataset,requestedAssets,requestedWindow,extensionJob?.status])
+  },[selected?.id,selected?.mode,selectedDataset,requestedAssets,requestedWindow,extensionJob?.status,params.target,params.ticker])
   useEffect(()=>{
     if(!extensionJob||!['queued','running'].includes(extensionJob.status))return
     let active=true
@@ -392,6 +397,21 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
         {selected?<><section className="ql-card ql-selected-header">
           <div><span className={'ql-mode '+selected.mode}>{MODE_LABELS[selected.mode]}</span>
             <h3>{selected.title}</h3><p>{selected.description}</p>
+            {(selected.id==='gbm'||selected.id==='gbm_fit')&&
+              <div className="ql-gbm-mode-choice" role="group" aria-label="Choose GBM research approach">
+                <button type="button" aria-pressed={selected.id==='gbm'}
+                  onClick={()=>changeModel('gbm')} className={selected.id==='gbm'?'active':''}>
+                  Explore mathematics (assumed parameters)</button>
+                <button type="button" aria-pressed={selected.id==='gbm_fit'}
+                  onClick={()=>changeModel('gbm_fit')} className={selected.id==='gbm_fit'?'active':''}>
+                  Fit to historical data (train / test)</button>
+              </div>}
+            {selected.id==='gbm_fit'&&
+              <div className="ql-alert good" role="note">
+                <ShieldCheck size={16}/> Fitted drift and volatility use real archived returns
+                when the source is observed. The first 80% calibrates the parameters;
+                the final 20% is used only for diagnostics. All fan paths are computer simulations.
+              </div>}
             {selected.mode==='synthetic'&&<div className="ql-seed-explain" role="note">
               <strong>SIMULATED EXAMPLE — NOT LIVE OR HISTORICAL MARKET DATA</strong>
               <p><b>Seeded simulation</b> means the model generates artificial scenarios
@@ -474,12 +494,25 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
             {extensionMessage&&<p className="ql-alert good" role="status"><CheckCircle2 size={16}/>{extensionMessage}</p>}
             {extensionError&&<p className="ql-alert bad" role="alert">{extensionError}</p>}
           </div>}
+          {selected.id==='gbm_fit'&&
+            <p className="ql-note">NIFTY TRI is the right choice to fit the actual index.
+              For an individual security, choose <b>target: stock</b> and select its exact ticker.
+              Dhan daily prices are split/bonus adjusted, but that doesn't establish reinvested dividends.
+              Fitting never requires an independent vendor to approve every candle.</p>}
+          {selected.id==='gbm_fit'&&<datalist id="ql-available-stock-symbols">
+            {readiness?.available_symbols?.map(name=><option value={name} key={name}/>)}
+          </datalist>}
           <div className="ql-param-grid">{selected.parameters.map(spec=><label className="ql-field" key={spec.key}>
             <span>{spec.key.replaceAll('_',' ')}</span>
             {spec.type==='select'?<select value={String(params[spec.key]??spec.default)}
               onChange={e=>setParams({...params,[spec.key]:e.target.value})}>
               {spec.options?.map(opt=><option key={opt} value={opt}>{opt}</option>)}
-            </select>:<input type="number" value={params[spec.key]??spec.default}
+            </select>:spec.type==='symbol'?<input type="text" list="ql-available-stock-symbols"
+              autoComplete="off" value={String(params[spec.key]??spec.default)}
+              placeholder="Choose ticker from dataset" maxLength={32}
+              disabled={selected.id==='gbm_fit'&&params.target!=='stock'}
+              onChange={e=>setParams({...params,[spec.key]:e.target.value})}/>:
+            <input type="number" value={params[spec.key]??spec.default}
               min={spec.min} max={spec.max} step={spec.step}
               onChange={e=>setParams({...params,[spec.key]:e.target.value===''?NaN:Number(e.target.value)})}/>}
             {spec.description&&<small>{spec.description}</small>}
@@ -520,6 +553,13 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
           <span>Read-only · No trading orders · Deterministic seeds where applicable</span></div>
         </section>}
         {view==='figures'&&<section className="ql-figures">
+          {result&&result.model_id==='gbm_fit'&&
+            <div className="ql-alert warning" role="note">
+              <CircleAlert size={16}/> <strong>HISTORICAL PARAMETERS · SEEDED SIMULATION</strong>
+              <span> The observed holdout is genuine dataset history if the dataset is historical.
+                Fan bands and prospective paths are synthetic; this is not a validated market forecast.
+                Compare held-out error with the zero-drift baseline before drawing conclusions.</span>
+            </div>}
           {result&&result.model_id===selected.id&&result.mode==='synthetic'&&
             <div className="ql-alert warning" role="note">
               <CircleAlert size={16}/> <strong>SEEDED SIMULATION · DEMO RESULTS</strong>
