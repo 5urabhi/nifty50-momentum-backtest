@@ -74,7 +74,7 @@ class SelectionMathTest(unittest.TestCase):
         x, _ = sample()
         with self.assertRaisesRegex(ValueError, "Declared tested configurations"):
             selection_diagnostics.deflated_sharpe(x, trials=2)
-        with self.assertRaisesRegex(ValueError, "Near-zero Sharpe uncertainty"):
+        with self.assertRaisesRegex(ValueError, "finite observed skew"):
             selection_diagnostics.deflated_sharpe(np.full((72,3),.01),trials=3)
 
 
