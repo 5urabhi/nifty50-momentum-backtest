@@ -5,7 +5,7 @@
 export type MetricDisplay={value:string;unit:string}
 const number=(v:number,digits=4)=>v.toLocaleString('en-US',{maximumFractionDigits:digits})
 const FRACTIONAL_PERFORMANCE=/(?:^|\b)(return|cagr|drawdown|volatility|tracking error|turnover|hit rate|beat rate|exposure|portfolio weight|active weight|allocation|annualized alpha)(?:\b|$)/i
-const FRACTIONAL_RISK=/(?:\bvar\b|value at risk|expected shortfall|tail loss|factor weight)/i
+const FRACTIONAL_RISK=/(?:\bvar\b|value at risk|expected shortfall|tail loss|factor weight|down.month.rate|down.month.fraction|probability|selection frequency)/i
 const CURRENCY:Record<string,{symbol:string;label:string}>={
   inr:{symbol:'₹',label:'INR'},usd:{symbol:'$',label:'USD'},eur:{symbol:'€',label:'EUR'},
   gbp:{symbol:'£',label:'GBP'}
