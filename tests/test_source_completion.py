@@ -72,7 +72,7 @@ class SourceCompletionTests(unittest.TestCase):
             self.assertEqual(set(zip.namelist()), {
                 "SOURCE_WORKLIST.json", "MISSING_SECURITY_MONTHS.csv",
                 "MISSING_CALENDAR_MONTHS.csv", "UNRESOLVED_HISTORICAL_IDENTITIES.csv",
-                "SOURCE_ACTIONS.csv", "README.txt",
+                "SOURCE_ACTIONS.csv", "OFFICIAL_SOURCE_GUIDE.csv", "README.txt",
             })
             report = json.loads(zip.read("SOURCE_WORKLIST.json"))
             missing = list(csv.DictReader(
@@ -83,6 +83,28 @@ class SourceCompletionTests(unittest.TestCase):
                 self.assertNotIn("2023-01-31,100.0,200.0",
                                  zip.read(name).decode("utf-8"))
             self.assertIn("NOT", zip.read("README.txt").decode("utf-8"))
+
+    def test_public_archives_are_separate_from_approval_only_programs(self):
+        work=source_completion.worklist(self.id)
+        sources=work["public_sources"]
+        keys=[item["key"] for item in sources]
+        self.assertEqual(len(keys),len(set(keys)))
+        self.assertEqual([row["priority"] for row in sources],list(range(1,len(keys)+1)))
+        by_key={x["key"]:x for x in sources}
+        for key in ("official_tri","monthly_weights","exchange_bhavcopy",
+                    "index_notices","corporate_actions","financial_filings"):
+            self.assertEqual(by_key[key]["access"],"public_page")
+            self.assertTrue(by_key[key]["official_url"].startswith("https://"))
+        self.assertEqual(by_key["research_data_request"]["access"],"application_required")
+        self.assertEqual(by_key["data_room"]["access"],"grant_review")
+        self.assertEqual(by_key["official_tri"]["route"],"data")
+        self.assertFalse(work["summary"]["independent_original_source_certified"])
+        with ZipFile(BytesIO(source_completion.export_zip(self.id))) as archive:
+            rows=list(csv.DictReader(
+                archive.read("OFFICIAL_SOURCE_GUIDE.csv").decode("utf-8").splitlines()))
+        self.assertEqual(len(rows),len(sources))
+        self.assertTrue(any(x["access"]=="grant_review" for x in rows))
+        self.assertTrue(all(x["official_url"].startswith("https://") for x in rows))
 
     def test_missing_price_matrix_still_explains_what_is_blocked(self):
         (self.folder / "prices.csv").unlink()
