@@ -63,6 +63,21 @@ exchange observations are not automatically fetched or reclassified as
 certified. The source-worklist ZIP includes a public-source guide in addition
 to the previously verified missing-security and evidence reports.
 
+## Existing TRI and official NSE source automation
+
+The historical-evidence screen now detects a **previously imported TRI**
+from original benchmark metadata, reports its observed date coverage, and
+explicitly avoids requesting a redundant import. A spot index or ambiguous
+benchmark is never silently treated as total-return-index evidence.
+
+The CLI `scripts/quantlab_nse_sources.py` supports source-safe offline
+CSV/ZIP intake with SHA receipts and unverified dated-manifest templates,
+plus explicit single-query informational access through NSE's published
+MCP interface. **No prohibited NSE website scraper is included.** NSE and
+NSE Indices prohibit automated website harvesting, and NSE MCP access is
+informational/educational, not blanket backtest or redistribution permission.
+See [NSE source automation](NSE_AUTOMATED_SOURCE_WORKFLOW.md).
+
 ## Why empirical research is still blocked
 
 A complete valid historical NIFTY study requires:

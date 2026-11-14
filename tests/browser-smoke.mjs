@@ -185,6 +185,14 @@ try {
     assert.equal(gapBytes.subarray(0,2).toString(),'PK',
       'Worklist must be a real ZIP file, not an inert button or placeholder')
     const gapAudit=await apiJson('/api/workspace/historical-sources/upload_ci_browser_smoke')
+    assert.equal(typeof gapAudit.existing_benchmark.state,'string',
+      'Existing benchmark must be inspected before suggesting duplicate TRI import')
+    assert.equal(gapAudit.existing_benchmark.independently_verified,false)
+    const officialMcp=gapPanel.locator('.hv-mcp-info')
+    assert.match(await officialMcp.innerText(),/NSE MCP, not website scraping/)
+    assert.match(await officialMcp.innerText(),/quantlab_nse_sources.py mcp-tools/)
+    assert.equal((await officialMcp.getByRole('link',{name:/Official NSE MCP documentation/})
+      .getAttribute('href')), 'https://www.nseindia.com/nse-mcp')
     assert.equal(gapAudit.summary.independent_original_source_certified,false)
     assert.equal(gapAudit.summary.publication_certified,false)
     await screenshot('02-historical-source-readiness')

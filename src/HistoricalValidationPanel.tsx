@@ -23,7 +23,13 @@ type OfficialSource={key:string;priority:number;name:string;
   access:'public_page'|'application_required'|'grant_review';
   official_url:string;page_action:string;quantlab_action:string;
   route:'data'|'dhan'|'application';limitations:string}
+type BenchmarkReceipt={state:string;is_tri:boolean;independently_verified:boolean;
+  monthly_returns:number|null;first_month:string|null;last_month:string|null;
+  source_sha256:string|null;next_action:string}
 type SourceWorklist={readiness:Audit;source_kind:string;warning:string;
+  existing_benchmark:BenchmarkReceipt;
+  linked_tri_versions:{dataset_id:string;label:string;first_month:string|null;
+    last_month:string|null;monthly_returns:number|null;independently_verified:boolean}[];
   public_sources:OfficialSource[];
   summary:{price_months:number|null;price_securities:number|null;
     missing_entire_months:number|null;missing_eligible_prices:number|null;
@@ -202,6 +208,33 @@ export default function HistoricalValidationPanel({datasetId,config,hasDailyPric
       </div>
       <p>Only authentic issuer or authorized provider records can close these gaps.
         A source URL or checksum cannot prove a historical return or authorize redistribution.</p>
+      {worklist.existing_benchmark.is_tri&&
+        <div className="hv-tri-present" role="status">
+          <CheckCircle2 size={18}/>
+          <div><strong>TRI already imported — no re-upload required</strong>
+            <p>{worklist.existing_benchmark.monthly_returns} observed monthly benchmark returns
+              {worklist.existing_benchmark.first_month?' · from '+worklist.existing_benchmark.first_month:''}
+              {worklist.existing_benchmark.last_month?' to '+worklist.existing_benchmark.last_month:''}.
+              {' '}Existing source is preserved; independent review and full-window coverage
+              are separate requirements.</p></div>
+        </div>}
+      {!worklist.existing_benchmark.is_tri&&worklist.linked_tri_versions.length>0&&
+        <div className="hv-tri-present" role="status">
+          <CheckCircle2 size={18}/>
+          <div><strong>Your TRI is already imported in a saved dataset version</strong>
+            <p>The selected original dataset has no TRI, but we found
+              {' '}{worklist.linked_tri_versions.length} matching source-linked version(s).
+              Select the correct saved version instead of importing the same TRI again.</p>
+            {worklist.linked_tri_versions.map(v=>
+              <button key={v.dataset_id} onClick={()=>onDataCreated(v.dataset_id)}>
+                Use {v.label} · {v.first_month||'Unknown'} to {v.last_month||'Unknown'}
+              </button>)}
+          </div>
+        </div>}
+      {worklist.existing_benchmark.state==='price_index_only'&&
+        worklist.linked_tri_versions.length===0&&
+        <p className="hv-source-shortfall">A price-index benchmark is available but it is NOT TRI.
+          Import a true total-return series into a new dataset version.</p>}
       <div className="hv-evidence-stats">
         <div><small>Stock price months</small><strong>{statusText(worklist.summary.price_months)}</strong></div>
         <div><small>Entire calendar months missing</small><strong>{statusText(worklist.summary.missing_entire_months)}</strong></div>
@@ -232,7 +265,10 @@ export default function HistoricalValidationPanel({datasetId,config,hasDailyPric
               <div className="hv-public-card-top"><span>{String(source.priority).padStart(2,'0')}</span>
                 <strong>{source.name}</strong></div>
               <p><b>On NSE:</b> {source.page_action}</p>
-              <p><b>In QuantLab:</b> {source.quantlab_action}</p>
+              <p><b>In QuantLab:</b> {source.key==='official_tri'&&
+                (worklist.existing_benchmark.is_tri||worklist.linked_tri_versions.length>0)
+                ? 'TRI is already saved in this dataset or a linked version; select it instead of importing again. Extend only if its observed history is insufficient.'
+                : source.quantlab_action}</p>
               <div className="hv-buttons">
                 <a className="hv-source-link" href={source.official_url}
                   target="_blank" rel="noopener noreferrer">Open official archive <ArrowRight size={12}/></a>
@@ -241,6 +277,16 @@ export default function HistoricalValidationPanel({datasetId,config,hasDailyPric
               </div>
               <small>{source.limitations}</small>
             </article>)}
+        </div>
+        <div className="hv-mcp-info">
+          <strong>Automatic source checks — official NSE MCP, not website scraping</strong>
+          <p>NSE publishes an informational API for stock-history and corporate-action
+            lookups. QuantLab's local source collector can query one official MCP tool at a time
+            and safely prepare already-downloaded NSE ZIP/CSV reports. The result is not an
+            approved trading simulator or a verified research price history.</p>
+          <code>python scripts/quantlab_nse_sources.py mcp-tools --server bhavcopy</code>
+          <a className="hv-source-link" href="https://www.nseindia.com/nse-mcp"
+            target="_blank" rel="noopener noreferrer">Official NSE MCP documentation <ArrowRight size={12}/></a>
         </div>
         <details className="hv-public-approval">
           <summary>Approval-only NSE research programs (separate from public reports)</summary>

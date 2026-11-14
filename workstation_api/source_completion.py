@@ -7,12 +7,15 @@ A ZIP contains only missing-row identifiers, checksums, and source instructions.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from hashlib import sha256
+from pathlib import Path
 from io import BytesIO, StringIO
 from zipfile import ZipFile, ZIP_DEFLATED
 import csv
 import json
 
 from index_research.evidence_coverage import inspect_empirical_coverage
+import pandas as pd
 from . import historical_readiness, service
 
 MAX_EXPORT_ROWS = 200_000
@@ -164,6 +167,106 @@ SOURCE_GUIDANCE = {
 }
 
 
+def existing_benchmark_status(folder: Path) -> dict:
+    """Inspect a prior TRI upload without requesting or creating a second one."""
+    bench = folder / "benchmark.csv"
+    result = {
+        "state": "missing", "is_tri": False, "independently_verified": False,
+        "monthly_returns": None, "first_month": None, "last_month": None,
+        "source_sha256": None, "dataset_benchmark_sha256": None,
+        "next_action": "Import an official TRI level file only if no TRI exists.",
+    }
+    if not bench.is_file() or bench.is_symlink():
+        return result
+    if bench.stat().st_size > 20 * 1024 * 1024:
+        return {**result, "state": "invalid", "next_action": "Review oversized benchmark.csv"}
+    result["dataset_benchmark_sha256"] = sha256(bench.read_bytes()).hexdigest()
+    try:
+        frame = pd.read_csv(bench)
+        dates = pd.to_datetime(frame["date"], errors="raise")
+        values = pd.to_numeric(frame["return"], errors="raise")
+        if (frame.empty or dates.isna().any() or dates.duplicated().any()
+                or values.isna().any() or not dates.is_monotonic_increasing):
+            raise ValueError("Invalid benchmark dates or returns")
+        result["monthly_returns"] = len(frame)
+        result["first_month"] = dates.iloc[0].date().isoformat()
+        result["last_month"] = dates.iloc[-1].date().isoformat()
+        result["state"] = "benchmark_present_type_unverified"
+        result["next_action"] = "Inspect benchmark source metadata before assuming TRI."
+    except (OSError, ValueError, KeyError, TypeError):
+        result["state"] = "invalid"
+        result["next_action"] = "Repair invalid benchmark.csv without overwriting the original."
+        return result
+    provenance = {}
+    for filename in ("BENCHMARK_PROVENANCE.json", "BENCHMARK_SOURCE.json"):
+        file = folder / filename
+        if file.is_symlink() or not file.is_file() or file.stat().st_size > 80_000:
+            continue
+        try:
+            payload = json.loads(file.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                provenance.update(payload)
+        except (OSError, ValueError, TypeError):
+            continue
+    result["source_sha256"] = provenance.get("source_sha256")
+    declared_tri = (
+        provenance.get("is_total_return_index") is True
+        and provenance.get("return_convention") in {"gross_total_return", "net_total_return"}
+    ) or (
+        provenance.get("return_convention") in {"gross_total_return", "net_total_return"}
+        and provenance.get("index_name", "").upper().endswith("TRI")
+    )
+    if declared_tri:
+        result.update({
+            "state": "tri_present_source_unverified", "is_tri": True,
+            "next_action": "TRI already imported. Do not upload it again. Check that "
+                           "its actual observed months cover the entire research interval.",
+        })
+    elif provenance.get("is_total_return_index") is False:
+        result.update({
+            "state": "price_index_only",
+            "next_action": "A price index cannot substitute for an official TRI.",
+        })
+    # Never promote a locally uploaded user file to independently certified.
+    return result
+
+
+def linked_tri_versions(dataset_id: str) -> list[dict]:
+    """Find already-created TRI child versions for a selected original dataset.
+
+    The documented TRI import creates a new immutable upload view with
+    workstation_source.json.parent_dataset_id; it must not be mistaken for
+    a missing benchmark simply because the user selected its original parent.
+    """
+    linked = []
+    for record in service.datasets(include_archived=True)[:200]:
+        child_id = str(record.get("id", ""))
+        if child_id == dataset_id or not child_id.startswith("upload_"):
+            continue
+        folder, _ = service.dataset_path(child_id)
+        manifest = folder / "workstation_source.json"
+        if (manifest.is_symlink() or not manifest.is_file()
+                or manifest.stat().st_size > 80_000):
+            continue
+        try:
+            parsed = json.loads(manifest.read_text(encoding="utf-8"))
+            if not isinstance(parsed, dict) or parsed.get("parent_dataset_id") != dataset_id:
+                continue
+            receipt = existing_benchmark_status(folder)
+            if receipt["is_tri"]:
+                linked.append({
+                    "dataset_id": child_id,
+                    "label": record.get("label", child_id),
+                    "first_month": receipt["first_month"],
+                    "last_month": receipt["last_month"],
+                    "monthly_returns": receipt["monthly_returns"],
+                    "independently_verified": False,
+                })
+        except (OSError, ValueError, TypeError, KeyError):
+            continue
+    return linked[:20]
+
+
 def _context(dataset_id: str, *, validation_start: str | None = None,
              final_test_start: str | None = None,
              selected_factors: list[str] | None = None) -> tuple[dict, list[dict]]:
@@ -227,6 +330,8 @@ def _context(dataset_id: str, *, validation_start: str | None = None,
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "readiness": readiness, "summary": summary,
         "actions": actions,
+        "existing_benchmark": existing_benchmark_status(folder),
+        "linked_tri_versions": linked_tri_versions(dataset_id),
         "public_sources": [dict(row) for row in PUBLIC_SOURCE_GUIDE],
         "missing_security_month_count": len(missing_rows),
         "missing_security_month_preview": missing_rows[:PREVIEW_ROWS],

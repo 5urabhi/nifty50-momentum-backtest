@@ -45,6 +45,52 @@ class SourceCompletionTests(unittest.TestCase):
         pd.DataFrame({"date": self.dates, "return": [0.01] * 16}).to_csv(
             self.folder / "benchmark.csv", index=False)
 
+    def test_existing_tri_is_preserved_and_never_requested_again(self):
+        (self.folder / "BENCHMARK_PROVENANCE.json").write_text(
+            json.dumps({"is_total_return_index": True,
+                        "source_sha256": "a" * 64}))
+        (self.folder / "BENCHMARK_SOURCE.json").write_text(
+            json.dumps({"return_convention": "gross_total_return",
+                        "index_name": "NIFTY 50 TRI"}))
+        work = source_completion.worklist(self.id)
+        benchmark = work["existing_benchmark"]
+        self.assertTrue(benchmark["is_tri"])
+        self.assertEqual(benchmark["state"], "tri_present_source_unverified")
+        self.assertEqual(benchmark["monthly_returns"], 16)
+        self.assertEqual(benchmark["first_month"], "2023-01-31")
+        self.assertIn("already imported", benchmark["next_action"])
+        self.assertFalse(benchmark["independently_verified"])
+        self.assertEqual(benchmark["source_sha256"], "a" * 64)
+        self.assertEqual(
+            source_completion.existing_benchmark_status(self.folder), benchmark)
+
+    def test_original_dataset_finds_previously_imported_tri_child(self):
+        child = self.data / "workstation_imports" / "run_already_uploaded_tri"
+        child.mkdir()
+        (child / "benchmark.csv").write_bytes((self.folder / "benchmark.csv").read_bytes())
+        (child / "BENCHMARK_PROVENANCE.json").write_text(
+            json.dumps({"is_total_return_index": True, "source_sha256": "b" * 64}))
+        (child / "BENCHMARK_SOURCE.json").write_text(
+            json.dumps({"return_convention": "gross_total_return",
+                        "index_name": "NIFTY 50 TRI"}))
+        (child / "workstation_source.json").write_text(
+            json.dumps({"parent_dataset_id": self.id}))
+        versions = source_completion.linked_tri_versions(self.id)
+        self.assertEqual(len(versions), 1)
+        self.assertEqual(versions[0]["dataset_id"], "upload_run_already_uploaded_tri")
+        report = source_completion.worklist(self.id)
+        self.assertFalse(report["existing_benchmark"]["is_tri"])
+        self.assertEqual(len(report["linked_tri_versions"]), 1,
+                         "An existing child TRI must not trigger duplicate import")
+        self.assertFalse(report["linked_tri_versions"][0]["independently_verified"])
+
+    def test_price_index_is_never_misreported_as_tri(self):
+        (self.folder / "BENCHMARK_PROVENANCE.json").write_text(
+            json.dumps({"is_total_return_index": False}))
+        status = source_completion.existing_benchmark_status(self.folder)
+        self.assertEqual(status["state"], "price_index_only")
+        self.assertFalse(status["is_tri"])
+
     def test_exact_missing_observations_and_20_percent_policy(self):
         work = source_completion.worklist(
             self.id, validation_start="2023-09-30",
