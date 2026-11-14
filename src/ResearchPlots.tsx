@@ -1,4 +1,4 @@
-import {useMemo, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 
 export type ResearchTrace={name:string;y:(number|null)[];color?:string}
 export type ResearchPlotData={
@@ -24,10 +24,29 @@ function yBounds(plot:ResearchPlotData){
   const pad=(hi-lo)*.07
   return [lo-pad,hi+pad] as const
 }
-function Canvas2D({plot}:{plot:ResearchPlotData}){
+function Canvas2D({plot,syncHover=true}:{plot:ResearchPlotData;syncHover?:boolean}){
   const x=plot.x||[]
   const [activeIndex,setActiveIndex]=useState<number|null>(null)
   const [pinned,setPinned]=useState(false)
+  useEffect(()=>{
+    if(!syncHover)return
+    const handler=(event:Event)=>{
+      const target=(event as CustomEvent<{x:string|null}>).detail?.x
+      if(pinned)return
+      if(target===null){setActiveIndex(null);return}
+      if(typeof target==='string'){
+        const match=x.findIndex(v=>String(v)===target)
+        if(match>=0)setActiveIndex(match)
+      }
+    }
+    window.addEventListener('quantlab:chart-cursor',handler)
+    return()=>window.removeEventListener('quantlab:chart-cursor',handler)
+  },[syncHover,pinned,plot.x])
+  const emitCursor=(index:number|null)=>{
+    if(!syncHover)return
+    window.dispatchEvent(new CustomEvent('quantlab:chart-cursor',{
+      detail:{x:index===null?null:String(x[index])}}))
+  }
   const width=GRID_RIGHT-GRID_LEFT,height=GRID_BOTTOM-GRID_TOP
   const [lo,hi]=useMemo(()=>yBounds(plot),[plot])
   const xp=(i:number)=>GRID_LEFT+(x.length<2?.5:i/(x.length-1))*width
@@ -56,17 +75,20 @@ function Canvas2D({plot}:{plot:ResearchPlotData}){
           const diff=Math.abs(xcoord(i)-mouse)
           if(diff<best){best=diff;nearest=i}
         }
-        setActiveIndex(nearest)
+        if(nearest!==activeIndex){
+          setActiveIndex(nearest);emitCursor(nearest)
+        }
       }}
-      onPointerLeave={()=>{if(!pinned)setActiveIndex(null)}}
+      onPointerLeave={()=>{if(!pinned){setActiveIndex(null);emitCursor(null)}}}
       onClick={()=>setPinned(old=>!old)}
       onFocus={()=>setActiveIndex(x.length?x.length-1:null)}
       onBlur={()=>setActiveIndex(null)}
       onKeyDown={event=>{
         if(event.key==='ArrowLeft'||event.key==='ArrowRight'){
           event.preventDefault()
-          setActiveIndex(old=>Math.max(0,Math.min(x.length-1,
-            (old??x.length-1)+(event.key==='ArrowRight'?1:-1))))
+          const next=Math.max(0,Math.min(x.length-1,
+            (activeIndex??x.length-1)+(event.key==='ArrowRight'?1:-1)))
+          setActiveIndex(next);emitCursor(next)
         }
         if(event.key==='Enter'||event.key===' '){
           event.preventDefault();setPinned(old=>!old)
@@ -322,6 +344,33 @@ function safeName(name:string){
 }
 export default function ResearchPlot({plot,provenance}:{plot:ResearchPlotData;provenance?:string}){
   const chart=useRef<HTMLElement|null>(null)
+  const [view,setView]=useState<{start:number;end:number}|null>(null)
+  const [syncHover,setSyncHover]=useState(true)
+  const n=plot.x?.length||0
+  const zoomable=n>=8&&plot.kind!=='surface3d'&&plot.kind!=='heatmap2d'
+  const left=view?.start??0,right=view?.end??n
+  useEffect(()=>{setView(null)},[plot.title,n])
+  const clampView=(start:number,span:number)=>{
+    const size=Math.max(5,Math.min(n,span))
+    const beginning=Math.max(0,Math.min(n-size,start))
+    setView(size===n?null:{start:beginning,end:beginning+size})
+  }
+  const zoomIn=()=>clampView(right-Math.max(5,Math.ceil((right-left)/1.6)),
+    Math.max(5,Math.ceil((right-left)/1.6)))
+  const zoomOut=()=>clampView(right-Math.min(n,Math.ceil((right-left)*1.6)),
+    Math.min(n,Math.ceil((right-left)*1.6)))
+  const pan=(dir:-1|1)=>{
+    const span=right-left,step=Math.max(1,Math.round(span/3))
+    clampView(left+dir*step,span)
+  }
+  const visible=useMemo(()=>{
+    if(!view||!zoomable)return plot
+    return {...plot,x:plot.x?.slice(view.start,view.end),
+      y:plot.y?.slice(view.start,view.end),
+      traces:plot.traces?.map(t=>({...t,y:t.y.slice(view.start,view.end)})),
+      band:plot.band?{lower:plot.band.lower.slice(view.start,view.end),
+        upper:plot.band.upper.slice(view.start,view.end)}:undefined}
+  },[plot,view,zoomable])
   const table=useMemo(()=>dataTable(plot),[plot])
   const saveSvg=()=>{
     const original=chart.current?.querySelector('svg')
@@ -352,9 +401,25 @@ export default function ResearchPlot({plot,provenance}:{plot:ResearchPlotData;pr
         <button type="button" onClick={saveCsv} aria-label={'Export CSV of '+plot.title}>Export CSV</button>
       </div>
     </div>
+    {zoomable&&<div className="ql-chart-viewport" role="group"
+      aria-label={'Chart zoom and synchronized pointer for '+plot.title}>
+      <button type="button" onClick={zoomIn} disabled={right-left<=5}
+        aria-label={'Zoom in '+plot.title}>Zoom in +</button>
+      <button type="button" onClick={zoomOut} disabled={!view}
+        aria-label={'Zoom out '+plot.title}>Zoom out −</button>
+      <button type="button" onClick={()=>pan(-1)} disabled={!view||left===0}
+        aria-label={'Pan left '+plot.title}>◀ Earlier</button>
+      <button type="button" onClick={()=>pan(1)} disabled={!view||right>=n}
+        aria-label={'Pan right '+plot.title}>Later ▶</button>
+      <button type="button" onClick={()=>setView(null)} disabled={!view}
+        aria-label={'Reset zoom '+plot.title}>Reset</button>
+      <label><input type="checkbox" checked={syncHover} onChange={e=>setSyncHover(e.target.checked)}/>
+        Link crosshair by shared dates</label>
+      <span>{right-left} of {n} observations visible · full-series CSV export</span>
+    </div>}
     {plot.kind==='surface3d'?<Surface3D plot={plot}/>:
      plot.kind==='heatmap2d'?<Heatmap plot={plot}/>:
-     <Canvas2D plot={plot}/>}
+     <Canvas2D plot={visible} syncHover={syncHover}/>}
     <details className="ql-chart-data">
       <summary>Inspect plotted observations ({table.rows.length.toLocaleString('en-US')} rows)</summary>
       <div className="ql-table-scroll">
