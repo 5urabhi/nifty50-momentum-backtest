@@ -78,6 +78,26 @@ NSE Indices prohibit automated website harvesting, and NSE MCP access is
 informational/educational, not blanket backtest or redistribution permission.
 See [NSE source automation](NSE_AUTOMATED_SOURCE_WORKFLOW.md).
 
+## Official NSE MCP integrated into the browser
+
+QuantLab now exposes **NSE Sources** inside Data Library and **NSE Source
+Assistant** inside Experiment Studio. Official MCP informational requests
+are routed by the Python backend through pinned NSE endpoints; users no longer
+need terminal MCP commands. Lookups are opt-in, rate-limited, source-labeled
+and never written to a saved TRI or historical backtest dataset.
+
+The source assistant handles **nested JSON text errors** from NSE
+(`isError: false` does not imply usable data). Corporate action outages
+are shown as unavailable, **not** zero events. Stock-price lookups
+precheck corporate actions, carry coverage warnings, and never promote raw
+price-index values to dividend-adjusted TRI.
+
+Authorized NSE ZIP/CSV/XLSX/PDF reports can be prepared in the browser;
+originals, checksums and blank first-publication manifest fields remain local.
+Automatic site scraping and unrestricted historical MCP harvesting are not
+part of the implementation. The original research and licensing
+restrictions still apply.
+
 ## Why empirical research is still blocked
 
 A complete valid historical NIFTY study requires:

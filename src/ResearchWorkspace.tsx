@@ -7,12 +7,13 @@ import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
 import {formatMetric} from './metricDisplay'
 import ResearchAdvanced from './ResearchAdvanced'
 import ResearchGuided from './ResearchGuided'
+import NSESourceAssistant from './NSESourceAssistant'
 import ResearchCompletion from './ResearchCompletion'
 import ResearchScholar from './ResearchScholar'
 import './research-workspace.css'
 
 type Raw = Record<string,unknown>
-type Page='home'|'library'|'compare'|'plots'|'guided'|'scholar'|'projects'|'automation'|'quality'|'integrity'|'jobs'
+type Page='home'|'library'|'sources'|'compare'|'plots'|'guided'|'scholar'|'projects'|'automation'|'quality'|'integrity'|'jobs'
 type RecordKind='configuration'|'project'|'notebook'|'chart'|'comparison'|'dashboard'|'note'|'report'|'study'
 type ResourceKind='dataset'|'model_run'|'research_run'
 type Item={id:string;kind:RecordKind;title:string;payload:Raw;tags:string[];
@@ -35,6 +36,7 @@ type Props={datasets:Datum[];selectedDataset:string;onSelectDataset:(id:string)=
 const PAGES:{id:Page;label:string;sub:string}[]=[
   {id:'home',label:'Start',sub:'Resume and guided workflows'},
   {id:'library',label:'Library',sub:'Datasets, models, results'},
+  {id:'sources',label:'NSE Sources',sub:'Official MCP checks & file intake'},
   {id:'compare',label:'Compare & Graph',sub:'Saved model overlays'},
   {id:'plots',label:'Plot Builder',sub:'2D / 3D and statistics'},
   {id:'guided',label:'Guided & Grids',sub:'Goals and optimization'},
@@ -276,7 +278,7 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
           {label:'Observed datasets',value:datasets.filter(x=>x.has_prices).length},
         ]}/>
         <div className="rw-intro-steps">
-          <button onClick={onOpenDhan}><Database size={20}/><strong>1 · Get data</strong><small>Inspect, extend and reuse local Dhan data.</small><ArrowRight size={15}/></button>
+          <button onClick={()=>setPage('sources')}><Database size={20}/><strong>1 · Get data</strong><small>Official NSE source checks, uploaded reports and Dhan integration.</small><ArrowRight size={15}/></button>
           <button onClick={onOpenModels}><SlidersHorizontal size={20}/><strong>2 · Choose a model</strong><small>Run mathematical, stochastic and portfolio models.</small><ArrowRight size={15}/></button>
           <button onClick={()=>setPage('compare')}><BarChart3 size={20}/><strong>3 · Compare evidence</strong><small>Overlay compatible saved outputs and export graphs.</small><ArrowRight size={15}/></button>
           <button onClick={()=>setPage('scholar')}><ShieldCheck size={20}/><strong>4 · Explain the research</strong><small>Inspect every index decision, factor-risk prerequisite and evidence limitation.</small><ArrowRight size={15}/></button>
@@ -299,6 +301,8 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
     {page==='library'&&<LibraryPanel items={library} resources={resources} busy={busy}
       perform={perform} onChanged={onDataChanged} onOpenModels={onOpenModels}
       onOpenDhan={onOpenDhan} onMessage={setMessage}/>}
+    {page==='sources'&&<NSESourceAssistant datasetId={selectedDataset}
+      onOpenDhan={onOpenDhan} onOpenData={()=>setPage('library')}/>}
     {page==='compare'&&<><ComparePanel runs={runs} items={library} busy={busy}
       perform={perform} onMessage={setMessage}/>
       {(hasOlderRuns.model||hasOlderRuns.index)&&<div className="rw-pagination">

@@ -29,6 +29,33 @@ This guide describes the verified `main` release. Feature-branch reviewers shoul
 6. **Audit authentic NIFTY evidence.** In **Experiment Studio → Historical evidence**, QuantLab now displays the exact missing eligible security-months, next-month return gaps, unresolved historical tickers, incomplete calendar months, preferred **+20%** training-buffer shortfall, official NSE source starting points, and source-specific import/download actions. Choose **Export missing-source ZIP** for a portable request/review package; it contains **identifiers and checksums, not licensed price rows or credentials**. Import authorized exports, then choose **Recheck dataset**. This report never grants source approval.
 7. **Manage the library.** Research Workspace supports archive, recoverable Trash, restore, report export, and protected source dependencies. Do not delete original Dhan history to hide an old result.
 
+## Official NSE data is inside the app — no terminal commands
+
+Open **Data Library → NSE Sources** (or **Experiment Studio → Historical evidence →
+NSE Source Assistant**). Choose **Corporate actions**, **Stock prices**,
+**Find a stock**, or **Index context**. Enter the symbol and date, then press
+**Check NSE source**. The local Python API automatically uses the official NSE
+MCP tool and presents the returned evidence, warnings, or a clear provider error.
+You do **not** need to install an MCP client, type Python commands, or provide a
+broker token for these informational checks.
+
+For authorized downloaded NSE CSV/ZIP/XLSX/PDF files, use **Prepare NSE reports
+inside QuantLab → Choose downloaded source files → Prepare source files**. The
+app preserves originals and creates an unverified source receipt and an initial
+weightage manifest, without replacing any saved TRI or research dataset.
+
+If NSE's corporate action service reports an error embedded in a JSON text
+message, QuantLab now shows **source unavailable**, never *zero events*. For a
+stock-price check it tries the official corporate-action check first and warns
+if events cannot be confirmed. NSE MCP responses are not automatically used for
+trading, backtests, or licensed research data. The existing Dhan data manager
+remains the research-price download workflow.
+
+## Advanced optional command-line source tools
+
+The following scripts remain available to developers, but are **not required**
+for routine QuantLab research.
+
 ## Automate source intake without website scraping
 
 You already may have a NIFTY TRI benchmark. Check it before importing anything:
