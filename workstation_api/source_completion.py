@@ -231,6 +231,42 @@ def existing_benchmark_status(folder: Path) -> dict:
     return result
 
 
+def linked_tri_versions(dataset_id: str) -> list[dict]:
+    """Find already-created TRI child versions for a selected original dataset.
+
+    The documented TRI import creates a new immutable upload view with
+    workstation_source.json.parent_dataset_id; it must not be mistaken for
+    a missing benchmark simply because the user selected its original parent.
+    """
+    linked = []
+    for record in service.datasets(include_archived=True)[:200]:
+        child_id = str(record.get("id", ""))
+        if child_id == dataset_id or not child_id.startswith("upload_"):
+            continue
+        folder, _ = service.dataset_path(child_id)
+        manifest = folder / "workstation_source.json"
+        if (manifest.is_symlink() or not manifest.is_file()
+                or manifest.stat().st_size > 80_000):
+            continue
+        try:
+            parsed = json.loads(manifest.read_text(encoding="utf-8"))
+            if not isinstance(parsed, dict) or parsed.get("parent_dataset_id") != dataset_id:
+                continue
+            receipt = existing_benchmark_status(folder)
+            if receipt["is_tri"]:
+                linked.append({
+                    "dataset_id": child_id,
+                    "label": record.get("label", child_id),
+                    "first_month": receipt["first_month"],
+                    "last_month": receipt["last_month"],
+                    "monthly_returns": receipt["monthly_returns"],
+                    "independently_verified": False,
+                })
+        except (OSError, ValueError, TypeError, KeyError):
+            continue
+    return linked[:20]
+
+
 def _context(dataset_id: str, *, validation_start: str | None = None,
              final_test_start: str | None = None,
              selected_factors: list[str] | None = None) -> tuple[dict, list[dict]]:
@@ -295,6 +331,7 @@ def _context(dataset_id: str, *, validation_start: str | None = None,
         "readiness": readiness, "summary": summary,
         "actions": actions,
         "existing_benchmark": existing_benchmark_status(folder),
+        "linked_tri_versions": linked_tri_versions(dataset_id),
         "public_sources": [dict(row) for row in PUBLIC_SOURCE_GUIDE],
         "missing_security_month_count": len(missing_rows),
         "missing_security_month_preview": missing_rows[:PREVIEW_ROWS],
