@@ -265,3 +265,38 @@ exact ticker, option contract and parameters.
 API: `GET /api/lab/model-readiness?dataset_id=<saved-id>`.
 The panel never submits live orders or assumes that source sufficiency
 guarantees optimizer convergence or empirical predictive power.
+
+### Automatic read-only Dhan option-chain capture
+
+CSV import remains a fallback. **Model Laboratory → observed quote model →
+Automatic current option chain · Dhan** now supports a single-click read-only
+capture of NIFTY 50 or BANK NIFTY options using the existing local
+`DHAN_ACCESS_TOKEN`. The server uses `DHAN_CLIENT_ID` in the ignored
+`.env` when configured, or fetches it *server-side* from the Dhan profile.
+No token or client identifier is sent to the React browser.
+
+The backend calls ONLY `/v2/optionchain/expirylist` and
+`/v2/optionchain`, selects the nearest nonexpired date, observes Dhan's
+one-unique-request-per-three-seconds limit, records current index LTP,
+original best bid/ask and returned option strikes, and persists a
+versioned local source-checksummed provider JSON and normalized contract
+CSV. It selects positive, noncrossed quotes closest to index spot; it never
+places orders, invents option premiums, or sends credentials to reports.
+
+**Timing caveat:** Dhan's option-chain response documents an expiry
+**date**, not an exact expiry instant. QuantLab assumes the regular NSE
+15:30 Asia/Kolkata session close for modeled tenor and marks this explicit
+assumption in the original quote manifest. The quote capture time is
+the workstation's local clock, not an exchange-signed trade timestamp.
+Actual exchange holidays, early closes, option exercises and contract
+settlement details require separate source checks for high-precision
+risk/pricing. Captured quotes may become stale almost immediately.
+
+A Dhan token or data plan without option-chain entitlements receives an
+actionable sanitized HTTP error. In that case, users can upload an original
+authorized option-quote CSV instead. Historical expired-option candles
+are a distinct source/API and are NOT substituted for current bid/ask
+quotes. Original option-chain source is never committed to GitHub.
+
+CI includes mocked HTTP response tests; it must never make a live Dhan
+request using test credentials.

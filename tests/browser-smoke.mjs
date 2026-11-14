@@ -194,6 +194,9 @@ try {
     await page.getByRole('heading',{name:'Black–Scholes · Observed Market Quote'}).waitFor()
     await page.getByRole('region',{name:'Import original provider option quotes'}).waitFor()
     await page.getByText(/never fabricates a market premium/).waitFor()
+    await page.getByRole('button',{name:/Fetch current Dhan quotes \(read-only\)/}).waitFor()
+    await page.getByRole('region',{name:'Import original provider option quotes'})
+      .getByText(/data plan|data entitlement|entitlements|subscription/i).first().waitFor()
     assert.equal(await page.getByRole('button',{name:'Run selected model'}).isDisabled(),true,
       'A market option cannot be valued without an actual quote')
     await screenshot('02-quote-anchored-option-model-gated')

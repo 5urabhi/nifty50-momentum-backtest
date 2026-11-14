@@ -236,3 +236,16 @@
 @media(max-width:750px){.ql-model-matrix>summary{flex-direction:column;align-items:flex-start}
  .ql-matrix-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
  .ql-matrix-models{grid-template-columns:1fr}}
+
+.ql-dhan-quote-fetch{border:1px solid #437364;border-radius:9px;
+ background:#102e36;padding:12px 14px;margin:10px 0 16px}
+.ql-dhan-quote-fetch .ql-panel-title{margin:0 0 5px}
+.ql-dhan-quote-fetch .ql-panel-title h3{font-size:12px}
+.ql-dhan-quote-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.ql-dhan-quote-controls .ql-field{min-width:210px;flex:1;margin:0}
+.ql-dhan-quote-controls button{display:flex;align-items:center;gap:7px;background:#62dcbc;
+ color:#102f33;border:1px solid #62dcbc;border-radius:7px;padding:11px;
+ font-size:11px;font-weight:800;min-height:38px;cursor:pointer}
+.ql-dhan-quote-controls button:disabled{opacity:.45;cursor:not-allowed}
+.ql-dhan-quote-fetch .ql-note{margin-top:10px}
+@media(max-width:650px){.ql-dhan-quote-controls{flex-direction:column;align-items:stretch}}

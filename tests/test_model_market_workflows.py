@@ -17,7 +17,8 @@ import numpy as np
 import pandas as pd
 from fastapi.testclient import TestClient
 
-from workstation_api import model_lab, model_registry, model_readiness, option_quotes, service
+from workstation_api import (model_lab, model_registry, model_readiness,
+                              option_quotes, dhan_option_chain, service)
 from workstation_api.app import app
 
 
@@ -195,6 +196,67 @@ class CompleteModelWorkflowsTests(unittest.TestCase):
         self.assertTrue(available.json()["runnable"])
         refused=self._run("implied_vol_quote",{"quote":""})
         self.assertEqual(refused.status_code,400)
+
+    def test_live_dhan_chain_mock_is_readonly_and_preserves_provider_json(self):
+        expiry=(datetime.now(timezone.utc)+timedelta(days=35)).date().isoformat()
+        chain={"status":"success","data":{"last_price":25000.0,"oc":{
+            "25000.000000":{
+                "ce":{"top_bid_price":198.0,"top_ask_price":200.0},
+                "pe":{"top_bid_price":195.0,"top_ask_price":202.0}},
+            "25050.000000":{
+                "ce":{"top_bid_price":182.0,"top_ask_price":186.0},
+                "pe":{"top_bid_price":213.0,"top_ask_price":220.0}},
+        }}}
+        provider=json.dumps(chain).encode()
+        calls=[]
+        def fake(path,**kwargs):
+            calls.append((path,kwargs.get("body")))
+            if path==dhan_option_chain.EXPIRY_ENDPOINT:
+                return {"status":"success","data":[expiry]},b"original expiry list"
+            if path==dhan_option_chain.CHAIN_ENDPOINT:
+                return chain,provider
+            raise AssertionError("No other Dhan endpoint must be called")
+        with patch.dict("os.environ",{"DHAN_ACCESS_TOKEN":"synthetic-token",
+                                      "DHAN_CLIENT_ID":"123456789"}):
+            with patch.object(dhan_option_chain,"_json_http",side_effect=fake):
+                receipt=dhan_option_chain.capture(
+                    "market_fixture","NIFTY50",sleep=lambda _:None)
+        self.assertEqual(receipt["contracts"],4)
+        self.assertTrue(receipt["market_data_not_orders"])
+        self.assertEqual(len(calls),2)
+        self.assertEqual(calls[0][0],dhan_option_chain.EXPIRY_ENDPOINT)
+        self.assertEqual(calls[1][0],dhan_option_chain.CHAIN_ENDPOINT)
+        self.assertEqual(calls[1][1]["UnderlyingScrip"],13)
+        self.assertEqual(calls[1][1]["UnderlyingSeg"],"IDX_I")
+        self.assertEqual(calls[1][1]["Expiry"],expiry)
+        quotes=option_quotes.get(receipt["id"],"market_fixture")
+        self.assertEqual(quotes["source_type"],"dhan_readonly_optionchain_api_v2")
+        self.assertFalse(quotes["provider_metadata"]["source_expiry_time_is_exact"])
+        original=self.folder/"data"/"model_option_quotes"/(receipt["id"]+".vendor.json")
+        self.assertEqual(original.read_bytes(),provider)
+        self.assertEqual(len(quotes["contracts"]),4)
+        self.assertEqual(quotes["contracts"][0]["underlying"],"NIFTY50")
+        self.assertTrue(quotes["contracts"][0]["expiry_at"].endswith("+00:00"))
+
+    def test_dhan_live_quote_requires_explicit_confirmation_and_local_token(self):
+        payload={"dataset_id":"market_fixture","underlying":"NIFTY50",
+                 "confirm_readonly":False}
+        bad=self.client.post("/api/lab/option-quotes/dhan",json=payload)
+        self.assertEqual(bad.status_code,400)
+        self.assertIn("read-only",bad.text)
+        with patch.dict("os.environ",{"DHAN_ACCESS_TOKEN":""}):
+            denied=self.client.post("/api/lab/option-quotes/dhan",
+                                    json={**payload,"confirm_readonly":True})
+        self.assertEqual(denied.status_code,400)
+        self.assertIn("DHAN_ACCESS_TOKEN",denied.text)
+        with patch.dict("os.environ",{"DHAN_ACCESS_TOKEN":"synthetic-test"}):
+            with patch("workstation_api.app._spawn",return_value={
+                    "job_id":"test_queued","status":"queued"}) as spawn:
+                authorized=self.client.post("/api/lab/option-quotes/dhan",
+                                            json={**payload,"confirm_readonly":True})
+        self.assertEqual(authorized.status_code,200,authorized.text)
+        self.assertEqual(authorized.json()["status"],"queued")
+        self.assertEqual(spawn.call_args.args[0],"lab_dhan_optionchain")
 
     def test_rejects_crossed_nonfinite_and_unauthorized_source(self):
         imported=option_quotes.import_quotes("market_fixture",self.quote_csv)
