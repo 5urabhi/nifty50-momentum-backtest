@@ -178,6 +178,7 @@ try {
     await overview.locator('summary').click()
     await page.locator('.ql-family-tabs').getByRole('button',{name:/Stochastic Processes/}).click()
     await page.getByText('SIMULATED EXAMPLE — NOT LIVE OR HISTORICAL MARKET DATA').waitFor()
+    await page.getByRole('button',{name:/Use observed market data/}).waitFor()
     await page.getByRole('button',{name:'Fit to historical data (train / test)'}).click()
     await page.getByRole('heading',{name:'GBM · Fit to Historical Data'}).waitFor()
     await page.getByText(/first 80% calibrates the parameters/).waitFor()
