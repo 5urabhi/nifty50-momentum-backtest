@@ -159,3 +159,94 @@ For a historical model include the dataset `"dataset_id":"dhan_batch_<your id>"`
 Random Forest, XGBoost, LSTM, PPO, SAC, a historical order-book replay engine, continuous retraining, broker order execution and audited out-of-sample alpha are **NOT** parts of this model registry. Those require a separate versioned feature, validated training protocol and test evidence.
 
 See `docs/QUANTLAB_USER_GUIDE.md` and `docs/QUANTLAB_REPRODUCIBILITY.md`.
+
+
+## Complete model workflows: observed prices vs assumptions vs option quotes
+
+The original theoretical and seeded stochastic models were not placeholders:
+they compute legitimate analytical/numerical examples. Their labels describe
+their **evidence type**, not an implementation percentage. A simulated curve
+never becomes historical data because parameters are fitted to prices.
+
+### Two routes on each applicable model
+
+Choose **Model Laboratory → select family → select model**.
+A paired selector now offers the assumed-parameter original and an observed-data
+version where a genuine estimator or quoted market input is mathematically
+appropriate. Both are fully runnable once their particular inputs are present.
+
+| Model | Market-data route | Original provider input | Scope |
+| --- | --- | --- | --- |
+| GBM | GBM historical fit | Original NIFTY TRI return series or named Dhan stock | Drift, volatility; 80/20 chronology; seeded paths |
+| OU | OU historical volatility fit | 90+ Dhan daily stock returns | AR(1) mean reversion of log 20-session realized volatility; test diagnostics |
+| Merton | Merton historical jump proxy | 120+ Dhan daily returns or historical NIFTY TRI | 3-MAD tail-event frequency + diffusion proxy, 80/20; synthetic scenarios |
+| Heston | Historical variance proxy | 252+ daily stock returns | Realized variance AR(1), shock correlation/vol-of-vol proxies, held-out variance comparison; **not** risk-neutral options calibration |
+| Black–Scholes | Observed quote BSM | Original provider bid/ask + spot/strike/exact expiry | Midpoint-implied vol and theoretical Greeks/pricing |
+| Binomial | Observed quote CRR | Same exact option quote | Theoretical European/American exercise tree; American IV proxy caveat |
+| Implied volatility | Original bid/ask IV inversion | Same exact option quote | Bid/ask/mid BSM inversions with explicit yield/rate assumptions |
+| Antithetic Monte Carlo | Quote-anchored MC | Same exact option quote | Numerically sampled option payoffs and MC standard errors; no simulated 'market quotes' |
+| 3D option surface | Quote-anchored BSM 3D | Same exact option quote | What-if surface around observed quote IV; **not** market smile calibration |
+
+All other portfolio/risk/econometric models already read the original
+historical returns. Their outputs remain in-sample unless a model's methodology
+explicitly declares time-respecting walk-forward or an isolated test.
+
+### Import actual option quotes once, reuse across models
+
+For any "Observed Market Quote" model, select an existing research dataset.
+Inside **Experiment setup → Original option quote snapshots** choose
+**Download blank CSV template** and populate it using your permitted original
+option-chain/quote export from Dhan, NSE or another provider. Required columns:
+
+`captured_at,provider,underlying,underlying_spot,expiry_at,strike,option_type,bid,ask`
+
+Both timestamps must contain an explicit UTC offset. Example formatting:
+`2026-11-14T15:25:00+05:30` and `2026-12-31T15:30:00+05:30`.
+`option_type` is `call` or `put`. The quote importer accepts an original
+CSV with one to 300 different contracts. It validates timestamp order,
+bid ≤ ask, positive prices, strike and spot, and original contract identity.
+It stores source-checked raw quotes in local ignored `data/model_option_quotes/`,
+returns a new immutable quote snapshot ID, and never uploads vendor data to
+GitHub. If the original source changes, model calculations fail closed.
+No API keys appear in report artifacts.
+
+Select a saved contract under **Quote** and click **Run selected model**.
+The backend automatically derives the observed quote midpoint, precise
+time-to-expiry and one-contract European BSM implied volatility. Risk-free
+rate and continuous dividend yield remain explicitly **user assumptions**,
+not silently downloaded rates. If the observed quote violates selected BSM
+European no-arbitrage constraints, the model displays a useful error rather
+than inventing an implied volatility. Old quotes remain historical snapshots,
+not executable market fills.
+
+**Important:** A single strike/maturity quote cannot calibrate Heston's
+full risk-neutral volatility surface or a term structure of implied
+volatilities. That requires an option chain with several strikes and
+expiries, plus appropriate rates, dividends and exercise/contract conventions.
+QuantLab does **not** call that "completed market calibration" just because
+it has a stochastic Heston simulator and a rolling variance proxy.
+
+### Research honesty and no extra vendor approvals
+
+Dhan is the intended primary source of individual cash-equity historical
+candles. Checking that a quote matches its timestamps, that a benchmark is
+TRI rather than price-only, or that a model uses enough consecutive
+observations is a numerical/data-contract check, **not distrust of the
+broker**. NSE Indices TRI is needed when dividend-inclusive NIFTY benchmark
+returns are the model target. Quote-source evidence is accepted from the
+user's authorized quote export without demanding another vendor account.
+
+The interface separates:
+- **Runnable mathematics** — theoretical/seeded model needs parameter inputs;
+- **Observed-source ready** — data-backed fitting has required observed history;
+- **Observed-quote ready** — quote-anchored valuation has a real dated contract;
+- **Independently audited** — much stronger third-party source, rights and
+  publication-methodology validation (not automatically claimed).
+
+No broker orders are ever placed. No provider-specific options API entitlements
+are assumed when using the CSV quote import. Importing source quote snapshots
+does not certify trade execution, liquidity, forecast performance or
+third-party review.
+
+Regression checks:
+`python -m unittest tests.test_model_market_workflows tests.test_gbm_historical_calibration -v`.
