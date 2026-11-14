@@ -17,6 +17,10 @@
 | P2 | Reproducibility | Saved results and source manifests, environment/code version, source-integrity audit, portable ZIP package and offline `verify_bundle.py`. | Licensed original source inputs are not shipped; full replication requires authorized inputs and matching environment. |
 | P2 | Advanced statistical validation | Walk-forward/holdout; paired HAC and block bootstrap; CSCV/PBO, approximate DSR with declared trial count, lagged benchmark-volatility descriptive regimes. | CSCV is retrospective, **not purged CPCV**, and not a frozen independent final test. Original PIT/TRI/cost audits remain required. |
 
+## Explicit authentic-source worklist
+
+Experiment Studio now provides a **read-only missing-evidence worklist** tied to the actual selected dataset: exact missing security-months, missed next-month return observations, unresolved historical ticker identities, missing months, +20% preferred training history and source-specific NSE/Dhan import actions. One click exports a portable, source-safe ZIP containing identifiers and checksums **without licensed prices**. Python and Chromium acceptance enforce zero automatic source certification. A malformed calendar remains actionable and fails closed.
+
 ## Evidence gates that cannot be bypassed by software
 
 - Authentic and licensed original NIFTY/BANKNIFTY historical constituent observations, all effective-dated deletions and changes, dividends and corporate actions.
