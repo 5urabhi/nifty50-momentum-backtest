@@ -198,11 +198,15 @@ def execute(model_id: str, dataset_id: str, params: dict, *, progress=None) -> d
         if progress: progress(value, message)
     stage(3, "Reusing SHA-verified historical candles before any network requests")
     cache = shared_market_data.reuse_cached(row)
-    after = model_data_manager.inspect(model_id, shared_market_data.SHARED_ID, shared_params)
+    try:
+        after = model_data_manager.inspect(model_id, shared_market_data.SHARED_ID, shared_params)
+    except (ValueError, OSError, FileNotFoundError):
+        # The shared dataset may not exist before this first download.
+        after = {"runnable": False, "missing_to_target": plan["target_returns"]}
     events = {"instrument_id": row["id"],
               "cache_rows_added": cache["rows_appended"],
               "downloaded_rows": 0, "windows_downloaded": 0}
-    if after["runnable"] and after.get("missing_to_target",1) == 0:
+    if after.get("runnable") and after.get("missing_to_target",1) == 0:
         stage(100, "Preferred +20% target already present in the shared cache")
         return _receipt(model_id, plan, after, selected, expected, events)
 
@@ -227,7 +231,12 @@ def execute(model_id: str, dataset_id: str, params: dict, *, progress=None) -> d
     stage(90, "Appending new observations to identity-keyed shared research data")
     imported = shared_market_data.reuse_cached(row)
     events["shared_rows_added"] = imported["rows_appended"]
-    after = model_data_manager.inspect(model_id, shared_market_data.SHARED_ID, shared_params)
+    try:
+        after = model_data_manager.inspect(model_id, shared_market_data.SHARED_ID, shared_params)
+    except (ValueError, OSError, FileNotFoundError):
+        # No new valid observations from the vendor, never invent a dataset.
+        after = {"runnable": False, "common_returns": 0,
+                 "missing_to_target": plan["target_returns"]}
     stage(99, "Rechecking actual model input requirements and +20% target")
     return _receipt(model_id, plan, after, selected, expected, events)
 
