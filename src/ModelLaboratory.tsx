@@ -306,7 +306,6 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   const selected=catalog.find(spec=>spec.id===modelId)
   const modelPair=MARKET_PAIRS.find(pair=>pair.base===selected?.id||pair.market===selected?.id)
   const singleSeries=!!selected&&['gbm_fit','ou_fit','merton_fit','heston_proxy'].includes(selected.id)
-  const currentModelStatus=matrix?.models.find(item=>item.id===selected?.id)
   const quoteRefs=quoteSnapshots.flatMap(snapshot=>snapshot.contracts.map(contract=>({
     value:snapshot.id+':'+contract.row_index,
     label:contract.provider+' · '+contract.underlying+' '+contract.strike+' '+contract.option_type+
