@@ -164,7 +164,9 @@ class CompleteModelWorkflowsTests(unittest.TestCase):
     def test_model_matrix_separates_math_historical_sources_and_quotes(self):
         before=model_readiness.overview("market_fixture")
         self.assertGreaterEqual(before["math_ready"],9)
-        self.assertGreaterEqual(before["historical_source_ready"],3)
+        self.assertEqual(before["historical_source_ready"],0,
+                         "Synthetic fixtures are not observed source evidence")
+        self.assertTrue(before["synthetic_fixture_selected"])
         self.assertEqual(before["option_source_ready"],0)
         self.assertEqual(before["total_models"],len(model_registry.MODELS))
         self.assertTrue(before["not_a_market_performance_certification"])
@@ -178,7 +180,8 @@ class CompleteModelWorkflowsTests(unittest.TestCase):
         self.assertEqual(data["total_models"],len(model_registry.MODELS))
         models={m["id"]:m for m in data["models"]}
         self.assertEqual(models["heston"]["status"],"math_ready")
-        self.assertEqual(models["heston_proxy"]["status"],"source_available")
+        self.assertEqual(models["heston_proxy"]["status"],"fixture_only")
+        self.assertIn("SYNTHETIC FIXTURE",models["heston_proxy"]["detail"])
         self.assertTrue(models["implied_vol_quote"]["source_ready"])
         self.assertFalse(models["implied_vol"]["source_ready"])
 
