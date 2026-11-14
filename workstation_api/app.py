@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, historical_readiness, frozen_study, corporate_action_import
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, historical_readiness, frozen_study, corporate_action_import
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -474,6 +474,29 @@ async def lab_import_original_option_quotes(
         raw=await file.read(option_quotes.MAX_BYTES+1)
         return option_quotes.import_quotes(dataset_id, raw)
     except (ValueError, OSError) as exc:
+        bad(exc)
+
+
+
+class DhanOptionChainRequest(BaseModel):
+    model_config=ConfigDict(extra="forbid")
+    dataset_id: str = Field(min_length=1,max_length=120)
+    underlying: Literal["NIFTY50","BANKNIFTY"] = "NIFTY50"
+    confirm_readonly: bool = False
+
+
+@app.post("/api/lab/option-quotes/dhan")
+def lab_capture_dhan_live_option_chain(body: DhanOptionChainRequest):
+    """Opted-in, local-token only, rate-limited Dhan QUOTE read. No order API."""
+    if not body.confirm_readonly:
+        raise HTTPException(400,"Confirm the authorized read-only Dhan option-chain data request")
+    try:
+        service.dataset_path(body.dataset_id)
+        if not os.getenv("DHAN_ACCESS_TOKEN","").strip():
+            raise ValueError("Configure DHAN_ACCESS_TOKEN in your local ignored .env and restart QuantLab")
+        return _spawn("lab_dhan_optionchain", dhan_option_chain.capture,
+                      body.dataset_id,body.underlying)
+    except (ValueError,OSError) as exc:
         bad(exc)
 
 
