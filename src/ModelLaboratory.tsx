@@ -43,21 +43,29 @@ type ModelSourceOptions={
   dataset_id:string;model_id:string;dataset_label:string;source_file:string|null;
   frequency:string;minimum:number;preferred_with_buffer:number;
   synthetic_fixture:boolean;eligible_count:number;selection_is_explicit:boolean;
-  candidates:{ticker:string;returns:number;runnable:boolean;reason:string}[];
+  candidates:{ticker:string;display_name?:string;returns:number;runnable:boolean;
+    extendable?:boolean;missing_to_target?:number;missing_minimum?:number;
+    from_date?:string|null;to_date?:string|null;reason:string}[];
+  candidate_count?:number;extendable_count?:number;recommended_ticker?:string|null;
   tri:{runnable:boolean;returns:number;reason:string;index_name?:string}
 }
 type MarketQuoteSnapshot={id:string;dataset_id:string;captured_at:string;source_sha256:string;
   contracts:{provider:string;underlying:string;strike:number;option_type:string;
     captured_at:string;expiry_at:string;row_index:number;bid:number;ask:number;quote_age_days:number}[]}
 type DataPlan={model_id:string;mode:string;status:string;runnable:boolean;min_returns:number;target_returns:number;
-  buffer_returns:number;common_returns?:number;assets_requested:number;assets_found?:number;
-  missing_minimum?:number;missing_to_target?:number;can_download?:boolean;download_explanation?:string;
+  buffer_returns:number;common_returns?:number|null;assets_requested:number;assets_found?:number;
+  missing_minimum?:number|null;missing_to_target?:number|null;can_download?:boolean;
+  selected_ticker?:string;suggested_ticker?:string|null;shared_ticker?:string;
+  available_price_dates?:number;download_explanation?:string;
   suggested_start?:string;suggested_end_exclusive?:string;message:string;
   estimated_calendar_weekdays?:number;estimated_max_instrument_day_requests?:number;
   request_scope_note?:string;cached_instrument_calendar_days?:number;
   missing_instrument_calendar_days?:number;missing_uncovered_windows?:number;
   estimated_vendor_daily_requests?:number}
-type ExtensionJob={id:string;status:string;kind:string;error?:string;result?:{dataset_id?:string;status:string;message:string;after?:DataPlan}}
+type ExtensionJob={id:string;status:string;kind:string;percent?:number;stage?:string;
+  error?:string;result?:{dataset_id?:string;status:string;message:string;after?:DataPlan;
+    selected_ticker?:string;original_ticker?:string;buffer_complete?:boolean;
+    missing_to_target?:number;actual_returns?:number;target_returns?:number}}
 type ConfigRecord={id:string;title:string;payload:{model_id?:string;dataset_id?:string;params?:Record<string,number|string>};
   favorite:boolean;tags:string[]}
 type Props={
@@ -272,6 +280,8 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   const [extensionJob,setExtensionJob]=useState<ExtensionJob|null>(null)
   const [extensionMessage,setExtensionMessage]=useState<string|null>(null)
   const [extensionError,setExtensionError]=useState<string|null>(null)
+  const [stockSearch,setStockSearch]=useState('')
+  const [refreshHistory,setRefreshHistory]=useState(0)
   const refreshSaved=useCallback(()=>getJSON<{runs:SavedRun[]}>('/lab/runs')
     .then(data=>setSavedRuns(data.runs)).catch(()=>setSavedRuns([])),[])
   useEffect(()=>{void refreshSaved()},[refreshSaved])
@@ -305,6 +315,13 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     &&(spec.title+' '+spec.description+' '+spec.id).toLowerCase().includes(modelSearch.trim().toLowerCase()))
   const selected=catalog.find(spec=>spec.id===modelId)
   const modelPair=MARKET_PAIRS.find(pair=>pair.base===selected?.id||pair.market===selected?.id)
+  const matchedStocks=sourceChoices?.candidates.filter(candidate=>
+    (candidate.display_name||candidate.ticker).toLowerCase().includes(stockSearch.trim().toLowerCase())
+    ||candidate.ticker.toLowerCase().includes(stockSearch.trim().toLowerCase()))||[]
+  const recommendedStock=sourceChoices?.candidates.find(candidate=>
+    candidate.ticker===sourceChoices.recommended_ticker)
+  const needsSelectedStock=!!selected&&['gbm_fit','ou_fit','merton_fit','heston_proxy'].includes(selected.id)
+    &&params.target==='stock'&&!params.ticker
   const singleSeries=!!selected&&['gbm_fit','ou_fit','merton_fit','heston_proxy'].includes(selected.id)
   const quoteRefs=quoteSnapshots.flatMap(snapshot=>snapshot.contracts.map(contract=>({
     value:snapshot.id+':'+contract.row_index,
@@ -409,7 +426,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
       .catch(err=>{if(active)setSourceChoiceError(err instanceof Error?err.message:String(err))})
       .finally(()=>{if(active)setSourceChoiceLoading(false)})
     return()=>{active=false}
-  },[singleSeries,selectedDataset,selected?.id])
+  },[singleSeries,selectedDataset,selected?.id,refreshHistory])
   const syntheticHistory=selected?.mode==='historical'&&selectedDataset==='synthetic'
   const min=selected?.min_observations||0
   const requestedAssets=Number(params.assets??8)
@@ -431,7 +448,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
       .catch(e=>{if(active)setPlanError(e instanceof Error?e.message:String(e))})
       .finally(()=>{if(active)setPlanLoading(false)})
     return()=>{active=false}
-  },[selected?.id,selected?.mode,selectedDataset,requestedAssets,requestedWindow,extensionJob?.status,params.target,params.ticker,params.quote])
+  },[selected?.id,selected?.mode,selectedDataset,requestedAssets,requestedWindow,extensionJob?.status,params.target,params.ticker,params.quote,refreshHistory])
   useEffect(()=>{
     if(!extensionJob||!['queued','running'].includes(extensionJob.status))return
     let active=true
@@ -443,29 +460,44 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
           if(next.status==='complete'){
             const response=next.result
             setExtensionMessage(response?.message??'Shared history preparation completed.')
+            // The original prepared batch remains immutable. Shared prices
+            // use the broker security ID as the ticker. Keep the EXACT
+            // chosen instrument in sync after switching datasets.
+            if(response?.selected_ticker)
+              setParams(prev=>({...prev,ticker:response.selected_ticker!,target:'stock'}))
             if(response?.dataset_id){
               onDataChanged?.()
               onSelectDataset(response.dataset_id)
             }
+            setRefreshHistory(n=>n+1)
+            void refreshMatrix()
           }
           if(next.status==='error')setExtensionError(next.error||'Historical download failed.')
+          if(next.status==='cancelled')setExtensionError('Historical download cancelled.')
         })
         .catch(e=>{if(active)setExtensionError(e instanceof Error?e.message:String(e))})
     },1250)
     return()=>{active=false;window.clearTimeout(timer)}
-  },[extensionJob,onSelectDataset,onDataChanged])
-  const extendHistory=async()=>{
-    if(!selected||!selectedDataset||!dataPlan?.can_download||
+  },[extensionJob,onSelectDataset,onDataChanged,refreshMatrix])
+  const extendHistory=async(recommendedTicker?:string)=>{
+    if(!selected||!selectedDataset||
       (extensionJob&&['queued','running'].includes(extensionJob.status)))return
+    // A direct click on "Complete recommended [TICKER]" is an explicit
+    // source selection, not silent asset replacement.
+    const requestParams=recommendedTicker?
+      {...params,target:'stock',ticker:recommendedTicker}:params
+    if(!recommendedTicker&&!dataPlan?.can_download)return
+    if(recommendedTicker)setParams(requestParams)
     setExtensionError(null);setExtensionMessage(null)
-    const request={model_id:selected.id,dataset_id:selectedDataset,params,confirm_download:true}
     try{
       const reply=await fetch('/api/lab/data-requirements/extend',{
         method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(request)})
+        body:JSON.stringify({model_id:selected.id,dataset_id:selectedDataset,
+          params:requestParams,confirm_download:true})})
       if(!reply.ok)throw new Error(await errorText(reply))
       const job=await reply.json() as {job_id:string;status:string}
-      setExtensionJob({id:job.job_id,kind:'lab_shared_data_extension',status:job.status})
+      setExtensionJob({id:job.job_id,kind:'lab_shared_data_extension',status:job.status,
+        stage:'Using cached candles before missing Dhan requests',percent:0})
     }catch(e){setExtensionError(e instanceof Error?e.message:String(e))}
   }
   const insufficient=!!observedNeeded&&(
