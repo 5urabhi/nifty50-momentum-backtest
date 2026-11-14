@@ -19,7 +19,7 @@ const exactDateKey=(value:string|number):string|null=>{
   if(typeof value!=='string')return null
   // Date-only and midnight UTC are the same daily observation, but do NOT
   // infer nearest dates, align intraday times or combine unrelated x units.
-  return /^\\d{4}-\\d{2}-\\d{2}(?:T00:00:00(?:\\.000)?Z)?$/.test(value)?
+  return /^\d{4}-\d{2}-\d{2}(?:T00:00:00(?:\.000)?Z)?$/.test(value)?
     value.slice(0,10):null
 }
 const GRID_LEFT=70,GRID_RIGHT=830,GRID_TOP=22,GRID_BOTTOM=280
