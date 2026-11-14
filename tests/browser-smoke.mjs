@@ -125,6 +125,8 @@ try {
     assert.match(await assistant.innerText(),/synthetic|evidence|independent/i)
     await assistant.getByRole('button',{name:/Exact validation checks and statistical evidence/}).click()
     await page.getByRole('heading',{name:'Research Evidence Audit'}).waitFor()
+    await page.locator('.rs-tabs').getByRole('button',{name:'Ask QuantLab'}).click()
+    await assistant.getByRole('heading',{name:'Can this result be trusted?'}).waitFor()
     await screenshot('02-assistant-saved-evidence-links')
   })
   await step('historical evidence source checks and safe frozen-test gating',async()=>{
