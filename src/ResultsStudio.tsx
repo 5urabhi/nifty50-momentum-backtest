@@ -3,6 +3,7 @@ import {Activity,ArrowRight,BarChart3,BookOpen,ChevronDown,Download,
   FlaskConical,Layers3,LoaderCircle,RefreshCw,Save,Search,ShieldAlert,
   ShieldCheck,SlidersHorizontal,X} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
+import ResearchAssistant from './ResearchAssistant'
 import {formatMetric} from './metricDisplay'
 import './results-studio.css'
 
@@ -41,11 +42,11 @@ type Evidence={id:string;kind:Kind;model:string;evidence_class:string;readiness:
   limitations:string[];method:string;warning:string;source:Row}
 type Paired={baseline:string;challengers:string[];paired_months:number;start:string;end:string;
   evidence_class:string;rows:Row[];plot:ResearchPlotData;method:string;warning:string}
-type View='brief'|'figures'|'diagnostics'|'validation'|'robustness'|'evidence'|'compare'
+type View='brief'|'assistant'|'figures'|'diagnostics'|'validation'|'robustness'|'evidence'|'compare'
 type Props={selectedIndexRunId:string;onSelectIndexRun:(run:string)=>void;
   onModels:()=>void;onExperiments:()=>void;onWorkspace:()=>void;onData:()=>void;onReports:()=>void}
 const VIEWS:{id:View;label:string}[]=[
-  {id:'brief',label:'Research brief'},{id:'figures',label:'Interactive figures'},
+  {id:'brief',label:'Research brief'},{id:'assistant',label:'Ask QuantLab'},{id:'figures',label:'Interactive figures'},
   {id:'diagnostics',label:'Diagnostics'},{id:'validation',label:'Evidence audit'},{id:'robustness',label:'Robustness'},
   {id:'evidence',label:'Sources & methods'},{id:'compare',label:'Compare runs'}
 ]
@@ -431,6 +432,10 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
           <nav className="rs-tabs" aria-label="Research results sections">{VIEWS.map(v=>
             <button key={v.id} className={tab===v.id?'active':''}
               aria-current={tab===v.id?'page':undefined} onClick={()=>setTab(v.id)}>{v.label}</button>)}</nav>
+          {tab==='assistant'&&<ResearchAssistant key={active.key}
+            run={{id:active.id,kind:active.kind,title:active.title}}
+            onTab={destination=>setTab(destination)} onData={onData}
+            onModels={onModels} onExperiments={onExperiments}/>}
           {tab==='brief'&&<div className="rs-stack">
             <div className="rs-kpi-grid">{topMetrics.length?topMetrics.map(m=><article key={m.name}>
               <small>{m.name}</small><strong>{formatMetric(m.name,m.value,m.unit).value}</strong>
