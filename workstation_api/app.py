@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, model_input_selector, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, research_assistant, historical_readiness, frozen_study, corporate_action_import
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, model_input_selector, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, research_assistant, selection_diagnostics, evidence_bundle, source_inventory, historical_readiness, frozen_study, corporate_action_import
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -45,6 +45,7 @@ app = FastAPI(title="Local Quantitative Research Workstation", version="0.1.0",
               docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
 
 RUNNER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="research")
+MAX_ACTIVE_LOCAL_JOBS = 6  # Single worker, bounded queue, never parallel vendor/source writes
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = Lock()
 JOB_FUTURES: dict[str, object] = {}
@@ -99,9 +100,11 @@ def bad(exc: Exception):
 def _spawn(kind: str, action, *args, **kwargs):
     task_id = uuid.uuid4().hex[:16]
     with JOBS_LOCK:
-        active = any(task["status"] in {"queued", "running"} for task in JOBS.values())
-        if active:
-            raise HTTPException(409, "A research or data job is already in progress")
+        active_count = sum(task["status"] in {"queued", "running"} for task in JOBS.values())
+        if active_count >= MAX_ACTIVE_LOCAL_JOBS:
+            raise HTTPException(409,
+                "Local research queue is full (6 pending/running tasks). "
+                "Review job progress or cancel an unused queued task.")
         JOBS[task_id] = {
             "id": task_id, "kind": kind, "status": "queued",
             "created_utc": datetime.now(timezone.utc).isoformat(),
@@ -869,14 +872,61 @@ def workspace_report_file(report_id: str, format: Literal["html","markdown","pdf
         bad(exc)
 
 
+@app.get("/api/workspace/data-maintenance/duplicates")
+def inspect_duplicate_datasets():
+    """Manual bounded hash inventory; never modifies or deletes sources."""
+    try:
+        return source_inventory.scan()
+    except (ValueError, OSError, FileNotFoundError, KeyError) as exc:
+        bad(exc)
+
+
+def _job_next_action(job: dict) -> str:
+    status = job.get("status")
+    if status == "queued":
+        return "This job will start automatically in queue order when the local compute worker is free."
+    if status == "running":
+        return ("Request cancellation at the next safe checkpoint."
+                if job.get("cancellable") else
+                "This numerical operation cannot be interrupted safely while running.")
+    if status == "complete":
+        return "Inspect saved outputs in Results Studio or download this job's result artifact."
+    if status == "cancelled":
+        return "No more work is running. Check partial data in Data Library, then explicitly re-run if needed."
+    if status == "interrupted":
+        return "Python restarted. Reopen your saved configuration and explicitly rerun; no completion is implied."
+    if status != "error":
+        return "Inspect the job details and associated local research evidence."
+    message = str(job.get("error") or "").lower()
+    if any(x in message for x in ("token", "401", "authorization", "unauthorized", "credentials")):
+        return "Refresh the local ignored Dhan .env credential, then verify read-only provider access."
+    if any(x in message for x in ("429", "rate limit", "quota", "too many requests")):
+        return "Provider throttling: respect its cooldown and retry only after the source allows more requests."
+    if any(x in message for x in ("missing", "insufficient", "not enough", "no common", "source")):
+        return "Open Model Laboratory readiness or Data Library to resolve the exact original-source shortfall."
+    if any(x in message for x in ("option", "quote", "bid", "ask")):
+        return "Fetch authorized read-only original option quotes or import a source-dated provider CSV."
+    return "Inspect the saved job error and local Python terminal logs; update inputs before retrying."
+
+
 @app.get("/api/workspace/jobs")
 def workspace_jobs():
     with JOBS_LOCK:
         live = [dict(row) for row in list(JOBS.values())[-75:][::-1]]
+        queued_ids = [id for id, row in JOBS.items() if row["status"] == "queued"]
+        retry_ids = set(JOB_RETRY_SPECS)
     seen = {row["id"] for row in live}
     historical = [row for row in research_library.list_job_history(100)
                   if row["id"] not in seen]
-    return {"jobs": (live + historical)[:100]}
+    all_jobs = (live + historical)[:100]
+    for row in all_jobs:
+        row["retryable"] = row.get("status") in {"error", "cancelled"} and (
+            row["id"] in retry_ids)
+        row["queue_position"] = (
+            queued_ids.index(row["id"]) + 1 if row["id"] in queued_ids else None)
+        row["next_action"] = _job_next_action(row)
+    return {"jobs": all_jobs, "max_pending_or_running": MAX_ACTIVE_LOCAL_JOBS,
+            "worker_concurrency": 1}
 
 
 @app.post("/api/workspace/jobs/{job_id}/cancel")
@@ -1671,6 +1721,18 @@ class ResearchAssistantRequest(BaseModel):
     level: Literal["beginner", "researcher", "mathematical"] = "beginner"
 
 
+@app.get("/api/workspace/evidence-bundles/{kind}/{run_id}.zip")
+def export_archived_reproducible_evidence(
+        kind: Literal["model_run", "research_run"], run_id: str):
+    """Export only saved results and derived evidence, not original licensed candles."""
+    try:
+        path = evidence_bundle.bundle_path(kind, run_id)
+        return FileResponse(path, media_type="application/zip",
+                            filename="quantlab_"+kind+"_"+run_id+"_evidence.zip")
+    except (ValueError, OSError, FileNotFoundError, KeyError) as exc:
+        bad(exc)
+
+
 @app.get("/api/workspace/results/{kind}/{run_id}/evidence")
 def research_saved_result_evidence(kind: Literal["model_run", "research_run"], run_id: str):
     """No broker calls: reproducible diagnostics of already saved local artifacts."""
@@ -1687,6 +1749,25 @@ def ask_research_assistant(kind: Literal["model_run", "research_run"],
     try:
         return research_assistant.answer(kind, run_id, body.question, body.level)
     except (ValueError, FileNotFoundError, KeyError, OSError) as exc:
+        bad(exc)
+
+
+class SelectionAuditRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    run_ids: list[str] = Field(min_length=2,max_length=8)
+    folds: Literal[4,6,8] = 4
+    declared_trials: int | None = Field(default=None,ge=2,le=10000)
+    benchmark_trail: Literal[3,6,12] = 6
+
+
+@app.post("/api/workspace/results/selection-audit")
+def research_model_selection_audit(body: SelectionAuditRequest):
+    """Conservative retrospective CSCV/PBO, deflated Sharpe and regime audit."""
+    try:
+        return selection_diagnostics.audit(
+            body.run_ids, folds=body.folds, declared_trials=body.declared_trials,
+            benchmark_trail=body.benchmark_trail)
+    except (ValueError, OSError, FileNotFoundError, KeyError, TypeError) as exc:
         bad(exc)
 
 

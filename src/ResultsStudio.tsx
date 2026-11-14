@@ -4,6 +4,7 @@ import {Activity,ArrowRight,BarChart3,BookOpen,ChevronDown,Download,
   ShieldCheck,SlidersHorizontal,X} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
 import ResearchAssistant from './ResearchAssistant'
+import SelectionValidation from './SelectionValidation'
 import {formatMetric} from './metricDisplay'
 import './results-studio.css'
 
@@ -42,13 +43,14 @@ type Evidence={id:string;kind:Kind;model:string;evidence_class:string;readiness:
   limitations:string[];method:string;warning:string;source:Row}
 type Paired={baseline:string;challengers:string[];paired_months:number;start:string;end:string;
   evidence_class:string;rows:Row[];plot:ResearchPlotData;method:string;warning:string}
-type View='brief'|'assistant'|'figures'|'diagnostics'|'validation'|'robustness'|'evidence'|'compare'
-type Props={selectedIndexRunId:string;onSelectIndexRun:(run:string)=>void;
+type View='brief'|'assistant'|'figures'|'diagnostics'|'validation'|'robustness'|'evidence'|'compare'|'selection'
+type Props={selectedIndexRunId:string;selectedModelRunId?:string;onSelectIndexRun:(run:string)=>void;
   onModels:()=>void;onExperiments:()=>void;onWorkspace:()=>void;onData:()=>void;onReports:()=>void}
 const VIEWS:{id:View;label:string}[]=[
   {id:'brief',label:'Research brief'},{id:'assistant',label:'Ask QuantLab'},{id:'figures',label:'Interactive figures'},
   {id:'diagnostics',label:'Diagnostics'},{id:'validation',label:'Evidence audit'},{id:'robustness',label:'Robustness'},
-  {id:'evidence',label:'Sources & methods'},{id:'compare',label:'Compare runs'}
+  {id:'evidence',label:'Sources & methods'},{id:'compare',label:'Compare runs'},
+  {id:'selection',label:'Overfitting & regimes'}
 ]
 const finite=(value:unknown):number|null=>{
   if(value===null||value===undefined||value==='')return null
@@ -217,7 +219,7 @@ function FigureCard({figure,mode,runKey}:{figure:Figure;mode:string;runKey:strin
     <p className="rs-figure-note"><Activity size={14}/> {figure.insight}</p>
   </article>
 }
-export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onModels,
+export default function ResultsStudio({selectedIndexRunId,selectedModelRunId,onSelectIndexRun,onModels,
   onExperiments,onWorkspace,onData,onReports}:Props){
   const [runs,setRuns]=useState<Saved[]>([])
   const [selectedKey,setSelectedKey]=useState('')
@@ -271,7 +273,10 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
     finally{setLoadingList(false);setPaging(false)}
   },[offset.model,offset.index])
   useEffect(()=>{void refresh()},[]) // initial load; refresh button resets the current paging window
-  useEffect(()=>{if(selectedIndexRunId)setSelectedKey('research_run:'+selectedIndexRunId)},[selectedIndexRunId])
+  useEffect(()=>{
+    if(selectedModelRunId)setSelectedKey('model_run:'+selectedModelRunId)
+    else if(selectedIndexRunId)setSelectedKey('research_run:'+selectedIndexRunId)
+  },[selectedIndexRunId,selectedModelRunId])
   useEffect(()=>{if(!selectedKey&&runs.length)setSelectedKey(runs[0].key)},[selectedKey,runs])
   const active=runs.find(r=>r.key===selectedKey)
   useEffect(()=>{
@@ -428,7 +433,11 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
             <h3>{active.title}</h3><p>{active.id} · {active.created?new Date(active.created).toLocaleString():'Saved date not recorded'}</p>
           </div><div className="rs-identity-right"><span className={'rs-evidence '+(sourceKind==='synthetic'?'demo':sourceKind==='theoretical'?'theory':'observed')}>{evidence}</span>
             <button onClick={()=>saveFile('quantlab_'+active.id+'_result.json',
-              JSON.stringify(runDetails,null,2),'application/json')}><Download size={14}/> Exact run JSON</button></div></section>
+              JSON.stringify(runDetails,null,2),'application/json')}><Download size={14}/> Exact run JSON</button>
+            <a className="rs-bundle-link" download
+              href={'/api/workspace/evidence-bundles/'+active.kind+'/'+
+                encodeURIComponent(active.id)+'.zip'}>
+              <Download size={14}/> Reproducible evidence ZIP</a></div></section>
           <nav className="rs-tabs" aria-label="Research results sections">{VIEWS.map(v=>
             <button key={v.id} className={tab===v.id?'active':''}
               aria-current={tab===v.id?'page':undefined} onClick={()=>setTab(v.id)}>{v.label}</button>)}</nav>
@@ -580,6 +589,11 @@ export default function ResultsStudio({selectedIndexRunId,onSelectIndexRun,onMod
                 audit:index.audit,data_quality:index.data_quality,source_hashes:index.meta.input_sha256},null,2)}</pre></section>}
             <button className="rs-action" onClick={onReports}><BookOpen size={15}/> Build / inspect research report <ArrowRight size={14}/></button>
           </div>}
+          {tab==='selection'&&<SelectionValidation
+            key={active.key} currentId={active.kind==='research_run'?active.id:''}
+            runs={runs.map(r=>({id:r.id,title:r.title,kind:r.kind,mode:r.mode,
+              dataset_id:r.dataset_id||undefined}))}
+            onCompare={()=>setTab('compare')}/>}
           {tab==='compare'&&<div className="rs-stack"><div className="rs-two">
             <section className="rs-panel"><h3>Select 2–8 completed runs</h3>
               <p className="rs-small">Overlay requires the same evidence class and compatible axes; incompatible models can be shown in separate panels.</p>

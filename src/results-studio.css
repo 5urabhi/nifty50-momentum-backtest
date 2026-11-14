@@ -159,3 +159,7 @@
 .rs-figures .rs-figure .ql-plot{min-width:0}
 .rs-root .rs-panel .rs-warning{margin-top:14px}
 @media(max-width:1100px){.rs-check-gates{grid-template-columns:1fr}}
+
+.rs-root .rs-bundle-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:8px;border:1px solid #397e70;background:#1c4b45;color:#c4f6e4;padding:8px 10px;font:700 10px inherit;text-decoration:none}
+.rs-root .rs-bundle-link:hover{background:#296452}
+.rs-root .rs-bundle-link:focus-visible{outline:2px solid #7ce5c8;outline-offset:2px}

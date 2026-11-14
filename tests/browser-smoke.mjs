@@ -79,18 +79,18 @@ try {
         api500.push(r.status()+' '+r.request().method()+' '+new URL(r.url()).pathname)
     } catch {}
   })
-  await step('backend and eight-destination shell', async()=>{
+  await step('backend and nine-destination shell', async()=>{
     const health=await apiJson('/api/health')
     assert.equal(health.broker_orders_enabled,false,'Broker execution must be off')
     assert.equal(health.dhan_token_configured,false,'CI fixture must have no broker token')
     await page.goto(base,{waitUntil:'domcontentloaded'})
     await page.getByText('ENGINE ONLINE',{exact:true}).waitFor({timeout:25000})
     const buttons = page.locator('aside .ws-nav-item')
-    assert.equal(await buttons.count(),8,'Exactly eight main destinations')
+    assert.equal(await buttons.count(),9,'Exactly nine main destinations')
     await screenshot('01-home-desktop')
   })
   await step('all research destination views and nested navigation',async()=>{
-    for (const section of ['Home','Data Library','Model Laboratory','Experiment Studio',
+    for (const section of ['Guided Research','Home','Data Library','Model Laboratory','Experiment Studio',
       'Compare & Visualize','Results Studio','Research Projects','Help & Settings']) {
       await nav(section).click()
       const header=page.locator('.ws-titlebar h1')
@@ -99,6 +99,28 @@ try {
     await nav('Compare & Visualize').click()
     await page.locator('.rw-top h2').waitFor()
     assert.equal(await researchTab('Plot Builder').count(),1)
+  })
+  await step('guided data-to-model-to-evidence-to-save flow',async()=>{
+    await nav('Guided Research').click()
+    await page.getByRole('region',{name:'Research step 1: Select data'}).waitFor()
+    await page.getByRole('button',{name:/Next · Choose a research model/}).click()
+    await page.getByRole('region',{name:'Research step 2: Choose model'}).waitFor()
+    await page.locator('.rj-model-grid button').filter({hasText:'Geometric Brownian Motion'}).first().click()
+    await page.getByRole('button',{name:/Configure and run Geometric Brownian Motion/}).click()
+    await page.getByRole('region',{name:'Research step 3: Run model'}).waitFor()
+    await page.getByRole('button',{name:'Run selected model'}).click()
+    await page.getByRole('region',{name:'Research step 4: Analyze saved run'}).waitFor({timeout:40000})
+    await page.locator('.rs-identity h3').waitFor({timeout:20000})
+    await page.getByRole('button',{name:/Next · Save and export evidence/}).click()
+    const last=page.getByRole('region',{name:'Research step 5: Save evidence'})
+    await last.waitFor()
+    await last.getByText(/already saved/).waitFor()
+    const exportLink=last.getByRole('link',{name:/Export research evidence ZIP/})
+    assert.match(await exportLink.getAttribute('href'),/evidence-bundles\/model_run\/.+\.zip$/)
+    const response=await page.request.get(new URL(await exportLink.getAttribute('href'),base).href)
+    assert.equal(response.status(),200,'Actual saved evidence ZIP should be exportable')
+    assert.match(response.headers()['content-type'],/application\/zip/)
+    await screenshot('01-guided-research-evidence-export')
   })
   await step('Results Studio source-classified evidence audit and export',async()=>{
     await nav('Results Studio').click()

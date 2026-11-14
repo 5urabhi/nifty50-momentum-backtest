@@ -1,0 +1,13 @@
+.sv-root{display:grid;gap:14px;min-width:0}.sv-form{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(240px,1fr);gap:13px}
+.sv-form fieldset{border:1px solid #315164;border-radius:10px;min-width:0;padding:12px;margin:0;background:#0c1d2d}
+.sv-form legend{padding:0 6px;font-weight:750;color:#a4e2d0}.sv-choices{max-height:315px;overflow:auto;display:grid;gap:7px;margin-bottom:11px}
+.sv-choices label{display:flex;align-items:center;gap:9px;padding:10px;background:#152e3c;border:1px solid #345166;border-radius:7px;cursor:pointer}
+.sv-choices label:has(input:checked){border-color:#79e9c5;background:#173e3b}.sv-choices small{display:block;color:#90aebe;font-size:9px;overflow-wrap:anywhere}
+.sv-form fieldset:nth-child(2){display:flex;flex-direction:column;gap:12px}
+.sv-form fieldset:nth-child(2)>label{display:grid;gap:5px;color:#b8d1d7;font-size:10px}.sv-form input,.sv-form select{width:100%;max-width:100%;min-width:0}
+.sv-grids{display:grid;gap:12px;margin:14px 0}.sv-grids h4{font-size:12px;font-weight:650}
+.sv-table{overflow:auto;max-height:350px;border:1px solid #2a5060;border-radius:8px}.sv-table table{width:100%;border-collapse:collapse;font-size:10px;white-space:nowrap}
+.sv-table th,.sv-table td{padding:9px 12px;text-align:left;border-bottom:1px solid #2a4556}
+.sv-table th{background:#153344;color:#aee3db;position:sticky;top:0}.sv-warnings{display:grid;gap:7px;margin-top:9px}
+.sv-warnings p{display:flex;align-items:flex-start;gap:8px;margin:0;padding:7px 9px;background:#302b29;border:1px solid #5e4c3f;border-radius:7px;font-size:10px}
+.sv-warnings svg{color:#f5ae80;flex-shrink:0;margin-top:2px}@media(max-width:780px){.sv-form{grid-template-columns:1fr}}

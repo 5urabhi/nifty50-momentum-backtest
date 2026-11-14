@@ -4,6 +4,7 @@ import {Archive,ArrowDownToLine,ArrowLeft,ArrowRight,BarChart3,BookOpen,Check,
   History,Layers3,LoaderCircle,Plus,RefreshCw,RotateCcw,Save,Search,
   Settings2,ShieldCheck,SlidersHorizontal,Trash2,Undo2,Upload,Workflow,X} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
+import {formatMetric} from './metricDisplay'
 import ResearchAdvanced from './ResearchAdvanced'
 import ResearchGuided from './ResearchGuided'
 import ResearchCompletion from './ResearchCompletion'
@@ -24,7 +25,8 @@ type ModelRun={id:string;model_id:string;title:string;group:string;mode:string;
 type IndexRun={id:string;name:string;dataset_id?:string;created_utc?:string}
 type RunOption={key:string;kind:'model_run'|'research_run';id:string;label:string;model?:string;figures:number}
 type Job={id:string;kind:string;status:string;result?:Raw;error?:string;
-  created_utc?:string;stage?:string;percent?:number;cancellable?:boolean}
+  created_utc?:string;stage?:string;percent?:number;cancellable?:boolean;
+  retryable?:boolean;queue_position?:number|null;next_action?:string}
 type ModelSpec={id:string;title:string;group:string;mode:string;parameters:{
   key:string;default:number|string;type:string;min?:number;max?:number}[]}
 type NotebookCell={id:string;type:'markdown'|'run'|'chart'|'table';content?:string;run_id?:string;chart_id?:string;previous_run_ids?:string[]}
@@ -322,7 +324,8 @@ export default function ResearchWorkspace({datasets,selectedDataset,onSelectData
       onSelectDataset={onSelectDataset} models={models} runs={runs} busy={busy}
       perform={perform} startJob={start}/>}
     {page==='quality'&&<QualityPanel datasets={datasets} selectedDataset={selectedDataset}
-      onSelectDataset={onSelectDataset} onOpenDhan={onOpenDhan}/>}
+      onSelectDataset={onSelectDataset} onOpenDhan={onOpenDhan}
+      onOpenLibrary={()=>setPage('library')}/>}
     {page==='integrity'&&<ResearchCompletion datasets={datasets}
       selectedDataset={selectedDataset} onSelectDataset={onSelectDataset}
       records={library} onOpenDhan={onOpenDhan} onStartJob={start}
@@ -1189,11 +1192,20 @@ function AutomationPanel({datasets,selectedDataset,onSelectDataset,models,runs,b
   </div>
 }
 
-function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan}:{
-  datasets:Datum[];selectedDataset:string;onSelectDataset:(id:string)=>void;onOpenDhan:()=>void
+type DuplicateInventory={scanned_dataset_views:number;scanned_bytes:number;
+  identical_groups:{signature_sha256:string;datasets:{dataset_id:string;title:string;
+    file_bytes:number;file_count:number;dependencies:number;
+    can_trash_without_dependencies:boolean}[];
+    potential_view_bytes_reclaimable:number;safe_action:string}[];
+  skipped:{dataset_id:string;reason:string}[];warning:string}
+function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan,onOpenLibrary}:{
+  datasets:Datum[];selectedDataset:string;onSelectDataset:(id:string)=>void;
+  onOpenDhan:()=>void;onOpenLibrary:()=>void
 }){
   const [quality,setQuality]=useState<Raw|null>(null)
   const [disk,setDisk]=useState<{bytes:Record<string,number>;total_bytes:number}|null>(null)
+  const [duplicates,setDuplicates]=useState<DuplicateInventory|null>(null)
+  const [dupBusy,setDupBusy]=useState(false)
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
   const inspect=async()=>{
@@ -1249,6 +1261,40 @@ function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan}:{
       <button onClick={()=>safeDownload('quantlab_quality_'+selectedDataset+'.json',
         JSON.stringify(quality,null,2),'application/json')}><Download size={15}/> Export audit JSON</button>
     </Box>}
+    <Box title="Find exact duplicate prepared datasets">
+      <p className="rw-help">QuantLab compares user-owned prepared dataset views
+        by the SHA-256 of their actual allowlisted files. This does not merge,
+        overwrite or delete source data. Protected original Dhan candles remain reusable.</p>
+      <button type="button" disabled={dupBusy} onClick={()=>{
+        setDupBusy(true);setError('')
+        void api<DuplicateInventory>('/workspace/data-maintenance/duplicates')
+          .then(setDuplicates)
+          .catch(e=>setError(e instanceof Error?e.message:String(e)))
+          .finally(()=>setDupBusy(false))
+      }}>{dupBusy?<LoaderCircle size={15}/>:<ShieldCheck size={15}/>}
+        Scan for exact duplicates (read-only)</button>
+      {duplicates&&<div className="rw-stack">
+        <p className="rw-note">{duplicates.scanned_dataset_views} prepared views inspected.
+          {' '}{duplicates.identical_groups.length} groups with identical file hashes.
+          Checked {(duplicates.scanned_bytes/(1024*1024)).toFixed(1)} MB.</p>
+        {duplicates.identical_groups.map(group=><div className="rw-caution"
+          key={group.signature_sha256}><strong>{group.datasets.length} byte-identical
+          {' '}prepared views · potential redundant view storage
+          {' '}{(group.potential_view_bytes_reclaimable/(1024*1024)).toFixed(2)} MB</strong>
+          <p>{group.safe_action}</p>
+          {group.datasets.map(row=><div key={row.dataset_id} className="rw-list-item">
+            <div><strong>{row.title}</strong><small>{row.dataset_id} ·
+              {row.dependencies} dependent saved items ·
+              {(row.file_bytes/(1024*1024)).toFixed(2)} MB</small></div>
+            <button type="button" onClick={()=>{onSelectDataset(row.dataset_id);onOpenLibrary()}}>
+              Inspect dependencies & management <ArrowRight size={14}/></button>
+          </div>)}</div>)}
+        {!duplicates.identical_groups.length&&<p className="rw-help">No complete byte-identical
+          user-owned prepared views found in the bounded scan.</p>}
+        {!!duplicates.skipped.length&&<p className="rw-caution">Some files were not hashed.
+          Review source sizes or file links before asserting uniqueness.</p>}
+      </div>}
+    </Box>
     {disk&&<Box title="Local disk usage">
       <NumberStats data={[{label:'Total measured',value:(disk.total_bytes/(1024*1024)).toFixed(1)+' MB'}]}/>
       <div className="rw-list">{Object.entries(disk.bytes).map(([label,bytes])=><div className="rw-list-item" key={label}>
@@ -1277,12 +1323,12 @@ function JobsPanel({jobs,busy,perform,onPage}:{
         key={j.id}><button className="rw-plain" onClick={()=>setSelected(j.id)}>
           <strong>{j.kind.replaceAll('_',' ')}</strong><small>{j.id} · {j.created_utc?.slice(0,16)||''}</small></button>
         <span className={'rw-pill '+j.status}>{j.status}</span>
+        {j.queue_position!=null&&<small>Queue #{j.queue_position}</small>}
         {(j.status==='queued'||(j.status==='running'&&j.cancellable))&&
           <button disabled={busy} onClick={()=>cancel(j)}><X size={14}/>
             {j.status==='running'?'Request safe cancellation':'Cancel queued'}</button>}
         {(j.status==='error'||j.status==='cancelled')&&
-          ['workspace_parameter_sweep','workspace_grid_sweep','workspace_validation',
-           'workspace_report'].includes(j.kind)&&<button disabled={busy}
+          j.retryable===true&&<button disabled={busy}
           onClick={()=>perform(()=>api<Raw>('/workspace/jobs/'+j.id+'/retry',{},'POST'))}>
           <RotateCcw size={14}/> Retry</button>}
       </div>)}
@@ -1297,7 +1343,11 @@ function JobsPanel({jobs,busy,perform,onPage}:{
             <span>{item.percent.toFixed(0)}%</span></div>
           <progress aria-label="Research job progress" max="100" value={item.percent}/>
         </div>}
-      {item.error&&<p className="rw-error">{item.error}</p>}
+      {item.error&&<p className="rw-error">Failure: {item.error}</p>}
+      {item.next_action&&<p className={item.status==='error'?'rw-caution':'rw-help'}>
+        <strong>Next:</strong> {item.next_action}</p>}
+      {item.queue_position!=null&&<p className="rw-help">Waiting in local queue,
+        position {item.queue_position}. One numerical/data job runs at a time.</p>}
       {item.status==='interrupted'&&<p className="rw-caution">
         The previous Python process exited while this job was active. Reopen the saved study or rerun its configuration; do not mistake this status for a completed research result.</p>}
       {item.result&&<><div className="rw-button-group">
@@ -1377,7 +1427,8 @@ function DashboardPanel({runs,records,busy,perform,onMessage,onCompare}:{
         <div className="rw-cell-head"><span>{result?.title||id}</span>
           <button title="Unpin result" onClick={()=>toggle(id)}><X size={14}/></button></div>
         {result?<><div className="rw-mini-stats">{result.metrics.slice(0,3).map((m,i)=><div key={i}>
-          <small>{m.label}</small><strong>{String(m.value??'Unavailable')}</strong></div>)}</div>
+          <small>{m.label}</small><strong>{formatMetric(m.label,m.value,m.unit).value}</strong>
+          <small>{formatMetric(m.label,m.value,m.unit).unit}</small></div>)}</div>
           {result.plots[0]&&result.plots[0].kind!=='surface3d'&&
             <ResearchPlot plot={result.plots[0]}/>}</>:
           <p className="rw-help">Loading saved computations…</p>}
