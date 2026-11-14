@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, model_input_selector, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, research_assistant, historical_readiness, frozen_study, corporate_action_import
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, model_input_selector, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, research_assistant, selection_diagnostics, historical_readiness, frozen_study, corporate_action_import
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -1687,6 +1687,25 @@ def ask_research_assistant(kind: Literal["model_run", "research_run"],
     try:
         return research_assistant.answer(kind, run_id, body.question, body.level)
     except (ValueError, FileNotFoundError, KeyError, OSError) as exc:
+        bad(exc)
+
+
+class SelectionAuditRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    run_ids: list[str] = Field(min_length=2,max_length=8)
+    folds: Literal[4,6,8] = 4
+    declared_trials: int | None = Field(default=None,ge=2,le=10000)
+    benchmark_trail: Literal[3,6,12] = 6
+
+
+@app.post("/api/workspace/results/selection-audit")
+def research_model_selection_audit(body: SelectionAuditRequest):
+    """Conservative retrospective CSCV/PBO, deflated Sharpe and regime audit."""
+    try:
+        return selection_diagnostics.audit(
+            body.run_ids, folds=body.folds, declared_trials=body.declared_trials,
+            benchmark_trail=body.benchmark_trail)
+    except (ValueError, OSError, FileNotFoundError, KeyError, TypeError) as exc:
         bad(exc)
 
 
