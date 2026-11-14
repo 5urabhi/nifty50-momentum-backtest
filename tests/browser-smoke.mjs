@@ -162,6 +162,22 @@ try {
     assert.match(text,/Historical study incomplete/i)
     assert.equal(await page.getByRole('button',{name:/Create frozen protocol/}).isDisabled(),true,
       'Short CI fixture must not be treated as a valid final-test study')
+    await page.getByRole('region',{name:'Original-source missing-data worklist'}).waitFor()
+    const gapPanel=page.getByRole('region',{name:'Original-source missing-data worklist'})
+    assert.match(await gapPanel.innerText(),/Exact missing history and evidence to collect/)
+    assert.match(await gapPanel.innerText(),/Training history.*preferred.*20%/i)
+    assert.match(await gapPanel.innerText(),/Original-source|NOT AUTO-CERTIFIED/)
+    const gapDownload=page.waitForEvent('download')
+    await gapPanel.getByRole('link',{name:'Export missing-source ZIP'}).click()
+    const gapFile=await gapDownload
+    const gapFilename=path.join(artifactDir,'source-worklist.zip')
+    await gapFile.saveAs(gapFilename)
+    const gapBytes=await fs.readFile(gapFilename)
+    assert.equal(gapBytes.subarray(0,2).toString(),'PK',
+      'Worklist must be a real ZIP file, not an inert button or placeholder')
+    const gapAudit=await apiJson('/api/workspace/historical-sources/upload_ci_browser_smoke')
+    assert.equal(gapAudit.summary.independent_original_source_certified,false)
+    assert.equal(gapAudit.summary.publication_certified,false)
     await screenshot('02-historical-source-readiness')
   })
   await step('Dhan download uses an accessible four-step guided flow',async()=>{
