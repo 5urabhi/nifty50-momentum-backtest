@@ -29,6 +29,28 @@ This guide describes the verified `main` release. Feature-branch reviewers shoul
 6. **Audit authentic NIFTY evidence.** In **Experiment Studio → Historical evidence**, QuantLab now displays the exact missing eligible security-months, next-month return gaps, unresolved historical tickers, incomplete calendar months, preferred **+20%** training-buffer shortfall, official NSE source starting points, and source-specific import/download actions. Choose **Export missing-source ZIP** for a portable request/review package; it contains **identifiers and checksums, not licensed price rows or credentials**. Import authorized exports, then choose **Recheck dataset**. This report never grants source approval.
 7. **Manage the library.** Research Workspace supports archive, recoverable Trash, restore, report export, and protected source dependencies. Do not delete original Dhan history to hide an old result.
 
+## Automate source intake without website scraping
+
+You already may have a NIFTY TRI benchmark. Check it before importing anything:
+
+    python scripts/quantlab_nse_sources.py status
+
+A single command safely processes authorized local NSE ZIP/CSV reports:
+
+    python scripts/quantlab_nse_sources.py intake "$HOME/Downloads/NSE/original_report.zip"
+
+For information-only lookups, the script supports **NSE's official MCP
+servers**, which are designed for AI clients (tools include historic OHLCV
+and corporate action information). Discover available tools with:
+
+    python scripts/quantlab_nse_sources.py mcp-tools --server bhavcopy
+
+These are NOT approved sources for automated research simulation or raw-data
+redistribution. Both NSE and NSE Indices ban systematic website scraping
+without appropriate permission, so this project does not implement it.
+Read [NSE compliant source automation](docs/NSE_AUTOMATED_SOURCE_WORKFLOW.md)
+for the supported integration, restricted scope and complete commands.
+
 ## Collect useful official NSE data now (without waiting for an application)
 
 Open **Experiment Studio → Historical evidence → Public NSE reports you can collect**.
