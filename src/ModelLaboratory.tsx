@@ -613,7 +613,11 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
              entry.status==='source_available'?'Source available':
              entry.status==='need_option_quote'?'Needs option quote':
              entry.status==='fixture_only'?'Synthetic test fixture':'Needs historical data'}</span>
-          <small>{entry.detail}</small><em>Next: {entry.next_action}</em>
+          <small>{entry.detail}</small><em>{entry.status==='need_historical_data'?
+          'Click to select a stock and get the missing Dhan history (+20%).':
+          entry.status==='need_option_quote'?
+          'Click to fetch current read-only Dhan option quotes.':
+          'Next: '+entry.next_action}</em>
         </button>)}
       </div></>}
     </details>
@@ -684,6 +688,16 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
               stock prices cannot uniquely identify the risk-neutral Heston volatility surface.
               A full options-chain calibration needs market quotes across strikes and expiries.
             </div>}
+            {selected.mode==='synthetic'&&modelPair&&
+              <div className="ql-live-data-shortcut">
+                <div><strong>This model is a working mathematical simulation.</strong>
+                  <p>For a historical fit, use original observed prices instead of
+                    assumed parameters. QuantLab checks saved Dhan data and
+                    offers +20% completion where available.</p></div>
+                <button type="button" onClick={()=>changeModel(modelPair.market)}>
+                  <Database size={15}/> Use observed market data <ArrowRight size={14}/>
+                </button>
+              </div>}
             {selected.mode==='synthetic'&&<div className="ql-seed-explain" role="note">
               <strong>SIMULATED EXAMPLE — NOT LIVE OR HISTORICAL MARKET DATA</strong>
               <p><b>Seeded simulation</b> means the model generates artificial scenarios
