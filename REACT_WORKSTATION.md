@@ -416,3 +416,17 @@ The **Model Laboratory Guide** contains exact input requirements, quote CSV
 columns, validation semantics and known limitations. Heston's risk-neutral
 option surface requires an entire original options chain and is NOT
 claimed to be calibrated from stock closes alone.
+
+## Model Laboratory guided upgrade
+
+The laboratory now provides a visible four-stage **Choose → Input → Run →
+Interpret** workflow, searchable model catalog, exact eligible ticker
+suggestions, and a source-aware result briefing. In Model Laboratory
+figures have SVG/CSV exports and inspectable underlying plotted values
+with a pinnable data cursor. For real-option calculations, read-only
+Dhan quote capture remains the primary input path; original CSV upload is
+a collapsible fallback. Every recommendation and result states whether
+the input is historical, original quoted, theoretical, or synthetic.
+
+See `docs/MODEL_LABORATORY_GUIDE.md` for data qualification criteria,
+input API, source-proof limitations and plotting/export behavior.

@@ -1,0 +1,27 @@
+/* Actual model diagnostics, not generic/generated research claims. */
+.ql-interpretation{border:1px solid #3d706b;border-radius:14px;
+ background:linear-gradient(130deg,#102f39,#102535 74%);padding:19px 20px;color:#d8eff3}
+.ql-interpretation-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.ql-interpretation-head h3{font-size:17px;margin:6px 0 5px;color:#f0fff9}
+.ql-interpretation-head p{font-size:11px;color:#98b9bc;margin:0 0 14px}
+.ql-interpretation-badge{font-size:9px;font-weight:800;letter-spacing:.045em;
+ background:#153f43;border:1px solid #4f9687;border-radius:5px;padding:7px 10px;
+ color:#9defce;max-width:180px;text-align:center}
+.ql-interpretation-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.ql-interpretation-grid article{border:1px solid #315264;border-radius:10px;
+ background:#0f202e;padding:15px;min-height:176px}
+.ql-interpretation-grid h4{margin:6px 0;color:#e0f5f5;font-size:12px}
+.ql-interpretation-grid p{font-size:11px;line-height:1.65;color:#adcad0;margin:8px 0 10px}
+.ql-interpretation-grid small{font-size:10px;line-height:1.5;color:#89adaf}
+.ql-interpretation-grid strong{font-size:13px;color:#bff9e5}
+.ql-interpretation-grid article.ql-interpretation-caution{border-color:#795340}
+.ql-interpretation-grid article.ql-interpretation-caution strong{color:#ffd4a8}
+.ql-interpretation-icon{color:#73d9bd}
+.ql-interpretation-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.ql-interpretation-actions button{display:flex;align-items:center;gap:7px;
+ background:#1a3c45;color:#c6ffeb;border:1px solid #437d78;
+ border-radius:7px;padding:10px 12px;font-size:10px;font-weight:750}
+.ql-interpretation-actions button:hover{background:#22535a}
+@media(max-width:960px){.ql-interpretation-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.ql-interpretation-head{flex-direction:column}
+ .ql-interpretation-grid article{min-height:0}}

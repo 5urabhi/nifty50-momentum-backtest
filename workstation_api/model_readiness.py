@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from index_research.data import read_matrix, read_returns
-from . import model_registry, service, option_quotes
+from . import model_registry, model_input_selector, service, option_quotes
 
 
 MATH = {"synthetic":"simulation", "theoretical":"theory"}
@@ -52,29 +52,35 @@ def overview(dataset_id: str | None = None) -> dict:
     source_counts={}
 
     def historical_ready(model_id: str, minimum: int) -> tuple[bool,str,str]:
+        if model_id in model_input_selector.MINIMUM:
+            need=model_input_selector.MINIMUM[model_id]
+            eligible=model_input_selector.rank_stocks(
+                prices,"daily" if daily else "monthly",need,
+                daily_only=model_id in model_input_selector.DAILY_ONLY)
+            good=[row for row in eligible if row["runnable"]]
+            # Source-linked TRI is a separate valid target for GBM/Merton;
+            # a TRI-only dataset must not be mislabeled as missing prices.
+            if model_id in {"gbm_fit","merton_fit"} and dataset_id:
+                folder,_=service.dataset_path(dataset_id)
+                tri_status=model_input_selector.tri_source_info(folder,need)
+                if tri_status["runnable"]:
+                    return (True,tri_status["reason"],
+                            "Select target=NIFTY TRI; no individual stock candle required")
+            if good:
+                return (True, f"{len(good)} original ticker(s) pass {need}+ returns "
+                        "and continuity checks",
+                        "Choose one of the explicitly listed eligible tickers")
+            if prices is None:
+                return (False,"No original historical stock price panel",
+                        "Import actual Dhan stock prices or original NIFTY TRI")
+            if model_id in model_input_selector.DAILY_ONLY and not daily:
+                return (False,"This stochastic model needs original daily stock closes",
+                        "Select a daily Dhan dataset, not monthly-only returns")
+            return (False, f"No ticker passes the {need}-return/gap/no-imputation checks",
+                    "Inspect eligible tickers and source gaps in Model Laboratory")
         if prices is None or returns is None:
-            return (False,"No historical price panel available",
+            return (False, "No historical price panel available",
                     "Import or download original Dhan stock prices")
-        if model_id=="gbm_fit":
-            if tri:
-                return (True,f"{tri_count} source-linked NIFTY TRI returns",
-                        "Choose NIFTY TRI as target")
-            if assets_with10:
-                return (True,f"{assets_with10} stock(s) have 10+ observed returns",
-                        "Choose target=stock and its exact ticker")
-            return (False,"GBM requires ≥10 returns for one series",
-                    "Extend original price history")
-        if model_id in {"ou_fit","heston_proxy","merton_fit"}:
-            needed={"ou_fit":90,"heston_proxy":252,"merton_fit":120}[model_id]
-            count=int((returns.notna().sum()>=needed).sum())
-            if model_id!="merton_fit" and not daily:
-                return (False,"Daily observations required; monthly index is insufficient",
-                        "Choose an original Dhan daily stock dataset")
-            if count>0:
-                return (True,f"{count} stock(s) with ≥{needed} observed returns",
-                        "Choose one exact ticker; no stock is silently substituted")
-            return (False,f"No stock has ≥{needed} nonmissing returns",
-                    "Extend genuine Dhan daily history")
         count=8
         rows=sorted(returns.columns,
             key=lambda c:(-int(returns[c].notna().sum()),str(c)))[:count]

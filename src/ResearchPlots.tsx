@@ -27,6 +27,7 @@ function yBounds(plot:ResearchPlotData){
 function Canvas2D({plot}:{plot:ResearchPlotData}){
   const x=plot.x||[]
   const [activeIndex,setActiveIndex]=useState<number|null>(null)
+  const [pinned,setPinned]=useState(false)
   const width=GRID_RIGHT-GRID_LEFT,height=GRID_BOTTOM-GRID_TOP
   const [lo,hi]=useMemo(()=>yBounds(plot),[plot])
   const xp=(i:number)=>GRID_LEFT+(x.length<2?.5:i/(x.length-1))*width
@@ -46,7 +47,7 @@ function Canvas2D({plot}:{plot:ResearchPlotData}){
     <svg viewBox="0 0 880 350" className="ql-svg-chart" role="img" tabIndex={0}
       aria-label={plot.title+'; '+(plot.x_label||'x axis')+' versus '+(plot.y_label||'y axis')+
         '. Hover for values or use keyboard arrows.'}
-      onMouseMove={event=>{
+      onPointerMove={event=>{
         if(!x.length)return
         const rect=event.currentTarget.getBoundingClientRect()
         const mouse=(event.clientX-rect.left)/rect.width*880
@@ -57,7 +58,8 @@ function Canvas2D({plot}:{plot:ResearchPlotData}){
         }
         setActiveIndex(nearest)
       }}
-      onMouseLeave={()=>setActiveIndex(null)}
+      onPointerLeave={()=>{if(!pinned)setActiveIndex(null)}}
+      onClick={()=>setPinned(old=>!old)}
       onFocus={()=>setActiveIndex(x.length?x.length-1:null)}
       onBlur={()=>setActiveIndex(null)}
       onKeyDown={event=>{
@@ -66,6 +68,10 @@ function Canvas2D({plot}:{plot:ResearchPlotData}){
           setActiveIndex(old=>Math.max(0,Math.min(x.length-1,
             (old??x.length-1)+(event.key==='ArrowRight'?1:-1))))
         }
+        if(event.key==='Enter'||event.key===' '){
+          event.preventDefault();setPinned(old=>!old)
+        }
+        if(event.key==='Escape'){event.preventDefault();setPinned(false);setActiveIndex(null)}
         if(event.key==='Home'){event.preventDefault();setActiveIndex(0)}
         if(event.key==='End'){event.preventDefault();setActiveIndex(x.length-1)}
       }}>
@@ -171,7 +177,9 @@ function Canvas2D({plot}:{plot:ResearchPlotData}){
       <text x="18" y="152" fill="#b1c1d0" fontSize="11" textAnchor="middle"
         transform="rotate(-90,18,152)">{plot.y_label}</text>
     </svg>
-    <p className="ql-plot-hover-help">Hover over the graph (or focus it and use ← / →) to inspect exact values.</p>
+    <p className="ql-plot-hover-help">Hover or touch to inspect · click (or press Enter) to
+      {pinned?' unlock the cursor':' lock the cursor'} · arrow keys move between observations.
+      {pinned?' Cursor pinned.':''}</p>
     <div className="ql-legend">{traces.map((t,i)=><span key={t.name}>
       <i style={{background:t.color||COLORS[i%COLORS.length]}}/>{t.name}
     </span>)}</div>
@@ -275,14 +283,97 @@ function Surface3D({plot}:{plot:ResearchPlotData}){
       <span>Z: {fmt(Math.min(...zs.flat()))} → {fmt(Math.max(...zs.flat()))}</span></div>
   </div>
 }
+const csvCell=(value:unknown)=>{
+  if(typeof value==='number'&&Number.isFinite(value))return String(value)
+  const text=String(value??'')
+  const safe=/^[=+@\\-]/.test(text)?"'"+text:text
+  return '"'+safe.replaceAll('"','""')+'"'
+}
+function dataTable(plot:ResearchPlotData):{columns:string[];rows:unknown[][]}{
+  if(plot.kind==='surface3d'){
+    const xs=plot.x||[],ys=plot.y||[],z=plot.z||[]
+    return {columns:[plot.x_label||'x',plot.y_label||'y',plot.z_label||'z'],
+      rows:ys.flatMap((y,i)=>xs.map((x,j)=>[x,y,z[i]?.[j]??null]))}
+  }
+  if(plot.kind==='heatmap2d'){
+    const xs=plot.labels||[],ys=plot.row_labels||xs,z=plot.values||[]
+    return {columns:['Row','Column','Value'],
+      rows:ys.flatMap((y,i)=>xs.map((x,j)=>[y,x,z[i]?.[j]??null]))}
+  }
+  const axes=plot.x||[]
+  const traces=plot.traces||[]
+  const columns=[plot.x_label||'X',
+    ...(plot.kind==='scatter2d'?[plot.y_label||'Value']:traces.map(t=>t.name)),
+    ...(plot.band?['95% fan lower','95% fan upper']:[])]
+  return {columns,rows:axes.map((x,i)=>[
+    x,...(plot.kind==='scatter2d'?[plot.y?.[i]??null]:traces.map(t=>t.y[i]??null)),
+    ...(plot.band?[plot.band.lower[i]??null,plot.band.upper[i]??null]:[])
+  ])}
+}
+function downloadFile(name:string,contents:string,mime:string){
+  const url=URL.createObjectURL(new Blob([contents],{type:mime}))
+  const anchor=document.createElement('a')
+  anchor.href=url;anchor.download=name;document.body.appendChild(anchor)
+  anchor.click();anchor.remove()
+  URL.revokeObjectURL(url)
+}
+function safeName(name:string){
+  return name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,70)||'plot'
+}
 export default function ResearchPlot({plot,provenance}:{plot:ResearchPlotData;provenance?:string}){
-  return <section className="ql-chart-card"><h4>{plot.title}</h4>
+  const chart=useRef<HTMLElement|null>(null)
+  const table=useMemo(()=>dataTable(plot),[plot])
+  const saveSvg=()=>{
+    const original=chart.current?.querySelector('svg')
+    if(!original)return
+    const copy=original.cloneNode(true) as SVGSVGElement
+    copy.setAttribute('xmlns','http://www.w3.org/2000/svg')
+    if(!copy.getAttribute('viewBox')){
+      const w=Number(copy.getAttribute('width')||880)
+      const h=Number(copy.getAttribute('height')||460)
+      copy.setAttribute('viewBox',`0 0 ${w} ${h}`)
+    }
+    const description=document.createElementNS('http://www.w3.org/2000/svg','desc')
+    description.textContent='QuantLab computed figure. Source class: '+String(provenance||'not specified')+
+      '. Charts with synthetic paths are not observed market prices.'
+    copy.insertBefore(description,copy.firstChild)
+    downloadFile('quantlab-'+safeName(plot.title)+'.svg',
+      new XMLSerializer().serializeToString(copy),'image/svg+xml;charset=utf-8')
+  }
+  const saveCsv=()=>{
+    const contents=[table.columns.map(csvCell).join(','),
+      ...table.rows.map(row=>row.map(csvCell).join(','))].join('\n')
+    downloadFile('quantlab-'+safeName(plot.title)+'.csv',contents,'text/csv;charset=utf-8')
+  }
+  return <section className="ql-chart-card" ref={chart}>
+    <div className="ql-chart-title-row"><h4>{plot.title}</h4>
+      <div className="ql-chart-export">
+        <button type="button" onClick={saveSvg} aria-label={'Export SVG of '+plot.title}>Export SVG</button>
+        <button type="button" onClick={saveCsv} aria-label={'Export CSV of '+plot.title}>Export CSV</button>
+      </div>
+    </div>
     {plot.kind==='surface3d'?<Surface3D plot={plot}/>:
      plot.kind==='heatmap2d'?<Heatmap plot={plot}/>:
      <Canvas2D plot={plot}/>}
-    <p className="ql-muted">{provenance==='synthetic'?'SEEDED SIMULATION · ARTIFICIAL DATA · Same seed gives reproducible paths. Not observed market history or a forecast.':
-      provenance==='historical'?'OBSERVED DATA · Model outputs computed from saved source prices; original data and results still need research validation.':
-      provenance==='theoretical'?'THEORETICAL MODEL · User-assumed inputs, not observed quotes.':
-      'Source: Python research engine · computed observations or explicitly labeled mathematical scenarios.'}</p>
+    <details className="ql-chart-data">
+      <summary>Inspect plotted observations ({table.rows.length.toLocaleString('en-US')} rows)</summary>
+      <div className="ql-table-scroll">
+        <table><thead><tr>{table.columns.map((key,i)=><th key={i}>{key}</th>)}</tr></thead>
+          <tbody>{table.rows.slice(0,40).map((row,i)=><tr key={i}>
+            {row.map((cell,j)=><td key={j}>{cell===null?'Missing':String(cell)}</td>)}</tr>)}</tbody>
+        </table>
+      </div>
+      {table.rows.length>40&&<p className="ql-note">Preview shows 40 rows.
+        Export CSV contains all {table.rows.length.toLocaleString('en-US')} rows.</p>}
+    </details>
+    <p className="ql-muted">{provenance==='synthetic'?
+      'SEEDED SIMULATION · ARTIFICIAL DATA · Reproducible hypothetical paths, not real market history.':
+      provenance==='historical'?
+      'HISTORICAL INPUT · Some graphs also contain seeded scenario paths. Check plot titles and methodological limits.':
+      provenance==='market'?
+      'ORIGINAL QUOTE INPUT · Computed prices, surfaces and payoff paths are MODEL outputs, not historical fills.':
+      provenance==='theoretical'?
+      'THEORETICAL MODEL · User-assumed inputs, not observed quotes.':
+      'Source: Python research engine · computed values with explicit evidence classification.'}</p>
   </section>
 }
