@@ -58,8 +58,8 @@ export default function ModelResultBrief({
   const calibration=result.calibration
   const training=typeof calibration?.train_count==='number'?calibration.train_count:null
   const testing=typeof calibration?.test_count==='number'?calibration.test_count:null
-  const split=Number.isInteger(training)&&Number.isInteger(testing)&&
-    Number(training)>0&&Number(testing)>0
+  const split=training!==null&&testing!==null&&
+    Number.isInteger(training)&&Number.isInteger(testing)&&training>0&&testing>0
   const fixture=!!result.source?.is_synthetic_fixture||
     result.source?.dataset_kind==='synthetic'
   const hasQuotedInput=result.mode==='market'
