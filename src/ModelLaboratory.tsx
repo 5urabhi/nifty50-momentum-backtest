@@ -75,7 +75,8 @@ type Props={
   onSelectDataset:(id:string)=>void;
   onOpenGuide:()=>void;
   onDataChanged?:()=>void;
-  onOpenWorkspace?:()=>void
+  onOpenWorkspace?:()=>void;
+  onOpenData?:()=>void
 }
 type ResultView='configure'|'figures'|'numbers'|'method'
 const SECTIONS=['Stochastic Processes','Volatility & Econometrics','Derivatives & Options',
@@ -136,7 +137,7 @@ function exportResult(modelId:string,result:LabResult,format:'json'|'csv'){
   document.body.appendChild(link);link.click();link.remove()
   URL.revokeObjectURL(url)
 }
-export default function ModelLaboratory({section,datasets,selectedDataset,onSelectDataset,onOpenGuide,onDataChanged,onOpenWorkspace}:Props){
+export default function ModelLaboratory({section,datasets,selectedDataset,onSelectDataset,onOpenGuide,onDataChanged,onOpenWorkspace,onOpenData}:Props){
   const [modelSearch,setModelSearch]=useState('')
   const [modelFilter,setModelFilter]=useState<'all'|'data'|'math'>('all')
   const [quoteSearch,setQuoteSearch]=useState('')
@@ -543,7 +544,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     selected.mode==='market'&&!params.quote?
       'Fetch a read-only Dhan option chain or import original option quotes, then choose a contract.':
     singleSeries&&params.target==='stock'&&!params.ticker?
-      'Select an eligible stock symbol from the input checklist; QuantLab never silently substitutes one.':
+      'Choose an existing stock, even if it is short on history. Or click Complete recommended stock to fetch its missing dates.':
     planLoading?'Checking the exact input requirements…':
     dataPlan&&!dataPlan.runnable?
       dataPlan.message:
@@ -554,11 +555,14 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   const dataHint=useMemo(()=>{
     if(!observedNeeded)return 'Mathematical engine ready. Inputs are assumptions; any simulated paths are artificial.'
     if(selected?.mode==='market')return 'Use a saved original option bid/ask and expiry; option model outputs remain theoretical valuations.'
-    if(!selectedDataset)return 'Select the saved NIFTY/BANK NIFTY research dataset first.'
+    if(!selectedDataset)return 'Select a saved market dataset first.'
+    if(singleSeries&&params.target==='stock'&&!params.ticker)return (
+      'Choose a named stock below. Dataset-wide price dates do not mean every stock '
+      +'has the same number of usable returns.')
     if(!readiness)return 'Inspecting local sample availability…'
     return (readiness.frequency||'unknown')+' observations · '+readiness.observed_dates+
       ' recorded dates · at least '+min+' common returns required.'
-  },[observedNeeded,selected?.mode,selectedDataset,readiness,min])
+  },[observedNeeded,selected?.mode,selectedDataset,readiness,min,singleSeries,params.target,params.ticker])
   return <div className="ql-workbench">
     <header className="ql-intro">
       <div><span className="ql-kicker">QUANTLAB / MODEL LABORATORY</span>
@@ -717,7 +721,8 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
           </p>}
           {readinessError&&<p className="ql-alert bad">{readinessError}</p>}
           {selected.mode==='historical'&&readiness&&<div className="ql-readiness">
-            <div><strong>{readiness.observed_dates??0}</strong><small>Observed price dates</small></div>
+            <div><strong>{readiness.observed_dates??0}</strong>
+              <small>Dataset-wide dates (not per-stock returns)</small></div>
             <div><strong>{readiness.eligible_assets_60??0}</strong><small>Assets with 60+ returns</small></div>
             <div><strong>{readiness.eligible_assets_180??0}</strong><small>Assets with 180+ returns</small></div>
           </div>}
@@ -725,19 +730,30 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
             <div className="ql-panel-title"><Database size={17}/><h3>Data requirements & shared history</h3></div>
             {planLoading?<p className="ql-muted"><LoaderCircle size={14} className="ql-spinning"/> Checking aligned observations…</p>:
             dataPlan?<>{selected.mode==='historical'&&<div className="ql-coverage-stats">
-              <div><small>Observed common returns</small><strong>{dataPlan.common_returns??0}</strong></div>
+              <div><small>Selected stock's valid returns</small>
+                <strong>{dataPlan.common_returns===null||dataPlan.common_returns===undefined?
+                  'Select a stock':dataPlan.common_returns}</strong></div>
               <div><small>Model minimum</small><strong>{dataPlan.min_returns}</strong></div>
               <div><small>Preferred +20% target</small><strong>{dataPlan.target_returns}</strong></div>
-              <div><small>Still needed for target</small><strong>{dataPlan.missing_to_target??0}</strong></div>
+              <div><small>Still needed for target</small>
+                <strong>{dataPlan.missing_to_target===null||dataPlan.missing_to_target===undefined?
+                  'Choose stock':dataPlan.missing_to_target}</strong></div>
             </div>}
               <p className={dataPlan.runnable?'ql-alert good':'ql-alert warning'}>
                 {dataPlan.runnable?<CheckCircle2 size={16}/>:<CircleAlert size={16}/>}
                 {dataPlan.message}{dataPlan.status==='ready_minimum'?' The model can run, but the preferred research buffer is not yet met.':''}
               </p>
-              {dataPlan.can_download&&<div className="ql-download-offer">
-                <p><strong>Use shared market history</strong> · Reuse cached NIFTY / BANK NIFTY securities first.
-                  Request missing Dhan daily windows from {dataPlan.suggested_start} to {dataPlan.suggested_end_exclusive} (end exclusive).
-                  Existing observations will be appended, not replaced. The exact number of market sessions cannot be guaranteed.</p>
+              {dataPlan.can_download&&<div className="ql-download-offer" id="ql-one-click-backfill">
+                <h4>Get missing data (+20% buffer) · {dataPlan.selected_ticker||'selected stocks'}</h4>
+                <p>QuantLab will first reuse your existing Dhan candles, then download
+                  only uncovered date windows. It will append original observed closes to
+                  the shared dataset, recheck the model, and retain your chosen stock.
+                  The original prepared dataset stays unchanged.</p>
+                <p className="ql-note">Minimum: {dataPlan.min_returns} returns ·
+                  preferred +20%: {dataPlan.target_returns} · currently:
+                  {dataPlan.common_returns??'not selected'} · additional target:
+                  {dataPlan.missing_to_target??'unknown'}.
+                  Source availability and exchange sessions determine the final count.</p>
                 <div className="ql-coverage-stats">
                   <div><small>Calendar weekdays in candidate window</small>
                     <strong>{dataPlan.estimated_calendar_weekdays??'N/A'}</strong></div>
@@ -754,14 +770,44 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
                 <button type="button" disabled={!!extensionJob&&['queued','running'].includes(extensionJob.status)}
                   onClick={()=>void extendHistory()}>
                   <Download size={15}/> {extensionJob&&['queued','running'].includes(extensionJob.status)?
-                    'Downloading / preparing…':'Yes — download & prepare missing data'}
+                    'Downloading & preparing…':
+                    'Get missing data automatically (+20%)'}
                 </button>
               </div>}
-              {selected.mode==='historical'&&!dataPlan.can_download&&dataPlan.download_explanation&&dataPlan.status!=='ready_with_buffer'&&
-                <p className="ql-muted">{dataPlan.download_explanation}</p>}
+              {selected.mode==='historical'&&!dataPlan.can_download&&dataPlan.download_explanation&&
+                !['ready_with_buffer','select_ticker'].includes(dataPlan.status)&&
+                <div className="ql-coverage-next">
+                  <p>{dataPlan.download_explanation}</p>
+                  {onOpenData&&<button type="button" onClick={onOpenData}>
+                    Open Data Library to fix source <ArrowRight size={14}/></button>}
+                </div>}
+              {singleSeries&&dataPlan.status==='select_ticker'&&recommendedStock&&
+                recommendedStock.extendable&&(recommendedStock.missing_to_target??0)>0&&
+                <div className="ql-download-offer ql-auto-recommended">
+                  <h4>Complete recommended stock in one click</h4>
+                  <p><strong>{recommendedStock.display_name||recommendedStock.ticker}</strong> has
+                    {recommendedStock.returns} observed returns; the +20% target is
+                    {dataPlan.target_returns}. Clicking confirms this specific stock
+                    and requests only missing Dhan history. No synthetic prices.</p>
+                  <button type="button" disabled={!!extensionJob&&['queued','running'].includes(extensionJob.status)}
+                    onClick={()=>void extendHistory(recommendedStock.ticker)}>
+                    <Download size={15}/> Complete {recommendedStock.display_name||recommendedStock.ticker}
+                    {' '}to {dataPlan.target_returns} returns (+20%)
+                  </button>
+                </div>}
             </>:<p className="ql-muted">No model coverage result yet.</p>}
             {planError&&<p className="ql-alert bad">{planError}</p>}
-            {extensionMessage&&<p className="ql-alert good" role="status"><CheckCircle2 size={16}/>{extensionMessage}</p>}
+            {extensionJob&&['queued','running'].includes(extensionJob.status)&&
+              <div className="ql-extension-progress" role="status">
+                <LoaderCircle size={17} className="ql-spinning"/>
+                <div><strong>{extensionJob.stage||'Completing historical market data…'}</strong>
+                  <p>{Math.round(extensionJob.percent??0)}% · Reusing original Dhan cache,
+                    fetching uncovered dates, then preparing shared stock history.</p>
+                  <progress max={100} value={extensionJob.percent??0}/>
+                </div>
+              </div>}
+            {extensionMessage&&<p className="ql-alert good" role="status">
+              <CheckCircle2 size={16}/>{extensionMessage}</p>}
             {extensionError&&<p className="ql-alert bad" role="alert">{extensionError}</p>}
           </div>}
           {singleSeries&&selectedDataset&&<div className="ql-source-picker" role="region"
@@ -786,14 +832,17 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
               <div className="ql-source-option">
                 <strong>Stock prices</strong><span className={sourceChoices.eligible_count>0?
                   'ql-pill-ready':'ql-pill-missing'}>
-                  {sourceChoices.eligible_count} pass the {sourceChoices.minimum}-return,
-                    no-missing-price and continuity checks</span>
-                <small>Choose a symbol explicitly; QuantLab will not silently replace it.</small>
-                {sourceChoices.eligible_count>0&&params.target!=='stock'&&<button type="button"
+                  {sourceChoices.eligible_count} ready · {sourceChoices.extendable_count??0}
+                  {' '}available for extension</span>
+                <small>Choose a stock even if it needs more history.
+                  The +20% downloader appears after selection; original prices are never fabricated.</small>
+                {params.target!=='stock'&&<button type="button"
                   onClick={()=>setParams(prev=>({...prev,target:'stock',ticker:''}))}>
-                  Switch to observed stock prices <ArrowRight size={13}/></button>}
+                  Use stock prices <ArrowRight size={13}/></button>}
                 {sourceChoices.candidates.length>0&&sourceChoices.eligible_count===0&&
-                  <small>Example blocker: {sourceChoices.candidates[0].reason}.</small>}
+                  <small>Most complete available: {sourceChoices.candidates[0].display_name||
+                    sourceChoices.candidates[0].ticker} · {sourceChoices.candidates[0].returns} returns.
+                    It can still be selected and extended.</small>}
               </div>
             </div>}
           </div>}
@@ -888,17 +937,21 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
               <option value="">Select saved original option quote / contract</option>
               {shownQuoteRefs.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}
             </select>:spec.type==='symbol'&&singleSeries&&params.target==='stock'&&
-              (sourceChoices?.eligible_count??0)>0?<select
-                aria-label="Eligible stock ticker"
+              (sourceChoices?.candidate_count??0)>0?<select
+                aria-label="Select a stock to run or complete"
                 value={String(params[spec.key]??spec.default)}
                 onChange={e=>setParams({...params,[spec.key]:e.target.value})}>
-                <option value="">Choose one eligible stock explicitly</option>
-                {sourceChoices?.candidates.filter(c=>c.runnable).map(candidate=>
+                <option value="">Choose a stock (ready or needs more history)</option>
+                {sourceChoices?.candidates.map(candidate=>
                   <option value={candidate.ticker} key={candidate.ticker}>
-                    {candidate.ticker} · {candidate.returns} original returns</option>)}
+                    {candidate.display_name||candidate.ticker} · {candidate.returns} returns ·
+                    {candidate.runnable?'Ready':
+                      candidate.extendable?'Needs '+(candidate.missing_to_target??'?')+' for +20%':
+                        'Source gap · review data'}</option>)}
                 {!!params[spec.key]&&!sourceChoices?.candidates.some(c=>
-                  c.ticker===params[spec.key]&&c.runnable)&&
-                  <option value={String(params[spec.key])}>Previously selected · {String(params[spec.key])} (recheck)</option>}
+                  c.ticker===params[spec.key])&&
+                  <option value={String(params[spec.key])}>
+                    Previously selected · {String(params[spec.key])} (recheck)</option>}
               </select>:spec.type==='symbol'?<input type="text"
               autoComplete="off" value={String(params[spec.key]??spec.default)}
               placeholder="Choose ticker from dataset" maxLength={32}
