@@ -4,6 +4,7 @@ import {Archive,ArrowDownToLine,ArrowLeft,ArrowRight,BarChart3,BookOpen,Check,
   History,Layers3,LoaderCircle,Plus,RefreshCw,RotateCcw,Save,Search,
   Settings2,ShieldCheck,SlidersHorizontal,Trash2,Undo2,Upload,Workflow,X} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
+import {formatMetric} from './metricDisplay'
 import ResearchAdvanced from './ResearchAdvanced'
 import ResearchGuided from './ResearchGuided'
 import ResearchCompletion from './ResearchCompletion'
@@ -1426,7 +1427,8 @@ function DashboardPanel({runs,records,busy,perform,onMessage,onCompare}:{
         <div className="rw-cell-head"><span>{result?.title||id}</span>
           <button title="Unpin result" onClick={()=>toggle(id)}><X size={14}/></button></div>
         {result?<><div className="rw-mini-stats">{result.metrics.slice(0,3).map((m,i)=><div key={i}>
-          <small>{m.label}</small><strong>{String(m.value??'Unavailable')}</strong></div>)}</div>
+          <small>{m.label}</small><strong>{formatMetric(m.label,m.value,m.unit).value}</strong>
+          <small>{formatMetric(m.label,m.value,m.unit).unit}</small></div>)}</div>
           {result.plots[0]&&result.plots[0].kind!=='surface3d'&&
             <ResearchPlot plot={result.plots[0]}/>}</>:
           <p className="rw-help">Loading saved computations…</p>}
