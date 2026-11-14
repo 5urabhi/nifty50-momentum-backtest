@@ -8,6 +8,8 @@ export type ResearchPlotData={
   labels?:string[];row_labels?:string[];scale?:string;values?:number[][];threshold?:number;
   annotations?:{x:string|number;label:string}[];
   regions?:{start:string|number;end:string|number;label:string}[]
+  units?:{numeric?:string;price_currency?:string;price_currency_declared_by_user?:boolean;
+    currency_verified_by_source?:boolean;stored_values_unscaled?:boolean}
 }
 const COLORS=['#66e3c3','#ffca83','#78a8ff','#ce9dff','#ff8c9b','#a2f6e2']
 const finite=(n:unknown):n is number=>typeof n==='number'&&Number.isFinite(n)
@@ -431,6 +433,12 @@ export default function ResearchPlot({plot,provenance}:{plot:ResearchPlotData;pr
       {table.rows.length>40&&<p className="ql-note">Preview shows 40 rows.
         Export CSV contains all {table.rows.length.toLocaleString('en-US')} rows.</p>}
     </details>
+    {plot.units?.numeric&&<p className="ql-muted">
+      Numeric unit: {plot.units.numeric}.
+      {plot.units.price_currency_declared_by_user?
+        ' Currency '+plot.units.price_currency+' was declared by the user, not source-verified.':''}
+      {' '}CSV and chart values preserve original numeric scale.
+    </p>}
     <p className="ql-muted">{provenance==='synthetic'?
       'SEEDED SIMULATION · ARTIFICIAL DATA · Reproducible hypothetical paths, not real market history.':
       provenance==='historical'?
