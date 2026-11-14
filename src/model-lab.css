@@ -188,3 +188,16 @@
 .ql-param-grid input[list]{border:1px solid #477388}
 .ql-param-grid input[list]:disabled{opacity:.46;cursor:not-allowed}
 @media(max-width:700px){.ql-gbm-mode-choice{flex-direction:column}.ql-gbm-mode-choice button{min-width:0}}
+
+
+.ql-mode.market{background:#254c59;color:#9dddfb;border:1px solid #49859a}
+.ql-quote-import{margin:15px 0 18px;border:1px solid #416a81;border-radius:11px;
+ background:linear-gradient(148deg,#102d3b,#102434);padding:17px}
+.ql-quote-import .ql-panel-title{margin-bottom:10px}
+.ql-quote-import p{color:#b2cdd5;font-size:11px;line-height:1.65;margin:4px 0 12px}
+.ql-quote-import code{display:inline-block;color:#a1f1db;overflow-wrap:anywhere;font-size:10px}
+.ql-quote-import .ql-actions{margin:8px 0 12px}
+.ql-quote-ack{display:flex;gap:9px;align-items:flex-start;color:#b8d5d8;
+ font-size:11px;line-height:1.6}
+.ql-quote-ack input{margin-top:3px;accent-color:#69dcb6}
+.ql-quote-import .ql-alert{margin-top:10px}
