@@ -28,6 +28,7 @@ def _tri_status(dataset_id: str) -> dict:
         "label": record.get("label", dataset_id),
         "kind": record.get("kind"),
         "existing_benchmark": source_completion.existing_benchmark_status(folder),
+        "previously_imported_tri_versions": source_completion.linked_tri_versions(dataset_id),
         "no_new_tri_import_attempted": True,
     }
 
