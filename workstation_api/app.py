@@ -913,14 +913,15 @@ def _job_next_action(job: dict) -> str:
 def workspace_jobs():
     with JOBS_LOCK:
         live = [dict(row) for row in list(JOBS.values())[-75:][::-1]]
+        queued_ids = [id for id, row in JOBS.items() if row["status"] == "queued"]
+        retry_ids = set(JOB_RETRY_SPECS)
     seen = {row["id"] for row in live}
     historical = [row for row in research_library.list_job_history(100)
                   if row["id"] not in seen]
     all_jobs = (live + historical)[:100]
-    queued_ids = [id for id, row in JOBS.items() if row["status"] == "queued"]
     for row in all_jobs:
         row["retryable"] = row.get("status") in {"error", "cancelled"} and (
-            row["id"] in JOB_RETRY_SPECS)
+            row["id"] in retry_ids)
         row["queue_position"] = (
             queued_ids.index(row["id"]) + 1 if row["id"] in queued_ids else None)
         row["next_action"] = _job_next_action(row)
