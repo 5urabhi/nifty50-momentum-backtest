@@ -106,19 +106,32 @@ def _validate(raw: bytes) -> list[dict]:
     return rows
 
 
-def import_quotes(dataset_id: str, raw: bytes) -> dict:
+def import_quotes(dataset_id: str, raw: bytes, *,
+                  source_type: str = "user_uploaded_original_option_quote_csv",
+                  provider_raw_json: bytes | None = None,
+                  provider_metadata: dict | None = None) -> dict:
     service.dataset_path(dataset_id)
     rows=_validate(raw)
     root=_root()
     root.mkdir(parents=True,exist_ok=True)
+    if source_type not in {"user_uploaded_original_option_quote_csv",
+                           "dhan_readonly_optionchain_api_v2"}:
+        raise ValueError("Unsupported quote source type")
+    if provider_raw_json is not None and (
+            not isinstance(provider_raw_json,bytes) or
+            len(provider_raw_json)>1_500_000):
+        raise ValueError("Original vendor response exceeds protected source limit")
     quote_id="oq_"+uuid.uuid4().hex[:20]
     csv,manifest=_entry_path(quote_id)
+    vendor_path=_root()/(quote_id+".vendor.json")
     metadata={
         "id":quote_id,"dataset_id":dataset_id,
         "source_sha256":_hash(raw),
         "contracts":rows,
         "captured_at":datetime.now(timezone.utc).isoformat(),
-        "source_type":"user_uploaded_original_option_quote_csv",
+        "source_type":source_type,
+        "original_vendor_response_sha256":_hash(provider_raw_json) if provider_raw_json else None,
+        "provider_metadata":provider_metadata or {},
         "independently_source_certified":False,
         "model_inputs_are_market_quotes":True,
         "risk_free_yield_source":"model_assumptions_until_user_supplies_verified_rates",
@@ -131,12 +144,16 @@ def import_quotes(dataset_id: str, raw: bytes) -> dict:
     try:
         with csv.open("xb") as out:
             out.write(raw);out.flush();os.fsync(out.fileno())
+        if provider_raw_json is not None:
+            with vendor_path.open("xb") as out:
+                out.write(provider_raw_json);out.flush();os.fsync(out.fileno())
         with manifest.open("x",encoding="utf-8") as out:
             json.dump(metadata,out,indent=2,allow_nan=False)
             out.flush();os.fsync(out.fileno())
     except Exception:
         csv.unlink(missing_ok=True)
         manifest.unlink(missing_ok=True)
+        vendor_path.unlink(missing_ok=True)
         raise
     return {"id":quote_id,"dataset_id":dataset_id,"contracts":rows,
             "source_sha256":metadata["source_sha256"],
@@ -156,6 +173,13 @@ def get(quote_id: str, dataset_id: str) -> dict:
         raise ValueError("Option quotes belong to another dataset")
     if _hash(file.read_bytes())!=content.get("source_sha256"):
         raise ValueError("Original option quote file changed after import: source integrity failure")
+    vendor_hash=content.get("original_vendor_response_sha256")
+    if vendor_hash:
+        raw_path=_root()/(quote_id+".vendor.json")
+        if raw_path.is_symlink() or not raw_path.is_file() or raw_path.stat().st_size>1_500_000:
+            raise ValueError("Dhan original option-chain source missing or unsafe")
+        if _hash(raw_path.read_bytes())!=vendor_hash:
+            raise ValueError("Original Dhan option-chain provider response checksum mismatch")
     parsed=_validate(file.read_bytes())
     if parsed!=content.get("contracts"):
         raise ValueError("Option quote manifest no longer matches original source records")
