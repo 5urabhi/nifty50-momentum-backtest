@@ -22,7 +22,7 @@ import pandas as pd
 from index_research import advanced_models, derivatives, inference, math_models
 from index_research import model_validation, portfolio_extensions, portfolio_math, tail_risk
 from index_research.data import read_matrix
-from . import model_registry, service
+from . import gbm_calibration, model_registry, service
 
 CATALOG = model_registry.CATALOG
 PER_YEAR = {"daily": 252, "monthly": 12}
@@ -152,6 +152,7 @@ def readiness(dataset_id: str) -> dict:
         "sample_start":prices.index.min().date().isoformat(),
         "sample_end":prices.index.max().date().isoformat(),
         "benchmark_kind":record.get("benchmark_kind"),
+        "available_symbols": sorted([str(x) for x in prices.columns])[:300],
         "warning":("Synthetic fixture: data are generated and are not observed market prices."
                    if record.get("kind")=="synthetic" else
                    "Observed-price availability is not audited total-return investability."),
@@ -178,6 +179,12 @@ def run_model(model_id: str, dataset_id: str | None = None,
         "source":None,"metrics":[],"plots":[],"table":[],
         "notes":[],"limitations":[],
     }
+    if model_id == "gbm_fit":
+        # A fitted market model needs a separate, explicitly labeled path:
+        # GBM training is on the first 80%; the last 20% is untouched by fit.
+        # Projection fans are nevertheless artificial seeded simulations.
+        response.update(gbm_calibration.fit(dataset_id or "", params))
+        return response
     plots=response["plots"]
     metrics=response["metrics"]
     warnings=response["limitations"]

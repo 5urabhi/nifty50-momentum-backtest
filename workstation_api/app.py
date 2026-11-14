@@ -472,7 +472,8 @@ class LabDataRequest(BaseModel):
 
 @app.get("/api/lab/data-requirements")
 def research_lab_requirements(model_id: str, dataset_id: str = "",
-                              assets: int = 8, train_window: int = 60):
+                              assets: int = 8, train_window: int = 60,
+                              target: str = "benchmark_tri", ticker: str = ""):
     try:
         if model_id not in model_registry.CATALOG:
             raise ValueError("Unknown registered model")
@@ -483,6 +484,9 @@ def research_lab_requirements(model_id: str, dataset_id: str = "",
             params["assets"] = assets
         if model_id == "rolling_vol":
             params["train_window"] = train_window
+        if model_id == "gbm_fit":
+            params["target"] = target
+            params["ticker"] = ticker
         return model_data_manager.inspect(model_id, dataset_id or None, params)
     except Exception as exc:
         bad(exc)

@@ -6,6 +6,7 @@ not listed here cannot be invoked through the local research API.
 """
 from __future__ import annotations
 import math
+import re
 
 
 def numeric(name: str, default: float, low: float, high: float, step: float,
@@ -18,6 +19,11 @@ def numeric(name: str, default: float, low: float, high: float, step: float,
 def choice(name: str, default: str, options: list[str], description: str = "") -> dict:
     return {"key": name, "type": "select", "default": default,
             "options": options, "description": description}
+
+
+def symbol_input(name: str, default: str = "", description: str = "") -> dict:
+    """Constrained market symbol, never a file path or unchecked expression."""
+    return {"key": name, "type": "symbol", "default": default, "description": description}
 
 
 SEED = numeric("seed", 2026, 0, 2147483647, 1, integer=True)
@@ -48,6 +54,17 @@ MODELS = [
     model("gbm", "Stochastic Processes", "Geometric Brownian Motion", "synthetic", 0,
           "Seeded lognormal price-path simulation; no calibration or forward forecast.",
           "dS/S = μ dt + σ dW", [SPOT, DRIFT, VOL, YEARS, STEPS, PATHS, SEED], "fan2d"),
+    model("gbm_fit", "Stochastic Processes", "GBM · Fit to Historical Data",
+          "historical", 10,
+          "Estimate GBM drift and volatility from observed NIFTY TRI or one named stock; "
+          "reserve the final 20% for chronological holdout diagnostics. "
+          "Any forward paths are seeded illustrative scenarios, not predictions.",
+          "log(Pₜ/Pₜ₋₁) ~ N((μ-σ²/2)Δt, σ²Δt)",
+          [choice("target", "benchmark_tri", ["benchmark_tri", "stock"],
+                  "Choose original NIFTY total-return benchmark or one stock symbol."),
+           symbol_input("ticker", "",
+                        "Required only when target=stock. Choose a symbol from the available dataset list."),
+           YEARS, STEPS, PATHS, SEED], "fan2d"),
     model("ou", "Stochastic Processes", "Ornstein–Uhlenbeck Process", "synthetic", 0,
           "Mean-reverting Gaussian process using the exact discrete-time transition.",
           "dX = κ(θ-X)dt + σ dW",
@@ -172,6 +189,10 @@ def validate_parameters(model_id: str, supplied: dict | None) -> dict:
         if spec["type"] == "select":
             if value not in spec["options"]:
                 raise ValueError(key + " must be one of " + ", ".join(spec["options"]))
+        elif spec["type"] == "symbol":
+            if not isinstance(value, str) or len(value) > 32 or (
+                    value and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._&-]{0,31}", value)):
+                raise ValueError(key + " must be an exact dataset stock symbol, max 32 characters")
         else:
             if isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value):
                 raise ValueError(key + " must be a finite number")
@@ -182,6 +203,8 @@ def validate_parameters(model_id: str, supplied: dict | None) -> dict:
                     raise ValueError(key + " must be an integer")
                 value = int(value)
         result[key] = value
+    if model_id == "gbm_fit" and result["target"] == "stock" and not result["ticker"]:
+        raise ValueError("Choose a stock symbol when target=stock")
     if model_id == "pca" and result["components"] > result["assets"]:
         raise ValueError("PCA components cannot exceed selected assets")
     if model_id in {"min_variance","risk_parity","max_diversification","cvar","efficient_frontier"}:

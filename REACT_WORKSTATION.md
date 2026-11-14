@@ -361,3 +361,42 @@ historical identities, issuer action/ex-date records and delisting recovery,
 correct first-release financial filings and comparable NSE Indices TRI
 levels. No backend can manufacture those source truths or independently
 approve its own research assumptions.
+
+
+## GBM: mathematics vs historical calibration
+
+**Model Laboratory → Stochastic Processes → Geometric Brownian Motion**
+now offers two distinct routes:
+- **Explore mathematics (assumed parameters)**: enter μ and σ manually,
+  generate deterministic synthetic paths. Dataset choice does not affect GBM.
+- **Fit to historical data (train/test)**: choose `GBM · Fit to Historical Data`,
+  select a saved dataset and choose `target=benchmark_tri` (official NIFTY
+  total-return benchmark already imported in Data Library) or `target=stock`
+  plus an exact stock symbol from the drop-down. The engine reads the original
+  archived source, never calls a broker from the model runtime, and does not
+  substitute a missing stock or benchmark with fake prices.
+
+Parameters are fitted ONLY to the chronological first 80% of observed log
+returns; the last 20% is a model holdout, with separately drawn observed path,
+seeded scenario fan, one-period Gaussian 95% coverage, and held-out RMSE
+compared against a zero-drift baseline. A second future-looking fan is
+**synthetic** and is *not* an investment forecast. Minimum input is 10 complete
+returns (exploratory preview); fewer than 24 is flagged **short sample**. Daily
+convention uses 252 periods/year, monthly uses 12. NIFTY returns require an
+original source-linked TRI dataset; for stock closes, the user chooses a
+specific ticker. No per-candle second-vendor approval is needed.
+
+The model output reports the exact source file, observation dates, selected
+series, training cutoff, checksum, fitted drift/volatility and limitations.
+The original mathematical GBM remains unchanged for demonstrations, option
+assumption exploration and reproducible what-if studies.
+
+**Terminology:** Dhan daily candles are an acceptable primary source for
+observed stock OHLCV. Checking date windows, duplicates, corporate-action
+adjustment basis and availability is input-contract validation—not a vote of
+no confidence in Dhan. NSE Indices TRI is the appropriate primary source for
+the index's dividend-inclusive benchmark. Independently *audited* financial
+results require broader point-in-time, event and protocol evidence; this does
+not prevent exploratory estimation from correctly labeled genuine data.
+
+Test: `python -m unittest tests.test_gbm_historical_calibration -v`.

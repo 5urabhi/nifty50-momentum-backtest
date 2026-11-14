@@ -174,3 +174,17 @@
 .ql-plot-hover-help{font-size:11px;color:#a4cbbb;margin:6px 0 7px}
 .ql-svg-chart{cursor:crosshair;max-width:100%}
 .ql-svg-chart:focus-visible{outline:2px solid #78ebcd;outline-offset:2px}
+
+
+/* Historical fitting is deliberately a separate study from an assumed GBM. */
+.ql-gbm-mode-choice{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0;padding:6px;
+  background:#0d2430;border:1px solid #345565;border-radius:11px;max-width:670px}
+.ql-gbm-mode-choice button{flex:1;min-width:200px;text-align:center;border:1px solid #345366;
+  background:#152c3d;color:#bdd4db;border-radius:8px;padding:11px 13px;cursor:pointer;font-size:11px;font-weight:700}
+.ql-gbm-mode-choice button.active,.ql-gbm-mode-choice button[aria-pressed="true"]{
+  background:#155144;color:#b9fce5;border-color:#5bd8ae}
+.ql-gbm-mode-choice button:focus-visible{outline:2px solid #8ee9ce;outline-offset:2px}
+.ql-gbm-mode-choice button:hover{border-color:#7edbc5}
+.ql-param-grid input[list]{border:1px solid #477388}
+.ql-param-grid input[list]:disabled{opacity:.46;cursor:not-allowed}
+@media(max-width:700px){.ql-gbm-mode-choice{flex-direction:column}.ql-gbm-mode-choice button{min-width:0}}
