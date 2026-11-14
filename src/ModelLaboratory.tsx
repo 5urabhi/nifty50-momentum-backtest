@@ -321,8 +321,6 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     ||candidate.ticker.toLowerCase().includes(stockSearch.trim().toLowerCase()))||[]
   const recommendedStock=sourceChoices?.candidates.find(candidate=>
     candidate.ticker===sourceChoices.recommended_ticker)
-  const needsSelectedStock=!!selected&&['gbm_fit','ou_fit','merton_fit','heston_proxy'].includes(selected.id)
-    &&params.target==='stock'&&!params.ticker
   const singleSeries=!!selected&&['gbm_fit','ou_fit','merton_fit','heston_proxy'].includes(selected.id)
   const quoteRefs=quoteSnapshots.flatMap(snapshot=>snapshot.contracts.map(contract=>({
     value:snapshot.id+':'+contract.row_index,
@@ -926,6 +924,14 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
                 value={quoteSearch} onChange={e=>setQuoteSearch(e.target.value)}/>
               <small>Showing up to 150 matches from {quoteRefs.length} source contracts.
                 The selected contract always stays available.</small></label>}
+          {singleSeries&&params.target==='stock'&&
+            (sourceChoices?.candidate_count??0)>12&&
+            <label className="ql-field ql-stock-search"><span>Search saved Dhan stocks</span>
+              <input type="search" placeholder="Ticker or company..."
+                value={stockSearch} onChange={e=>setStockSearch(e.target.value)}/>
+              <small>{matchedStocks.length} matching stock(s), including incomplete histories.
+                Choose one to activate +20% automatic completion.</small>
+            </label>}
           <div className="ql-param-grid">{selected.parameters.map(spec=><label className="ql-field" key={spec.key}>
             <span>{spec.key.replaceAll('_',' ')}</span>
             {spec.type==='select'?<select value={String(params[spec.key]??spec.default)}
@@ -942,13 +948,13 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
                 value={String(params[spec.key]??spec.default)}
                 onChange={e=>setParams({...params,[spec.key]:e.target.value})}>
                 <option value="">Choose a stock (ready or needs more history)</option>
-                {sourceChoices?.candidates.map(candidate=>
+                {matchedStocks.map(candidate=>
                   <option value={candidate.ticker} key={candidate.ticker}>
                     {candidate.display_name||candidate.ticker} · {candidate.returns} returns ·
                     {candidate.runnable?'Ready':
                       candidate.extendable?'Needs '+(candidate.missing_to_target??'?')+' for +20%':
                         'Source gap · review data'}</option>)}
-                {!!params[spec.key]&&!sourceChoices?.candidates.some(c=>
+                {!!params[spec.key]&&!matchedStocks.some(c=>
                   c.ticker===params[spec.key])&&
                   <option value={String(params[spec.key])}>
                     Previously selected · {String(params[spec.key])} (recheck)</option>}
