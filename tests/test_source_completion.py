@@ -96,6 +96,17 @@ class SourceCompletionTests(unittest.TestCase):
                 "MISSING_SECURITY_MONTHS.csv").decode("utf-8"))
             self.assertNotIn("prices.csv", zip.namelist())
 
+    def test_corrupt_price_calendar_keeps_worklist_actionable(self):
+        raw=pd.read_csv(self.folder / "prices.csv")
+        raw.loc[2,"date"]=raw.loc[1,"date"]
+        raw.to_csv(self.folder / "prices.csv",index=False)
+        report=source_completion.worklist(self.id)
+        self.assertFalse(report["exact_gap_calculation_available"])
+        self.assertIn("Coverage calculation blocked:",report["coverage_warnings"][0])
+        self.assertTrue(any(x["category"]=="Monthly price panel" and
+                            x["status"]=="blocked" for x in report["actions"]))
+        self.assertFalse(report["summary"]["publication_certified"])
+
     def test_source_status_is_never_promoted_by_reviewer_flag_or_filename(self):
         (self.folder / "EVIDENCE_REVIEW.json").write_text(
             '{"verified":true,"licensed":true,"independent":true}')
