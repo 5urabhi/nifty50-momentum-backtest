@@ -72,15 +72,21 @@ def _context(dataset_id: str, *, validation_start: str | None = None,
     readiness = historical_readiness.inspect(
         dataset_id, validation_start=validation_start,
         final_test_start=final_test_start, selected_factors=selected)
+    coverage = None
+    missing_rows: list[dict] = []
+    coverage_error = None
     if (folder / "prices.csv").is_file() and not (folder / "prices.csv").is_symlink():
-        coverage = inspect_empirical_coverage(folder, {
-            "validation_start": validation_start,
-            "final_test_start": final_test_start,
-            "factor_weights": {f: 1.0 for f in selected},
-        })
-        missing_rows = coverage.pop("missing_security_observation_rows", [])
-    else:
-        coverage, missing_rows = None, []
+        try:
+            coverage = inspect_empirical_coverage(folder, {
+                "validation_start": validation_start,
+                "final_test_start": final_test_start,
+                "factor_weights": {f: 1.0 for f in selected},
+            })
+            missing_rows = coverage.pop("missing_security_observation_rows", [])
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            # Fail closed, but keep the user-facing repair worklist reachable.
+            # A corrupt price file must not make every source action disappear.
+            coverage_error = "Coverage calculation blocked: " + str(exc)[:300]
 
     actions = []
     for check in readiness["checks"]:
@@ -124,7 +130,8 @@ def _context(dataset_id: str, *, validation_start: str | None = None,
         "missing_calendar_months": coverage["missing_entire_months"] if coverage else [],
         "unresolved_symbols": coverage["unresolved_historical_symbols"] if coverage else [],
         "coverage_warnings": coverage["warnings"] if coverage else [
-            "No prepared monthly prices.csv exists to calculate exact historical gaps."],
+            coverage_error or "No prepared monthly prices.csv exists to calculate exact historical gaps."],
+        "exact_gap_calculation_available": coverage is not None,
         "official_research_access_url": NSE_RESEARCH,
         "downloadable_original_market_data": False,
         "warning": ("This is a local evidence acquisition plan. It does NOT contain any new "
