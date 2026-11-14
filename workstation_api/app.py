@@ -15,6 +15,8 @@ import json
 import logging
 import inspect
 import uuid
+import tempfile
+from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -25,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, model_input_selector, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, research_assistant, selection_diagnostics, evidence_bundle, source_inventory, historical_readiness, frozen_study, corporate_action_import, job_recovery, source_completion
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, model_input_selector, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, research_assistant, selection_diagnostics, evidence_bundle, source_inventory, historical_readiness, frozen_study, corporate_action_import, job_recovery, source_completion, nse_source_automation, nse_mcp_workspace
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -1860,6 +1862,79 @@ def inspect_historical_readiness(dataset_id: str,
             selected_factors=selected)
     except Exception as exc:
         bad(exc)
+
+
+# NSE MCP is an optional informational source, not a broker, TRI or backtest feed.
+class NSESourceQueryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    task: Literal["corporate_actions", "stock_history", "symbol_search", "index_history"]
+    symbol: str = Field(default="", max_length=40)
+    query: str = Field(default="", max_length=60)
+    index_name: str = Field(default="Nifty 50", max_length=80)
+    from_date: str = Field(default="", max_length=20)
+    to_date: str = Field(default="today", max_length=20)
+    end_date: str = Field(default="today", max_length=20)
+    months: int = Field(default=3, ge=1, le=12)
+
+
+@app.get("/api/workspace/nse-sources/capabilities")
+def nse_source_capabilities():
+    """UI discovers a local official-source workflow without initiating remote calls."""
+    return nse_mcp_workspace.capabilities()
+
+
+@app.post("/api/workspace/nse-sources/check")
+def nse_source_connection_check():
+    """Explicit connection test, bounded and never writing research prices."""
+    try:
+        return nse_mcp_workspace.check_connection()
+    except ValueError as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/nse-sources/query")
+def nse_source_informational_query(body: NSESourceQueryRequest):
+    """One UI action checks selected official NSE data; no raw source backfill."""
+    try:
+        return nse_mcp_workspace.run_lookup(
+            body.task, body.model_dump(exclude={"task"}))
+    except ValueError as exc:
+        bad(exc)
+
+
+@app.post("/api/workspace/nse-sources/intake")
+async def nse_local_original_source_intake(files: list[UploadFile] = File(...)):
+    """Prepare user-provided authorized ZIP/CSV records inside ignored local data."""
+    if not 1 <= len(files) <= 8:
+        raise HTTPException(400, "Choose 1-8 original NSE files per import")
+    filenames: set[str] = set()
+    try:
+        with tempfile.TemporaryDirectory(prefix="quantlab_nse_upload_") as workdir:
+            paths = []
+            for upload in files:
+                name = nse_source_automation._safe_name(upload.filename or "")
+                if name.casefold() in filenames:
+                    raise ValueError("Duplicate source file name in this selection")
+                filenames.add(name.casefold())
+                data = await upload.read(nse_source_automation.MAX_RAW_FILE + 1)
+                if not data or len(data) > nse_source_automation.MAX_RAW_FILE:
+                    raise ValueError("Original file is empty or exceeds the 40 MiB limit")
+                path = Path(workdir) / name
+                with path.open("xb") as out:
+                    out.write(data)
+                paths.append(path)
+            receipt = nse_source_automation.intake_local_exports(paths)
+            return {
+                "status": "prepared_unverified", "receipt": receipt,
+                "research_data_updated": False, "tri_preserved": True,
+                "next_action": "Confirm original snapshot and publication dates. "
+                               "Use the existing Data Library importer for reviewed data.",
+            }
+    except (ValueError, OSError) as exc:
+        bad(exc)
+    finally:
+        for upload in files:
+            await upload.close()
 
 
 @app.get("/api/workspace/historical-sources/{dataset_id}")
