@@ -3,6 +3,7 @@ import {Activity, ArrowRight, BookOpen, CheckCircle2, CircleAlert, Database,
   Copy, Download, FlaskConical, Heart, Layers, LoaderCircle, Play, Save, ShieldCheck, SlidersHorizontal, Trash2} from 'lucide-react'
 import ResearchPlot, {type ResearchPlotData} from './ResearchPlots'
 import ModelResultBrief from './ModelResultBrief'
+import {formatMetric} from './metricDisplay'
 import './model-lab.css'
 
 type Parameter={
@@ -62,7 +63,8 @@ type DataPlan={model_id:string;mode:string;status:string;runnable:boolean;min_re
   estimated_calendar_weekdays?:number;estimated_max_instrument_day_requests?:number;
   request_scope_note?:string;cached_instrument_calendar_days?:number;
   missing_instrument_calendar_days?:number;missing_uncovered_windows?:number;
-  estimated_vendor_daily_requests?:number}
+  estimated_vendor_daily_requests?:number;
+  next_action?:{kind:string;label:string;detail:string}}
 type ExtensionJob={id:string;status:string;kind:string;percent?:number;stage?:string;
   error?:string;result?:{dataset_id?:string;status:string;message:string;after?:DataPlan;
     selected_ticker?:string;original_ticker?:string;buffer_complete?:boolean;
@@ -743,7 +745,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
             <div className="ql-panel-title"><Database size={17}/><h3>Data requirements & shared history</h3></div>
             {planLoading?<p className="ql-muted"><LoaderCircle size={14} className="ql-spinning"/> Checking aligned observations…</p>:
             dataPlan?<>{selected.mode==='historical'&&<div className="ql-coverage-stats">
-              <div><small>Selected stock's valid returns</small>
+              <div><small>{singleSeries?'Selected series: valid returns':'Aligned returns across selected assets'}</small>
                 <strong>{dataPlan.common_returns===null||dataPlan.common_returns===undefined?
                   'Select a stock':dataPlan.common_returns}</strong></div>
               <div><small>Model minimum</small><strong>{dataPlan.min_returns}</strong></div>
@@ -756,6 +758,21 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
                 {dataPlan.runnable?<CheckCircle2 size={16}/>:<CircleAlert size={16}/>}
                 {dataPlan.message}{dataPlan.status==='ready_minimum'?' The model can run, but the preferred research buffer is not yet met.':''}
               </p>
+              {dataPlan.next_action&&<div className="ql-coverage-next" role="region" aria-label="Recommended next action">
+                <strong>Next action: {dataPlan.next_action.label}</strong>
+                <p>{dataPlan.next_action.detail}</p>
+                {dataPlan.next_action.kind==='download'&&<button type="button"
+                  disabled={!!extensionJob&&['queued','running'].includes(extensionJob.status)}
+                  onClick={()=>void extendHistory()}><Download size={14}/> {dataPlan.next_action.label}</button>}
+                {dataPlan.next_action.kind==='data_library'&&onOpenData&&<button type="button"
+                  onClick={onOpenData}>Open Data Library <ArrowRight size={14}/></button>}
+                {dataPlan.next_action.kind==='select_stock'&&<button type="button"
+                  onClick={()=>document.querySelector<HTMLSelectElement>('[aria-label="Select a stock to run or complete"]')?.focus()}>Choose saved stock <ArrowRight size={14}/></button>}
+                {dataPlan.next_action.kind==='option_quotes'&&<button type="button"
+                  onClick={()=>document.querySelector('[aria-label="Import original provider option quotes"]')?.scrollIntoView({behavior:'smooth',block:'start'})}>Fetch or import quotes <ArrowRight size={14}/></button>}
+                {dataPlan.next_action.kind==='run'&&<button type="button"
+                  disabled={working||insufficient} onClick={()=>void run()}><Play size={14}/> Run selected model</button>}
+              </div>}
               {dataPlan.can_download&&<div className="ql-download-offer" id="ql-one-click-backfill">
                 <h4>Get missing data (+20% buffer) · {dataPlan.selected_ticker||'selected stocks'}</h4>
                 <p>QuantLab will first reuse your existing Dhan candles, then download
@@ -1059,7 +1076,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
           <div className="ql-panel-title"><Database size={17}/><h3>Computed measurements</h3></div>
           {result&&result.model_id===selected.id?<><div className="ql-metrics">
             {result.metrics.map((m,i)=><div key={i}><small>{m.label}</small>
-              <strong>{valueText(m.value)}</strong><span>{m.unit}</span></div>)}</div>
+              <strong>{formatMetric(m.label,m.value,m.unit).value}</strong><span>{formatMetric(m.label,m.value,m.unit).unit}</span></div>)}</div>
             {result.source&&<div className="ql-source"><h4>Actual dataset lineage</h4>
               <p>{result.source.dataset_label} · {result.source.source_file} · {result.source.frequency} · {result.source.observations} common observed returns</p>
               <p>{result.source.from_date} → {result.source.to_date} · {result.source.assets.join(', ')}</p>
