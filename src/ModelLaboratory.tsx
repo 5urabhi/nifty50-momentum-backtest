@@ -845,7 +845,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
               <input type="search" placeholder="Underlying, strike, expiry or provider"
                 value={quoteSearch} onChange={e=>setQuoteSearch(e.target.value)}/>
               <small>Showing up to 150 matches from {quoteRefs.length} source contracts.
-                The selected contract always stays available.</small></label>}}
+                The selected contract always stays available.</small></label>}
           <div className="ql-param-grid">{selected.parameters.map(spec=><label className="ql-field" key={spec.key}>
             <span>{spec.key.replaceAll('_',' ')}</span>
             {spec.type==='select'?<select value={String(params[spec.key]??spec.default)}
