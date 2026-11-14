@@ -72,6 +72,18 @@ Outputs:
 The output directory must not already exist. The +20% buffer is preferred
 extra training/diagnostic history, not a substitution for untouched test data.
 
+### One-screen original-source gap worklist (no terminal required)
+
+Open **Experiment Studio → Original sources → independent review → frozen test** and select a research dataset. The new **Exact missing history and evidence to collect** section shows:
+
+- The counted missing eligible stock closes and following-month return observations, with exact dates and tickers. An incomplete or corrupt panel is marked **Not audited**, never shown as zero missing.
+- Unresolved historical/delisted identifiers and missing calendar months.
+- The preferred **44-month** training warmup (+20% over the 36-month minimum) and the genuinely realized final-test return count.
+- Per-source actions that take you to the **read-only Dhan manager**, **authorized file import**, or an official NSE/NSE Indices report. Filing, dividend and historical membership evidence are not inferred from current Dhan prices.
+- **Export missing-source ZIP**, containing `SOURCE_WORKLIST.json`, `MISSING_SECURITY_MONTHS.csv`, `MISSING_CALENDAR_MONTHS.csv`, `UNRESOLVED_HISTORICAL_IDENTITIES.csv`, `SOURCE_ACTIONS.csv` and a plain-language readme. The package is source-safe and **does not distribute original licensed prices**.
+
+After adding your authorized originals, select **Recheck dataset** to recompute the missing records and provenance conditions. No evidence status automatically becomes independently certified just because source CSVs appear. The existing terminal `coverage-audit` remains available for large or automated studies.
+
 ## 3. Prepare genuine dividend-inclusive individual stock wealth
 
 Original Dhan daily closes are stock PRICE observations, not complete
