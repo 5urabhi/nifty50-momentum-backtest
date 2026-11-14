@@ -143,6 +143,11 @@ or published.
   no automatic claim of independent review.
 - Plots, experiments, comparison and results libraries: saved 2D/3D figures,
   models, archives, project notebooks, mathematical and statistical workflows.
+- **Ask QuantLab research assistant** in Results Studio: question-driven explanations
+  of archived metrics, source evidence, methods and defensible next experiments;
+  offline deterministic engine with citations back to saved results (not an LLM,
+  trading signal or empirical performance certificate). See
+  [Research Assistant guide](docs/RESEARCH_ASSISTANT.md).
 - Read-only local Dhan history management with user-confirmed extensions;
   no broker orders, no public credential exposure.
 

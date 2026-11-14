@@ -5,6 +5,7 @@
 export type MetricDisplay={value:string;unit:string}
 const number=(v:number,digits=4)=>v.toLocaleString('en-US',{maximumFractionDigits:digits})
 const FRACTIONAL_PERFORMANCE=/(?:^|\b)(return|cagr|drawdown|volatility|tracking error|turnover|hit rate|beat rate|exposure|portfolio weight|active weight|allocation|annualized alpha)(?:\b|$)/i
+const FRACTIONAL_RISK=/(?:\bvar\b|value at risk|expected shortfall|tail loss|factor weight)/i
 const CURRENCY:Record<string,{symbol:string;label:string}>={
   inr:{symbol:'₹',label:'INR'},usd:{symbol:'$',label:'USD'},eur:{symbol:'€',label:'EUR'},
   gbp:{symbol:'£',label:'GBP'}
@@ -22,9 +23,14 @@ export function formatMetric(name:string,value:unknown,declaredUnit?:string|null
   if(currency)return {value:currency.symbol+number(val,2),unit:currency.label}
   if(unit==='bps'||unit==='bp'||unit==='basispoints')
     return {value:number(val,2),unit:'bps'}
-  if(unit==='decimalfraction'&&FRACTIONAL_PERFORMANCE.test(name))
-    return {value:number(val*100,2)+'%',unit:'Percent · converted from fractional returns'}
-  if(unit==='decimalfraction')return {value:number(val,6),unit:'Decimal fraction'}
+  if(['decimalfraction','fractionperyear','fraction','decimalloss'].includes(unit)&&
+      (FRACTIONAL_PERFORMANCE.test(name)||FRACTIONAL_RISK.test(name))){
+    const horizon=unit==='fractionperyear'?'Percent per year · from saved fraction':
+      unit==='decimalloss'?'Percent loss · saved horizon':'Percent · from saved fraction'
+    return {value:number(val*100,2)+'%',unit:horizon}
+  }
+  if(unit==='decimalfraction'||unit==='fraction'||unit==='fractionperyear')
+    return {value:number(val,6),unit:rawUnit||'Decimal fraction'}
   if(unit==='%'||unit==='percent'||unit==='percentage')
     return {value:number(val,2)+'%',unit:'Percent · as reported'}
   if(unit==='ratio'||/sharpe|sortino|information ratio|calmar/i.test(name))
