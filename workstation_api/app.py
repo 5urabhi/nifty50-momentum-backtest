@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, historical_readiness, frozen_study, corporate_action_import
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, historical_readiness, frozen_study, corporate_action_import
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -450,6 +450,31 @@ def research_model_readiness(dataset_id: str):
         bad(exc)
 
 
+
+@app.post("/api/lab/option-quotes/import")
+async def lab_import_original_option_quotes(
+    dataset_id: str = Form(...), file: UploadFile = File(...),
+    confirm_original_quote: bool = Form(False),
+):
+    if not confirm_original_quote:
+        raise HTTPException(400, "Confirm that this CSV is an original provider option bid/ask snapshot")
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(400, "Upload an original option quote CSV file")
+    try:
+        raw=await file.read(option_quotes.MAX_BYTES+1)
+        return option_quotes.import_quotes(dataset_id, raw)
+    except (ValueError, OSError) as exc:
+        bad(exc)
+
+
+@app.get("/api/lab/option-quotes")
+def lab_list_option_quote_snapshots(dataset_id: str):
+    try:
+        return {"snapshots": option_quotes.list_for(dataset_id)}
+    except (ValueError, OSError) as exc:
+        bad(exc)
+
+
 @app.post("/api/lab/run")
 def research_model_run(body: LabRunRequest):
     try:
@@ -473,7 +498,8 @@ class LabDataRequest(BaseModel):
 @app.get("/api/lab/data-requirements")
 def research_lab_requirements(model_id: str, dataset_id: str = "",
                               assets: int = 8, train_window: int = 60,
-                              target: str = "benchmark_tri", ticker: str = ""):
+                              target: str = "benchmark_tri", ticker: str = "",
+                              quote: str = ""):
     try:
         if model_id not in model_registry.CATALOG:
             raise ValueError("Unknown registered model")
@@ -484,9 +510,11 @@ def research_lab_requirements(model_id: str, dataset_id: str = "",
             params["assets"] = assets
         if model_id == "rolling_vol":
             params["train_window"] = train_window
-        if model_id == "gbm_fit":
+        if model_id in {"gbm_fit","ou_fit","merton_fit","heston_proxy"}:
             params["target"] = target
             params["ticker"] = ticker
+        if model_registry.CATALOG[model_id]["mode"] == "market":
+            params["quote"] = quote
         return model_data_manager.inspect(model_id, dataset_id or None, params)
     except Exception as exc:
         bad(exc)
