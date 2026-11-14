@@ -17,6 +17,20 @@ type Audit={dataset_id:string;dataset_kind:string;status:string;
   timing:{months_before_validation:number|null;months_in_final_test:number|null;
     months_in_validation?:number|null;preferred_train_months:number;minimum_test_months:number};
   warning:string}
+type SourceAction={category:string;status:string;target:string;flow:string;
+  official_source_url:string;why:string;next_action:string}
+type SourceWorklist={readiness:Audit;source_kind:string;warning:string;
+  summary:{price_months:number|null;price_securities:number|null;
+    missing_entire_months:number|null;missing_eligible_prices:number|null;
+    missing_eligible_forward_returns:number|null;unresolved_historical_symbols:number|null;
+    benchmark_alignment:string;prevalidation_months:number|null;
+    preferred_prevalidation_months_with_20pct_buffer:number;
+    prevalidation_shortfall_to_buffer:number|null;final_test_forward_returns:number|null;
+    required_final_test_forward_returns:number;independent_original_source_certified:boolean};
+  actions:SourceAction[];missing_security_month_count:number;
+  missing_security_month_preview:{date:string;ticker:string;problem:string}[];
+  missing_calendar_months:string[];unresolved_symbols:string[];
+  coverage_warnings:string[];exact_gap_calculation_available:boolean}
 type Frozen={id:string;sha256:string;dataset_id:string;state:string;
   validation_start:string;final_test_start:string;registered_utc:string;
   independent_source_certified:boolean;publication_certified:boolean;warning:string}
@@ -44,6 +58,7 @@ function exportJson(name:string,data:unknown){
 export default function HistoricalValidationPanel({datasetId,config,hasDailyPrices,onOpenData,
   onOpenDhan,onDataCreated,onJobQueued}:Props){
   const [report,setReport]=useState<Audit|null>(null)
+  const [worklist,setWorklist]=useState<SourceWorklist|null>(null)
   const [frozen,setFrozen]=useState<Frozen|null>(null)
   const [busy,setBusy]=useState<'audit'|'freeze'|'execute'|'actions'|null>(null)
   const [actionFile,setActionFile]=useState<File|null>(null)
@@ -51,7 +66,7 @@ export default function HistoricalValidationPanel({datasetId,config,hasDailyPric
   const [acknowledged,setAcknowledged]=useState(false)
   const [error,setError]=useState('')
   const [info,setInfo]=useState('')
-  const clear=()=>{setReport(null);setFrozen(null);setError('');setInfo('')}
+  const clear=()=>{setReport(null);setWorklist(null);setFrozen(null);setError('');setInfo('')}
   useEffect(clear,[datasetId,config])
   const audit=useCallback(async()=>{
     if(!datasetId)return
@@ -62,9 +77,9 @@ export default function HistoricalValidationPanel({datasetId,config,hasDailyPric
       if(config.final_test_start)query.set('final_test_start',config.final_test_start)
       query.set('factors',Object.entries(config.factor_weights)
         .filter(([_,weight])=>weight>0).map(([name])=>name).join(','))
-      const value=await call<Audit>('/workspace/historical-readiness/'+
+      const value=await call<SourceWorklist>('/workspace/historical-sources/'+
         encodeURIComponent(datasetId)+'?'+query)
-      setReport(value)
+      setReport(value.readiness);setWorklist(value)
     }catch(e){setError(e instanceof Error?e.message:String(e))}
     finally{setBusy(null)}
   },[datasetId,config])
@@ -117,6 +132,14 @@ export default function HistoricalValidationPanel({datasetId,config,hasDailyPric
     }catch(e){setError(e instanceof Error?e.message:String(e))}
     finally{setBusy(null)}
   }
+  const sourceParams=new URLSearchParams()
+  if(config.validation_start)sourceParams.set('validation_start',config.validation_start)
+  if(config.final_test_start)sourceParams.set('final_test_start',config.final_test_start)
+  sourceParams.set('factors',Object.entries(config.factor_weights)
+    .filter(([_,weight])=>weight>0).map(([name])=>name).join(','))
+  const zipUrl='/api/workspace/historical-sources/'+
+    encodeURIComponent(datasetId)+'/worklist.zip?'+sourceParams.toString()
+  const statusText=(n:number|null|undefined)=>n===null||n===undefined?'Not audited':n.toLocaleString()
   return <section className="hv-root" aria-label="Historical source and frozen final-test validation">
     <div className="hv-heading"><div><span className="hv-kicker"><ShieldCheck size={14}/> HISTORICAL EVIDENCE WORKFLOW</span>
       <h2>Original sources → independent review → frozen test</h2>
@@ -165,6 +188,77 @@ export default function HistoricalValidationPanel({datasetId,config,hasDailyPric
       <div><small>PREVALIDATION MONTHS</small><strong>{report.timing.months_before_validation??'—'} / {report.timing.preferred_train_months} preferred</strong></div>
       <div><small>FINAL TEST MONTHS</small><strong>{report.timing.months_in_final_test??'—'} / {report.timing.minimum_test_months} required</strong></div>
     </div>
+    {worklist&&<section className="hv-source-worklist" aria-label="Original-source missing-data worklist">
+      <div className="hv-audit-title">
+        <div><span className="hv-kicker">SOURCE ACQUISITION · NOT AUTO-CERTIFIED</span>
+          <h3>Exact missing history and evidence to collect</h3></div>
+        <a className="hv-download-link" href={zipUrl} download>
+          <Download size={15}/> Export missing-source ZIP</a>
+      </div>
+      <p>Only authentic issuer or authorized provider records can close these gaps.
+        A source URL or checksum cannot prove a historical return or authorize redistribution.</p>
+      <div className="hv-evidence-stats">
+        <div><small>Stock price months</small><strong>{statusText(worklist.summary.price_months)}</strong></div>
+        <div><small>Entire calendar months missing</small><strong>{statusText(worklist.summary.missing_entire_months)}</strong></div>
+        <div><small>Eligible close gaps</small><strong>{statusText(worklist.summary.missing_eligible_prices)}</strong></div>
+        <div><small>Following-month return gaps</small><strong>{statusText(worklist.summary.missing_eligible_forward_returns)}</strong></div>
+        <div><small>Historical symbol identities unresolved</small><strong>{statusText(worklist.summary.unresolved_historical_symbols)}</strong></div>
+        <div><small>Training history · preferred +20%</small><strong>
+          {statusText(worklist.summary.prevalidation_months)} /
+          {' '}{worklist.summary.preferred_prevalidation_months_with_20pct_buffer} months
+        </strong></div>
+        <div><small>Extra training months needed</small><strong>{statusText(worklist.summary.prevalidation_shortfall_to_buffer)}</strong></div>
+        <div><small>Untouched final-test returns</small><strong>
+          {statusText(worklist.summary.final_test_forward_returns)} /
+          {' '}{worklist.summary.required_final_test_forward_returns} minimum
+        </strong></div>
+      </div>
+      <div className="hv-buttons">
+        <button onClick={onOpenDhan}><Download size={13}/> Get mapped Dhan history</button>
+        <button onClick={onOpenData}><Database size={13}/> Import original dataset / TRI</button>
+        <a className="hv-source-link" href="https://www.niftyindices.com/reports/historical-data"
+          target="_blank" rel="noopener noreferrer">Official NIFTY TRI archive <ArrowRight size={13}/></a>
+      </div>
+      {!worklist.exact_gap_calculation_available&&<p className="hv-source-shortfall" role="alert">
+        Exact security-month analysis could not run on this incomplete or invalid source.
+        {' '}{worklist.coverage_warnings.join(' ')}
+      </p>}
+      {!!worklist.missing_calendar_months.length&&<p className="hv-source-shortfall">
+        Unobserved months: {worklist.missing_calendar_months.slice(0,12).join(', ')}
+        {worklist.missing_calendar_months.length>12?' … (complete list in ZIP)':''}.
+      </p>}
+      {!!worklist.unresolved_symbols.length&&<p className="hv-source-shortfall">
+        Source-reported unresolved historical symbols:
+        {' '}{worklist.unresolved_symbols.slice(0,12).join(', ')}
+        {worklist.unresolved_symbols.length>12?' … (complete list in ZIP)':''}.
+      </p>}
+      {!!worklist.missing_security_month_count&&<details className="hv-missing-table">
+        <summary>Inspect {worklist.missing_security_month_count.toLocaleString()}
+          {' '}exact missing security-month observations</summary>
+        <div className="hv-scroll"><table><thead><tr><th>Month</th><th>Security</th><th>Evidence needed</th></tr></thead>
+          <tbody>{worklist.missing_security_month_preview.map((row,i)=>
+            <tr key={row.date+'-'+row.ticker+'-'+i}><td>{row.date}</td><td>{row.ticker}</td>
+              <td>{row.problem.replaceAll('_',' ')}</td></tr>)}</tbody></table></div>
+        {worklist.missing_security_month_count>worklist.missing_security_month_preview.length&&
+          <p>Showing the first {worklist.missing_security_month_preview.length};
+            export the ZIP for the full source worklist.</p>}
+      </details>}
+      <h4>What original evidence is missing or needs review?</h4>
+      <div className="hv-source-actions">{worklist.actions
+        .filter(row=>row.status==='blocked'||row.status==='review').map(row=>
+        <article key={row.category} className={'hv-source-action '+row.status}>
+          <div><span>{row.status.toUpperCase()}</span><strong>{row.category}</strong>
+            <small>Required: {row.target}</small>
+            <p>{row.next_action}</p></div>
+          <div className="hv-buttons">
+            {row.flow==='dhan'&&<button onClick={onOpenDhan}>Open Dhan manager</button>}
+            {row.flow==='import'&&<button onClick={onOpenData}>Open imports</button>}
+            <a className="hv-source-link" href={row.official_source_url}
+              rel="noopener noreferrer" target="_blank">Official source <ArrowRight size={12}/></a>
+          </div>
+        </article>)}</div>
+      <p className="hv-disclosure"><ShieldAlert size={16}/>{worklist.warning}</p>
+    </section>}
     <div className="hv-audit-title"><h3>Source and validation gates</h3>
       <button onClick={()=>exportJson('quantlab_historical_readiness_'+datasetId+'.json',report)}>
         <Download size={14}/> Export detailed audit</button></div>

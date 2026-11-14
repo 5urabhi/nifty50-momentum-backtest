@@ -19,13 +19,13 @@ import uuid
 import pandas as pd
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, model_input_selector, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, research_assistant, selection_diagnostics, evidence_bundle, source_inventory, historical_readiness, frozen_study, corporate_action_import, job_recovery
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, model_input_selector, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, research_assistant, selection_diagnostics, evidence_bundle, source_inventory, historical_readiness, frozen_study, corporate_action_import, job_recovery, source_completion
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -1859,6 +1859,41 @@ def inspect_historical_readiness(dataset_id: str,
             validation_start=validation_start, final_test_start=final_test_start,
             selected_factors=selected)
     except Exception as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/historical-sources/{dataset_id}")
+def historical_source_worklist(dataset_id: str,
+                               validation_start: str | None = None,
+                               final_test_start: str | None = None,
+                               factors: str = ""):
+    """Exact missing original-source worklist, never an independent certification."""
+    try:
+        selected = [f.strip() for f in factors.split(",") if f.strip()]
+        return source_completion.worklist(
+            dataset_id, validation_start=validation_start,
+            final_test_start=final_test_start, selected_factors=selected)
+    except (ValueError, OSError, FileNotFoundError, KeyError) as exc:
+        bad(exc)
+
+
+@app.get("/api/workspace/historical-sources/{dataset_id}/worklist.zip")
+def export_historical_source_worklist(dataset_id: str,
+                                      validation_start: str | None = None,
+                                      final_test_start: str | None = None,
+                                      factors: str = ""):
+    """Export only missing security/month identifiers and provenance checksums."""
+    try:
+        selected = [f.strip() for f in factors.split(",") if f.strip()]
+        contents = source_completion.export_zip(
+            dataset_id, validation_start=validation_start,
+            final_test_start=final_test_start, selected_factors=selected)
+        return Response(content=contents, media_type="application/zip",
+                        headers={"Content-Disposition":
+                                 'attachment; filename="quantlab_source_worklist_' +
+                                 dataset_id + '.zip"',
+                                 "Cache-Control": "no-store"})
+    except (ValueError, OSError, FileNotFoundError, KeyError) as exc:
         bad(exc)
 
 
