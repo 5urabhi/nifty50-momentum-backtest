@@ -214,6 +214,8 @@ export default function ResearchJourney({datasets,selectedDataset,onSelectDatase
           <button type="button" onClick={()=>goto(2)}>Back to model settings</button>
           <button type="button" className="rj-primary" onClick={()=>goto(4)}>
             Next · Save and export evidence <ArrowRight size={14}/></button>
+          <button type="button" onClick={onOpenResults}>
+            Open full Results Studio <ArrowRight size={14}/></button>
         </div></div>
       <ResultsStudio selectedIndexRunId="" selectedModelRunId={state.runId}
         onSelectIndexRun={()=>{}} onModels={onOpenModels} onExperiments={onOpenExperiments}
