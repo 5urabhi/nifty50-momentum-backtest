@@ -323,6 +323,12 @@ class NSEInfoMCP:
     def one_lookup(self, tool: str, arguments: dict) -> dict:
         if tool not in INFO_TOOLS or not isinstance(arguments, dict):
             raise ValueError("Only allowlisted informational NSE tool requests are available")
+        # Reject oversized requests BEFORE any remote catalogue call.
+        check = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                            "params": {"name": tool, "arguments": arguments}},
+                           allow_nan=False).encode("utf-8")
+        if len(check) > MAX_REQUEST_BODY:
+            raise ValueError("Informational NSE request is too large")
         available = {entry["name"] for entry in self.tools()}
         if tool not in available:
             raise ValueError("Official NSE MCP does not offer " + tool)
