@@ -49,45 +49,46 @@ def overview(dataset_id: str | None = None) -> dict:
     assets_with10=0 if returns is None else int((returns.notna().sum()>=10).sum())
     source_counts={}
 
-    def historical_ready(model_id: str,minimum: int) -> tuple[bool,str,str]:
+    def historical_ready(model_id: str, minimum: int) -> tuple[bool,str,str]:
         if prices is None or returns is None:
-            return False,"No historical price panel available","Import or download Dhan stock prices"
+            return (False,"No historical price panel available",
+                    "Import or download original Dhan stock prices")
         if model_id=="gbm_fit":
             if tri:
-                return True, f"{tri_count} source-linked NIFTY TRI returns","Choose NIFTY TRI as target"
+                return (True,f"{tri_count} source-linked NIFTY TRI returns",
+                        "Choose NIFTY TRI as target")
             if assets_with10:
-                return True,f"{assets_with10} stocks have 10+ observed returns",
-                        "Choose target=stock and its exact ticker"
-            return False,"GBM requires ≥10 returns for one series","Extend original price history"
+                return (True,f"{assets_with10} stock(s) have 10+ observed returns",
+                        "Choose target=stock and its exact ticker")
+            return (False,"GBM requires ≥10 returns for one series",
+                    "Extend original price history")
         if model_id in {"ou_fit","heston_proxy","merton_fit"}:
             needed={"ou_fit":90,"heston_proxy":252,"merton_fit":120}[model_id]
             count=int((returns.notna().sum()>=needed).sum())
             if model_id!="merton_fit" and not daily:
-                return False,"Daily observations required; monthly index is insufficient",
-                       "Choose an original Dhan daily stock dataset"
+                return (False,"Daily observations required; monthly index is insufficient",
+                        "Choose an original Dhan daily stock dataset")
             if count>0:
-                return True,f"{count} stock(s) with ≥{needed} observed returns",
-                       "Choose one exact ticker; no stock is silently substituted"
-            return False,f"No stock has ≥{needed} nonmissing returns",
-                       "Extend genuine Dhan daily history"
-        count=int(model_registry.CATALOG[model_id]["parameters"][0]["default"]) if False else 8
+                return (True,f"{count} stock(s) with ≥{needed} observed returns",
+                        "Choose one exact ticker; no stock is silently substituted")
+            return (False,f"No stock has ≥{needed} nonmissing returns",
+                    "Extend genuine Dhan daily history")
+        count=8
         rows=sorted(returns.columns,
             key=lambda c:(-int(returns[c].notna().sum()),str(c)))[:count]
         if len(rows)<count:
-            return False,f"{len(rows)}/{count} required stock series present",
-                   "Select a dataset with more securities"
+            return (False,f"{len(rows)}/{count} required stock series present",
+                    "Select a dataset with more securities")
         common=returns[rows].dropna()
-        required=minimum
-        if model_id=="rolling_vol":
-            required=max(minimum,90)
+        required=max(minimum,90) if model_id=="rolling_vol" else minimum
         if len(common)<required:
-            return False,f"{len(common)}/{required} aligned return observations for {count} stocks",
-                   "Extend common observed Dhan returns or lower configured asset count"
+            return (False,f"{len(common)}/{required} aligned return observations for {count} stocks",
+                    "Extend common observed Dhan returns or lower configured asset count")
         if (common.std(ddof=1)<=1e-10).any():
-            return False,"Constant or unusable return series in the selected subset",
-                   "Review stock mappings and price history"
-        return True,f"{len(common)} aligned observed returns for {count} stocks",
-               "Choose parameters and run; this is a source preflight, not validation"
+            return (False,"Constant or unusable return series in the selected subset",
+                    "Review stock mappings and price history")
+        return (True,f"{len(common)} aligned observed returns for {count} stocks",
+                "Choose parameters and run; this is a source preflight, not validation")
 
     for spec in model_registry.MODELS:
         key=spec["id"]; mode=spec["mode"]
