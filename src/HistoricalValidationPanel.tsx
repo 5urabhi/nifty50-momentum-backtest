@@ -23,7 +23,11 @@ type OfficialSource={key:string;priority:number;name:string;
   access:'public_page'|'application_required'|'grant_review';
   official_url:string;page_action:string;quantlab_action:string;
   route:'data'|'dhan'|'application';limitations:string}
+type BenchmarkReceipt={state:string;is_tri:boolean;independently_verified:boolean;
+  monthly_returns:number|null;first_month:string|null;last_month:string|null;
+  source_sha256:string|null;next_action:string}
 type SourceWorklist={readiness:Audit;source_kind:string;warning:string;
+  existing_benchmark:BenchmarkReceipt;
   public_sources:OfficialSource[];
   summary:{price_months:number|null;price_securities:number|null;
     missing_entire_months:number|null;missing_eligible_prices:number|null;
@@ -202,6 +206,19 @@ export default function HistoricalValidationPanel({datasetId,config,hasDailyPric
       </div>
       <p>Only authentic issuer or authorized provider records can close these gaps.
         A source URL or checksum cannot prove a historical return or authorize redistribution.</p>
+      {worklist.existing_benchmark.is_tri&&
+        <div className="hv-tri-present" role="status">
+          <CheckCircle2 size={18}/>
+          <div><strong>TRI already imported — no re-upload required</strong>
+            <p>{worklist.existing_benchmark.monthly_returns} observed monthly benchmark returns
+              {worklist.existing_benchmark.first_month?' · from '+worklist.existing_benchmark.first_month:''}
+              {worklist.existing_benchmark.last_month?' to '+worklist.existing_benchmark.last_month:''}.
+              {' '}Existing source is preserved; independent review and full-window coverage
+              are separate requirements.</p></div>
+        </div>}
+      {worklist.existing_benchmark.state==='price_index_only'&&
+        <p className="hv-source-shortfall">A price-index benchmark is available but it is NOT TRI.
+          Import a true total-return series into a new dataset version.</p>}
       <div className="hv-evidence-stats">
         <div><small>Stock price months</small><strong>{statusText(worklist.summary.price_months)}</strong></div>
         <div><small>Entire calendar months missing</small><strong>{statusText(worklist.summary.missing_entire_months)}</strong></div>
@@ -232,7 +249,9 @@ export default function HistoricalValidationPanel({datasetId,config,hasDailyPric
               <div className="hv-public-card-top"><span>{String(source.priority).padStart(2,'0')}</span>
                 <strong>{source.name}</strong></div>
               <p><b>On NSE:</b> {source.page_action}</p>
-              <p><b>In QuantLab:</b> {source.quantlab_action}</p>
+              <p><b>In QuantLab:</b> {source.key==='official_tri'&&worklist.existing_benchmark.is_tri
+                ? 'TRI is already present in this dataset; skip importing it again. Only extend if the selected research period is not covered.'
+                : source.quantlab_action}</p>
               <div className="hv-buttons">
                 <a className="hv-source-link" href={source.official_url}
                   target="_blank" rel="noopener noreferrer">Open official archive <ArrowRight size={12}/></a>
