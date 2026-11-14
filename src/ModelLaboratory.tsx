@@ -30,6 +30,13 @@ type Readiness={dataset_id:string;frequency?:string;observed_dates?:number;
   eligible_assets_60?:number;eligible_assets_180?:number;has_prices:boolean;
   sample_start?:string;sample_end?:string;benchmark_kind?:string;warning?:string;
   available_symbols?:string[]}
+type ModelReadinessMatrix={
+  total_models:number;math_ready:number;historical_source_ready:number;
+  option_source_ready:number;input_blocked:number;dataset_label:string;
+  data_problem:string;
+  models:{id:string;group:string;title:string;mode:string;status:string;
+    source_ready:boolean;mathematics_ready:boolean;detail:string;next_action:string}[]
+}
 type MarketQuoteSnapshot={id:string;dataset_id:string;captured_at:string;source_sha256:string;
   contracts:{provider:string;underlying:string;strike:number;option_type:string;
     captured_at:string;expiry_at:string;row_index:number;bid:number;ask:number;quote_age_days:number}[]}
@@ -113,6 +120,9 @@ function exportResult(modelId:string,result:LabResult,format:'json'|'csv'){
   URL.revokeObjectURL(url)
 }
 export default function ModelLaboratory({section,datasets,selectedDataset,onSelectDataset,onOpenGuide,onDataChanged,onOpenWorkspace}:Props){
+  const [matrix,setMatrix]=useState<ModelReadinessMatrix|null>(null)
+  const [matrixError,setMatrixError]=useState<string|null>(null)
+  const [matrixLoading,setMatrixLoading]=useState(false)
   const [quoteSnapshots,setQuoteSnapshots]=useState<MarketQuoteSnapshot[]>([])
   const [quoteFile,setQuoteFile]=useState<File|null>(null)
   const [quoteConfirmed,setQuoteConfirmed]=useState(false)
@@ -161,6 +171,16 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   const [dataPlan,setDataPlan]=useState<DataPlan|null>(null)
   const [planError,setPlanError]=useState<string|null>(null)
   const [planLoading,setPlanLoading]=useState(false)
+  const refreshMatrix=useCallback(async()=>{
+    setMatrixLoading(true);setMatrixError(null)
+    try{
+      const query=selectedDataset?'?dataset_id='+encodeURIComponent(selectedDataset):''
+      const result=await getJSON<ModelReadinessMatrix>('/lab/model-readiness'+query)
+      setMatrix(result)
+    }catch(e){setMatrixError(e instanceof Error?e.message:String(e))}
+    finally{setMatrixLoading(false)}
+  },[selectedDataset])
+  useEffect(()=>{void refreshMatrix()},[refreshMatrix])
   const refreshQuotes=useCallback(async()=>{
     if(!selectedDataset){setQuoteSnapshots([]);return}
     try{
@@ -187,6 +207,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
       setQuoteFile(null);setQuoteConfirmed(false)
       setParams(prev=>({...prev,quote:created.id+':0'}))
       await refreshQuotes()
+      void refreshMatrix()
     }catch(e){setQuoteError(e instanceof Error?e.message:String(e))}
     finally{setQuoteLoading(false)}
   }
@@ -428,6 +449,35 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
         <small>{catalog.filter(m=>m.group===name).length}</small>
       </button>)}
     </nav>
+    <details className="ql-model-matrix" aria-label="All model input readiness">
+      <summary><div><span className="ql-kicker">MODEL COMPLETENESS / LIVE SOURCE CHECKLIST</span>
+        <h3>What can run with the selected data?</h3>
+        <p>Mathematical models always compute. Historical fits and option-quote calculations
+          depend on genuine local source inputs. Click to inspect every model and its next action.</p></div>
+        {matrix&&<span className="ql-model-matrix-count">
+          {matrix.total_models} registered · {matrix.historical_source_ready} historical source-ready ·
+          {matrix.option_source_ready} quote-ready · {matrix.input_blocked} need inputs
+        </span>}</summary>
+      {matrixLoading&&<p className="ql-note" role="status">Checking local dataset and saved quote evidence…</p>}
+      {matrixError&&<p className="ql-alert bad" role="alert">{matrixError}</p>}
+      {matrix&&<><div className="ql-matrix-summary">
+        <div><strong>{matrix.math_ready}</strong><small>Math and simulations runnable (assumptions)</small></div>
+        <div><strong>{matrix.historical_source_ready}</strong><small>Historical data source-ready</small></div>
+        <div><strong>{matrix.option_source_ready}</strong><small>Original quote source-ready</small></div>
+        <div><strong>{matrix.input_blocked}</strong><small>Missing model-specific inputs</small></div>
+      </div>
+      {matrix.data_problem&&<p className="ql-alert bad">{matrix.data_problem}</p>}
+      <div className="ql-matrix-models">
+        {matrix.models.map(entry=><button type="button" key={entry.id}
+          onClick={()=>{setGroup(entry.group);changeModel(entry.id)}}>
+          <strong>{entry.title}</strong><span className={'ql-matrix-status '+entry.status}>
+            {entry.status==='math_ready'?'Math runnable':
+             entry.status==='source_available'?'Source available':
+             entry.status==='need_option_quote'?'Needs option quote':'Needs historical data'}</span>
+          <small>{entry.detail}</small><em>Next: {entry.next_action}</em>
+        </button>)}
+      </div></>}
+    </details>
     {catalogError&&<div className="ql-alert bad" role="alert">Model catalog unavailable: {catalogError}</div>}
     {!catalogError&&!catalog.length&&<p className="ql-muted">Connecting to the local Python model registry…</p>}
     <div className="ql-content-grid">
