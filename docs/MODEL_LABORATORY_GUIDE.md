@@ -300,3 +300,9 @@ quotes. Original option-chain source is never committed to GitHub.
 
 CI includes mocked HTTP response tests; it must never make a live Dhan
 request using test credentials.
+
+**Source-label protection:** A synthetic fixture may execute the same model
+math as observed Dhan data, but **must not be counted as a historical-source
+ready model** in the readiness matrix. The all-model overview marks it
+`synthetic_fixture_only`, recommends switching to observed input, and
+does not treat generated prices as empirical source evidence.
