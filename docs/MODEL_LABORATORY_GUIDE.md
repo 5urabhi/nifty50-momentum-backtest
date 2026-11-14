@@ -364,3 +364,53 @@ Regression coverage includes the new model input API, observed-data and
 date-gap rejection, TRI-only fallback, browser-guided workflow, exact-value
 inspection and actual SVG/CSV download acceptance. No live broker calls are
 made in CI; all tests use explicitly synthetic fixture series.
+
+
+## One-click completion of model inputs (+20% rule)
+
+A model requires its own valid source sample. The preferred target is
+`ceil(model_minimum * 1.20)` **valid observed returns**, not prices or
+calendar dates. Example: Heston variance proxy requires 252 returns;
+preferred +20% target is **303 returns**. 225 stock closing prices imply
+224 stock returns when consecutive: 28 missing for minimum, 79 for buffer.
+Before a ticker is selected the UI says "Select a stock", never "0 returns".
+
+In **Model Laboratory** choose a historical GBM, OU, Merton or Heston
+variance-proxy model. Choose an original Dhan-prepared dataset and a
+**named stock**, whether ready or incomplete. Or explicitly click
+**Complete recommended [ticker]** to select that displayed stock and
+start its data request in one action. Click **Get missing data
+automatically (+20%)**.
+
+The local engine then:
+1. Resolves the selected original ticker to its exact Dhan security ID.
+2. Reuses verified Dhan minute/daily candle caches before any network request.
+3. Downloads only uncovered *past* date windows with the local read-only token.
+4. Appends distinct observed dates to canonical `dhan_shared` without
+   changing the earlier prepared dataset or fabricating price gaps.
+5. Automatically selects the shared dataset's **same instrument identity**
+   and rechecks actual model eligibility. Reports minimum-only or partial
+   completion rather than claiming a +20% target met without evidence.
+
+Shared Dhan columns are identity-keyed (exchange segment plus Security
+ID), while the selector shows the friendly ticker when provenance exists.
+Single-stock fitting trims only completely missing *leading or trailing*
+dates in wide shared panels; missing internal prices still block the fit.
+
+Auto-append requires an original Dhan daily dataset and uniquely mapped
+instrument. Synthetic fixtures and arbitrary uploads cannot turn into
+verified Dhan history. Original dividend-reinvested NIFTY TRI cannot be
+inferred from Dhan's NIFTY spot index. Option pricing instead uses the
+separate read-only Dhan option-chain importer or original quote CSV.
+Mathematical simulations are fully functioning, but they are not observed
+market data; switch to a historical companion model where appropriate.
+
+Dhan may not have enough older sessions (IPO, delisting, entitlement,
+provider errors, market closures); the job reports the actual data
+obtained and the remaining shortfall. The +20% target is a research
+preference, not guaranteed source coverage.
+
+Read-only APIs: `GET /api/lab/model-inputs`,
+`GET /api/lab/data-requirements`, confirmed
+`POST /api/lab/data-requirements/extend`, and
+`GET /api/jobs/{job_id}`. No broker orders or credential exposure.
