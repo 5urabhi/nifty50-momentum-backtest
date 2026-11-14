@@ -51,22 +51,26 @@ class NSESourceAutomationTests(unittest.TestCase):
         self.assertTrue((folder / "SOURCE_INTAKE.json").exists())
 
     def test_detect_zip_slip_duplicate_members_and_symlink(self):
-        cases = [
+        unsafe = [
             {"../out.csv": b"date,close\n2026-01-01,9\n"},
-            {"nested/out.csv": b"a,b\n1,2\n"},
-            {"bad.csv": b"date,x\n1,2\n"},
+            {"/outside.csv": b"date,close\n2026-01-01,9\n"},
         ]
-        for idx, contents in enumerate(cases):
+        for idx, contents in enumerate(unsafe):
             file = self._zip("file_%d.zip" % idx, contents)
-            if idx == 2:
-                continue
-            with self.assertRaisesRegex(ValueError, "flat|not hidden|extension"):
+            with self.assertRaisesRegex(ValueError, "Unsafe"):
                 nse.intake_local_exports([file], root=self.output)
+        safe = self._zip("file_2.zip", {
+            "reports/out.csv": b"date,close\n2026-01-01,9\n",
+            "README.txt": b"Source notes only",
+        })
+        staged = nse.intake_local_exports([safe], root=self.output)
+        self.assertTrue((Path(staged["directory"]) / "out.csv").is_file())
         symlink = self.input / "link.csv"
         symlink.symlink_to(self.input / "file_2.zip")
         with self.assertRaises(ValueError):
             nse.intake_local_exports([symlink], root=self.output)
         self.assertEqual(list(self.output.glob(".*.pending")), [])
+        self.assertFalse((self.base / "out.csv").exists())
 
     def test_malformed_zip_and_duplicate_csv_names_do_not_leave_partial_intake(self):
         broken = self.input / "bad.zip"
