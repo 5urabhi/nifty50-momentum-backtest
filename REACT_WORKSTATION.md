@@ -400,3 +400,19 @@ results require broader point-in-time, event and protocol evidence; this does
 not prevent exploratory estimation from correctly labeled genuine data.
 
 Test: `python -m unittest tests.test_gbm_historical_calibration -v`.
+
+
+## All mathematical models: what Ready means
+
+QuantLab separates **Mathematics mode** (theory/simulation) from a
+source-specific **Data-fitted or observed-quote mode**, with the toggle at
+the top of each applicable model. Historical OU, Merton, Heston volatility
+proxy and five quote-anchored options/3D models now have runnable Python
+backends. The new source quote importer is in the selected option model's
+Experiment Setup; saved original options quotes are local, source-checked
+and shared by all five option calculations.
+
+The **Model Laboratory Guide** contains exact input requirements, quote CSV
+columns, validation semantics and known limitations. Heston's risk-neutral
+option surface requires an entire original options chain and is NOT
+claimed to be calibrated from stock closes alone.

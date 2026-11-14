@@ -159,3 +159,150 @@ For a historical model include the dataset `"dataset_id":"dhan_batch_<your id>"`
 Random Forest, XGBoost, LSTM, PPO, SAC, a historical order-book replay engine, continuous retraining, broker order execution and audited out-of-sample alpha are **NOT** parts of this model registry. Those require a separate versioned feature, validated training protocol and test evidence.
 
 See `docs/QUANTLAB_USER_GUIDE.md` and `docs/QUANTLAB_REPRODUCIBILITY.md`.
+
+
+## Complete model workflows: observed prices vs assumptions vs option quotes
+
+The original theoretical and seeded stochastic models were not placeholders:
+they compute legitimate analytical/numerical examples. Their labels describe
+their **evidence type**, not an implementation percentage. A simulated curve
+never becomes historical data because parameters are fitted to prices.
+
+### Two routes on each applicable model
+
+Choose **Model Laboratory → select family → select model**.
+A paired selector now offers the assumed-parameter original and an observed-data
+version where a genuine estimator or quoted market input is mathematically
+appropriate. Both are fully runnable once their particular inputs are present.
+
+| Model | Market-data route | Original provider input | Scope |
+| --- | --- | --- | --- |
+| GBM | GBM historical fit | Original NIFTY TRI return series or named Dhan stock | Drift, volatility; 80/20 chronology; seeded paths |
+| OU | OU historical volatility fit | 90+ Dhan daily stock returns | AR(1) mean reversion of log 20-session realized volatility; test diagnostics |
+| Merton | Merton historical jump proxy | 120+ Dhan daily returns or historical NIFTY TRI | 3-MAD tail-event frequency + diffusion proxy, 80/20; synthetic scenarios |
+| Heston | Historical variance proxy | 252+ daily stock returns | Realized variance AR(1), shock correlation/vol-of-vol proxies, held-out variance comparison; **not** risk-neutral options calibration |
+| Black–Scholes | Observed quote BSM | Original provider bid/ask + spot/strike/exact expiry | Midpoint-implied vol and theoretical Greeks/pricing |
+| Binomial | Observed quote CRR | Same exact option quote | Theoretical European/American exercise tree; American IV proxy caveat |
+| Implied volatility | Original bid/ask IV inversion | Same exact option quote | Bid/ask/mid BSM inversions with explicit yield/rate assumptions |
+| Antithetic Monte Carlo | Quote-anchored MC | Same exact option quote | Numerically sampled option payoffs and MC standard errors; no simulated 'market quotes' |
+| 3D option surface | Quote-anchored BSM 3D | Same exact option quote | What-if surface around observed quote IV; **not** market smile calibration |
+
+All other portfolio/risk/econometric models already read the original
+historical returns. Their outputs remain in-sample unless a model's methodology
+explicitly declares time-respecting walk-forward or an isolated test.
+
+### Import actual option quotes once, reuse across models
+
+For any "Observed Market Quote" model, select an existing research dataset.
+Inside **Experiment setup → Original option quote snapshots** choose
+**Download blank CSV template** and populate it using your permitted original
+option-chain/quote export from Dhan, NSE or another provider. Required columns:
+
+`captured_at,provider,underlying,underlying_spot,expiry_at,strike,option_type,bid,ask`
+
+Both timestamps must contain an explicit UTC offset. Example formatting:
+`2026-11-14T15:25:00+05:30` and `2026-12-31T15:30:00+05:30`.
+`option_type` is `call` or `put`. The quote importer accepts an original
+CSV with one to 300 different contracts. It validates timestamp order,
+bid ≤ ask, positive prices, strike and spot, and original contract identity.
+It stores source-checked raw quotes in local ignored `data/model_option_quotes/`,
+returns a new immutable quote snapshot ID, and never uploads vendor data to
+GitHub. If the original source changes, model calculations fail closed.
+No API keys appear in report artifacts.
+
+Select a saved contract under **Quote** and click **Run selected model**.
+The backend automatically derives the observed quote midpoint, precise
+time-to-expiry and one-contract European BSM implied volatility. Risk-free
+rate and continuous dividend yield remain explicitly **user assumptions**,
+not silently downloaded rates. If the observed quote violates selected BSM
+European no-arbitrage constraints, the model displays a useful error rather
+than inventing an implied volatility. Old quotes remain historical snapshots,
+not executable market fills.
+
+**Important:** A single strike/maturity quote cannot calibrate Heston's
+full risk-neutral volatility surface or a term structure of implied
+volatilities. That requires an option chain with several strikes and
+expiries, plus appropriate rates, dividends and exercise/contract conventions.
+QuantLab does **not** call that "completed market calibration" just because
+it has a stochastic Heston simulator and a rolling variance proxy.
+
+### Research honesty and no extra vendor approvals
+
+Dhan is the intended primary source of individual cash-equity historical
+candles. Checking that a quote matches its timestamps, that a benchmark is
+TRI rather than price-only, or that a model uses enough consecutive
+observations is a numerical/data-contract check, **not distrust of the
+broker**. NSE Indices TRI is needed when dividend-inclusive NIFTY benchmark
+returns are the model target. Quote-source evidence is accepted from the
+user's authorized quote export without demanding another vendor account.
+
+The interface separates:
+- **Runnable mathematics** — theoretical/seeded model needs parameter inputs;
+- **Observed-source ready** — data-backed fitting has required observed history;
+- **Observed-quote ready** — quote-anchored valuation has a real dated contract;
+- **Independently audited** — much stronger third-party source, rights and
+  publication-methodology validation (not automatically claimed).
+
+No broker orders are ever placed. No provider-specific options API entitlements
+are assumed when using the CSV quote import. Importing source quote snapshots
+does not certify trade execution, liquidity, forecast performance or
+third-party review.
+
+Regression checks:
+`python -m unittest tests.test_model_market_workflows tests.test_gbm_historical_calibration -v`.
+
+### All-model readiness, not a misleading single Ready badge
+
+Model Laboratory includes a **What can run with the selected data?** panel,
+populated from one local Python dataset audit. It identifies per-model:
+**Math runnable**, **Historical source available**, **Quoted-market source
+available**, or **Needs inputs**, and supplies the next concrete action.
+The counts are calculated from actual saved local files; they are not fixed
+UI metrics or a blanket statement that the model is publication certified.
+For individual model runs, source availability is checked again with its
+exact ticker, option contract and parameters.
+
+API: `GET /api/lab/model-readiness?dataset_id=<saved-id>`.
+The panel never submits live orders or assumes that source sufficiency
+guarantees optimizer convergence or empirical predictive power.
+
+### Automatic read-only Dhan option-chain capture
+
+CSV import remains a fallback. **Model Laboratory → observed quote model →
+Automatic current option chain · Dhan** now supports a single-click read-only
+capture of NIFTY 50 or BANK NIFTY options using the existing local
+`DHAN_ACCESS_TOKEN`. The server uses `DHAN_CLIENT_ID` in the ignored
+`.env` when configured, or fetches it *server-side* from the Dhan profile.
+No token or client identifier is sent to the React browser.
+
+The backend calls ONLY `/v2/optionchain/expirylist` and
+`/v2/optionchain`, selects the nearest nonexpired date, observes Dhan's
+one-unique-request-per-three-seconds limit, records current index LTP,
+original best bid/ask and returned option strikes, and persists a
+versioned local source-checksummed provider JSON and normalized contract
+CSV. It selects positive, noncrossed quotes closest to index spot; it never
+places orders, invents option premiums, or sends credentials to reports.
+
+**Timing caveat:** Dhan's option-chain response documents an expiry
+**date**, not an exact expiry instant. QuantLab assumes the regular NSE
+15:30 Asia/Kolkata session close for modeled tenor and marks this explicit
+assumption in the original quote manifest. The quote capture time is
+the workstation's local clock, not an exchange-signed trade timestamp.
+Actual exchange holidays, early closes, option exercises and contract
+settlement details require separate source checks for high-precision
+risk/pricing. Captured quotes may become stale almost immediately.
+
+A Dhan token or data plan without option-chain entitlements receives an
+actionable sanitized HTTP error. In that case, users can upload an original
+authorized option-quote CSV instead. Historical expired-option candles
+are a distinct source/API and are NOT substituted for current bid/ask
+quotes. Original option-chain source is never committed to GitHub.
+
+CI includes mocked HTTP response tests; it must never make a live Dhan
+request using test credentials.
+
+**Source-label protection:** A synthetic fixture may execute the same model
+math as observed Dhan data, but **must not be counted as a historical-source
+ready model** in the readiness matrix. The all-model overview marks it
+`synthetic_fixture_only`, recommends switching to observed input, and
+does not treat generated prices as empirical source evidence.

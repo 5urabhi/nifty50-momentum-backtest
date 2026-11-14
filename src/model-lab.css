@@ -188,3 +188,64 @@
 .ql-param-grid input[list]{border:1px solid #477388}
 .ql-param-grid input[list]:disabled{opacity:.46;cursor:not-allowed}
 @media(max-width:700px){.ql-gbm-mode-choice{flex-direction:column}.ql-gbm-mode-choice button{min-width:0}}
+
+
+.ql-mode.market{background:#254c59;color:#9dddfb;border:1px solid #49859a}
+.ql-quote-import{margin:15px 0 18px;border:1px solid #416a81;border-radius:11px;
+ background:linear-gradient(148deg,#102d3b,#102434);padding:17px}
+.ql-quote-import .ql-panel-title{margin-bottom:10px}
+.ql-quote-import p{color:#b2cdd5;font-size:11px;line-height:1.65;margin:4px 0 12px}
+.ql-quote-import code{display:inline-block;color:#a1f1db;overflow-wrap:anywhere;font-size:10px}
+.ql-quote-import .ql-actions{margin:8px 0 12px}
+.ql-quote-ack{display:flex;gap:9px;align-items:flex-start;color:#b8d5d8;
+ font-size:11px;line-height:1.6}
+.ql-quote-ack input{margin-top:3px;accent-color:#69dcb6}
+.ql-quote-import .ql-alert{margin-top:10px}
+
+
+/* One-glance model readiness: math readiness != verified historical evidence. */
+.ql-model-matrix{margin:0 0 16px;background:#112435;border:1px solid #37616c;
+  border-radius:13px;padding:14px 18px}
+.ql-model-matrix>summary{display:flex;gap:12px;align-items:center;
+  justify-content:space-between;cursor:pointer;list-style:none}
+.ql-model-matrix>summary::-webkit-details-marker{display:none}
+.ql-model-matrix>summary::after{content:"▸";font-size:20px;color:#6bdcbc;flex-shrink:0}
+.ql-model-matrix[open]>summary::after{content:"▾"}
+.ql-model-matrix summary h3{margin:5px 0;font-size:15px;color:#e1f9f3}
+.ql-model-matrix summary p{font-size:10px;color:#94adb9;max-width:700px;line-height:1.5;margin:0}
+.ql-model-matrix-count{font-size:10px;font-weight:750;color:#a1e8d0;
+ max-width:280px;line-height:1.5}
+.ql-matrix-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:18px 0}
+.ql-matrix-summary div{background:#101b2a;border:1px solid #32485b;border-radius:8px;padding:12px}
+.ql-matrix-summary strong{font:700 23px 'Space Grotesk',sans-serif;display:block;color:#77e9cb}
+.ql-matrix-summary small{font-size:9px;color:#a4bbca}
+.ql-matrix-models{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;max-height:600px;overflow:auto}
+.ql-matrix-models button{display:flex;flex-direction:column;align-items:flex-start;gap:6px;
+  text-align:left;color:#cfe8eb;background:#122b39;border:1px solid #3a5765;
+  border-radius:9px;padding:13px;cursor:pointer}
+.ql-matrix-models button:hover{border-color:#81deb9}
+.ql-matrix-models button:focus-visible{outline:2px solid #7ee0bf;outline-offset:2px}
+.ql-matrix-models strong{font-size:11px;color:#eaf8f6}
+.ql-matrix-models small{font-size:10px;line-height:1.5;color:#a2c0ca}
+.ql-matrix-models em{font-size:9px;line-height:1.5;color:#92decc;font-style:normal}
+.ql-matrix-status{font-size:9px;font-weight:800;border-radius:4px;padding:4px 7px;
+ background:#583d32;color:#ffcbab}
+.ql-matrix-status.math_ready{background:#2a3b56;color:#c7d8ff}
+.ql-matrix-status.source_available{background:#184939;color:#8ff8cc}
+@media(max-width:1050px){.ql-matrix-models{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:750px){.ql-model-matrix>summary{flex-direction:column;align-items:flex-start}
+ .ql-matrix-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .ql-matrix-models{grid-template-columns:1fr}}
+
+.ql-dhan-quote-fetch{border:1px solid #437364;border-radius:9px;
+ background:#102e36;padding:12px 14px;margin:10px 0 16px}
+.ql-dhan-quote-fetch .ql-panel-title{margin:0 0 5px}
+.ql-dhan-quote-fetch .ql-panel-title h3{font-size:12px}
+.ql-dhan-quote-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.ql-dhan-quote-controls .ql-field{min-width:210px;flex:1;margin:0}
+.ql-dhan-quote-controls button{display:flex;align-items:center;gap:7px;background:#62dcbc;
+ color:#102f33;border:1px solid #62dcbc;border-radius:7px;padding:11px;
+ font-size:11px;font-weight:800;min-height:38px;cursor:pointer}
+.ql-dhan-quote-controls button:disabled{opacity:.45;cursor:not-allowed}
+.ql-dhan-quote-fetch .ql-note{margin-top:10px}
+@media(max-width:650px){.ql-dhan-quote-controls{flex-direction:column;align-items:stretch}}
