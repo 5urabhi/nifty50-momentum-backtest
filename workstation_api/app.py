@@ -50,7 +50,7 @@ JOBS_LOCK = Lock()
 JOB_FUTURES: dict[str, object] = {}
 JOB_RETRY_SPECS: dict[str, tuple] = {}
 JOB_STOP_SIGNALS: dict[str, Event] = {}
-CANCELLABLE_TASKS = {"workspace_parameter_sweep","workspace_grid_sweep","workspace_validation","workspace_learning"}
+CANCELLABLE_TASKS = {"workspace_parameter_sweep","workspace_grid_sweep","workspace_validation","workspace_learning","lab_shared_data_extension"}
 
 
 class JobCancelled(RuntimeError):
