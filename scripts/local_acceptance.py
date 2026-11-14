@@ -1,6 +1,6 @@
 """Run the complete research project's local acceptance checks in ONE command.
 
-This script is never invoked by GitHub Actions. It executes only when a user
+This script runs locally; GitHub Actions separately tests the React browser.\nIt executes only when a user
 runs python scripts/local_acceptance.py on a local machine.
 """
 import argparse
@@ -31,7 +31,7 @@ def check_files(folder: Path, expected: set[str]):
             raise RuntimeError(f"Missing/empty research artifact: {path}")
 
 
-def run_complete_acceptance(include_streamlit: bool=True,include_legacy: bool=False):
+def run_complete_acceptance(include_streamlit: bool=False,include_legacy: bool=False):
     with tempfile.TemporaryDirectory(prefix="equity_quant_acceptance_") as tmp:
         root=Path(tmp)
         inputs=root/"inputs"
@@ -124,14 +124,70 @@ def run_complete_acceptance(include_streamlit: bool=True,include_legacy: bool=Fa
     print("\nALL REQUESTED LOCAL SOFTWARE ACCEPTANCE CHECKS PASSED")
 
 
-def main():
-    parser=argparse.ArgumentParser()
-    parser.add_argument("--skip-ui",action="store_true",help="Skip Streamlit AppTest checks")
-    parser.add_argument("--include-legacy",action="store_true",
-                        help="Run original static universe with explicit survivorship warning")
-    args=parser.parse_args()
-    run_complete_acceptance(include_streamlit=not args.skip_ui,
+def _build_react() -> None:
+    """Build the CURRENT React/Vite interface, not the archived Streamlit UI."""
+    completed = subprocess.run(
+        ["npm", "run", "build"], cwd=ROOT, check=False, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    )
+    if completed.returncode:
+        raise RuntimeError("React/TypeScript build FAILED:\\n" + completed.stdout[-8000:])
+    print("PASS: current React/Vite TypeScript build")
+
+
+def _doctor(data_dir: str, config: str) -> str:
+    """Read local market-evidence readiness without pretending it is certified.
+
+    Exit 2 plus the explicit NOT READY marker is a legitimate data shortfall.
+    Other exit-2 errors (existing output path, invalid config, etc.) are failures.
+    """
+    args = [
+        sys.executable, "scripts/quantlab_finish.py", "doctor",
+        "--data-dir", data_dir, "--config", config,
+    ]
+    completed = subprocess.run(
+        args, cwd=ROOT, check=False, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    )
+    output = completed.stdout.rstrip()
+    if completed.returncode == 2 and "HISTORICAL RESEARCH: NOT READY" in output:
+        print(output)
+        print("RESEARCH EVIDENCE: NOT READY (this does not invalidate the software tests)")
+        return "not_ready"
+    if completed.returncode != 0 or "QUANTLAB DOCTOR: OK" not in output:
+        raise RuntimeError("Historical data doctor FAILED:\\n" + output[-8000:])
+    print(output)
+    print("RESEARCH EVIDENCE: source review and real-market certification are still separate")
+    return "numerically_ready_not_certified"
+
+
+def main(argv=None):
+    parser=argparse.ArgumentParser(
+        description="QuantLab current React/FastAPI software acceptance plus source-aware doctor")
+    parser.add_argument("--legacy-streamlit", action="store_true",
+                        help="Also run archived Streamlit checks (not the current UI)")
+    parser.add_argument("--skip-ui", action="store_true",
+                        help="Deprecated compatibility switch: legacy UI is skipped by default")
+    parser.add_argument("--include-legacy", action="store_true",
+                        help="Run static-universe demonstration with survivorship warning")
+    parser.add_argument("--skip-build", action="store_true",
+                        help="Use only after the current React build has already passed")
+    parser.add_argument("--skip-doctor", action="store_true",
+                        help="Skip the read-only historical evidence readiness report")
+    parser.add_argument("--data-dir", default="data/research_v1",
+                        help="Local original-source research inputs, never uploaded")
+    parser.add_argument("--config", default="config/research_multifactor.json",
+                        help="Research configuration for the source doctor")
+    args=parser.parse_args(argv)
+    if args.legacy_streamlit and args.skip_ui:
+        parser.error("--legacy-streamlit and --skip-ui cannot be used together")
+    run_complete_acceptance(include_streamlit=args.legacy_streamlit,
                             include_legacy=args.include_legacy)
+    if not args.skip_build:
+        _build_react()
+    if not args.skip_doctor:
+        _doctor(args.data_dir, args.config)
+    print("QUANTLAB SOFTWARE: PASS. Synthetic tests are NOT an empirical certificate.")
 
 
 if __name__=="__main__":
