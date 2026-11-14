@@ -61,6 +61,17 @@ def _safe_name(name: str) -> str:
     return name
 
 
+def _archive_member_name(value: str) -> str:
+    """Flatten safe inner CSV paths; reject traversal without rejecting README.txt."""
+    if not isinstance(value, str) or not value or value.startswith("/") or "\\" in value:
+        raise ValueError("Unsafe archive member name")
+    parts = value.split("/")
+    if len(parts) > 5 or any(not part or part in {".", ".."}
+                             or not SAFE_NAME.fullmatch(part) for part in parts):
+        raise ValueError("Unsafe archive member path")
+    return parts[-1]
+
+
 def _read_original(path: Path) -> bytes:
     if path.is_symlink() or not path.is_file():
         raise ValueError("Provide an ordinary local export, not a symlink or remote path")
@@ -90,7 +101,7 @@ def _entries_in_zip(data: bytes) -> list[tuple[str, bytes]]:
                 # Reject symlinks and dangerous names, including ZIP path traversal.
                 if stat.S_IFMT(info.external_attr >> 16) == stat.S_IFLNK:
                     raise ValueError("Symlinks are not accepted inside source archives")
-                name = _safe_name(info.filename)
+                name = _archive_member_name(info.filename)
                 total += info.file_size
                 if info.file_size > MAX_RAW_FILE or total > MAX_UNPACKED:
                     raise ValueError("Archive exceeds safe extraction limits")
@@ -99,7 +110,7 @@ def _entries_in_zip(data: bytes) -> list[tuple[str, bytes]]:
                 if name.casefold() in names:
                     raise ValueError("Repeated archive member name: " + name)
                 names.add(name.casefold())
-                if info.filename.lower().endswith(".csv"):
+                if name.lower().endswith(".csv"):
                     body = archive.read(info)
                     if len(body) != info.file_size:
                         raise ValueError("Unexpected decompressed file length")
