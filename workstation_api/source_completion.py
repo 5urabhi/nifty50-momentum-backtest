@@ -29,6 +29,108 @@ FILING_ARCHIVE = "https://www.nseindia.com/companies-listing/corporate-filings-f
 EQUITY_HISTORY = "https://www.nseindia.com/static/resources/historical-reports-capital-market-daily-monthly-archives"
 WEIGHT_ARCHIVE = "https://niftyindices.com/reports/monthly-reports"
 
+# Public archive pages can be browsed now, while requested research exports
+# and granular Data Room access require different approval processes.
+# 'public_page' is NOT a claim of unrestricted historical coverage or
+# authorization to derive/distribute an investable NSE-based index.
+PUBLIC_SOURCE_GUIDE = (
+    {
+        "key": "official_tri", "priority": 1,
+        "name": "Official NIFTY 50 total-return index levels",
+        "access": "public_page",
+        "official_url": INDEX_HISTORY,
+        "page_action": "Total returns Index Values → NIFTY 50 → dates → CSV",
+        "quantlab_action": "Import the unchanged CSV as a TRI benchmark in Data Library. "
+                           "Include the observed level before the first research return.",
+        "route": "data",
+        "limitations": "Spot index OHLCV is not TRI. Import requires real stock prices "
+                       "and historical membership; benchmark use rights remain separate.",
+    },
+    {
+        "key": "monthly_weights", "priority": 2,
+        "name": "NIFTY constituent weights / market-capitalisation archives",
+        "access": "public_page",
+        "official_url": WEIGHT_ARCHIVE,
+        "page_action": "Market Capitalisation, Weightage, Beta → choose month → ZIP",
+        "quantlab_action": "Preserve each original ZIP/CSV and its report month. "
+                           "Import historical weights with a source-date and publication-time manifest.",
+        "route": "data",
+        "limitations": "Monthly snapshots do not replace the actual effective-date "
+                       "index inclusion/removal notices.",
+    },
+    {
+        "key": "exchange_bhavcopy", "priority": 3,
+        "name": "NSE equity Bhavcopy and security price/volume archives",
+        "access": "public_page",
+        "official_url": "https://www.nseindia.com/all-reports",
+        "page_action": "Equities → CM-UDiFF Common Bhavcopy Final (ZIP) "
+                       "or historical security-wise price/volume",
+        "quantlab_action": "Keep the original exchange report alongside Dhan candles "
+                           "to reconcile close, volume and historical symbol identity.",
+        "route": "dhan",
+        "limitations": "Bhavcopy close is an unadjusted trade price, not a "
+                       "dividend-adjusted wealth series; format changes across eras.",
+    },
+    {
+        "key": "index_notices", "priority": 4,
+        "name": "Historical index reconstitution notices",
+        "access": "public_page",
+        "official_url": INDEX_NOTICES,
+        "page_action": "Find the dated NIFTY 50 index inclusion/removal announcements",
+        "quantlab_action": "Confirm effective dates, old names and delisted identities "
+                           "against the reconstructed point-in-time membership.",
+        "route": "data",
+        "limitations": "A current membership list must never be backfilled over "
+                       "older eligibility periods.",
+    },
+    {
+        "key": "corporate_actions", "priority": 5,
+        "name": "Original equity corporate actions",
+        "access": "public_page",
+        "official_url": ACTION_ARCHIVE,
+        "page_action": "Search historical issuer actions by symbol and ex-date",
+        "quantlab_action": "Prepare a sourced actions ledger with the true ex-date, "
+                           "dividend cash, split/bonus and terminal outcomes.",
+        "route": "data",
+        "limitations": "Do not assume missing events equal no dividends or no delistings.",
+    },
+    {
+        "key": "financial_filings", "priority": 6,
+        "name": "Publication-dated company financial statements",
+        "access": "public_page",
+        "official_url": FILING_ARCHIVE,
+        "page_action": "Retrieve actual historical filed results and publication dates",
+        "quantlab_action": "Record the first-known date of each fundamentals vintage; "
+                           "never apply revised present-day values to past decisions.",
+        "route": "data",
+        "limitations": "Original filed reports need normalization and as-of review.",
+    },
+    {
+        "key": "research_data_request", "priority": 7,
+        "name": "NSE Data for Research application",
+        "access": "application_required",
+        "official_url": NSE_RESEARCH,
+        "page_action": "Complete the Data Seeking Request Form and submit to EPR",
+        "quantlab_action": "Request authorized long history, delisted coverage, "
+                           "research use rights and approval for derived results.",
+        "route": "application",
+        "limitations": "Academic/noncommercial research eligibility, costs, "
+                       "confidentiality and index-creation restrictions apply.",
+    },
+    {
+        "key": "data_room", "priority": 8,
+        "name": "NSE Data for Analytics / NSE Data Room",
+        "access": "grant_review",
+        "official_url": "https://betanseapi.nseindia.com/static/research/initiatives-data-for-analytics",
+        "page_action": "Read the NSE Data Room guidelines and contact the EPR team",
+        "quantlab_action": "A separate research proposal may enable granular "
+                           "microstructure and liquidity research inside a controlled environment.",
+        "route": "application",
+        "limitations": "This is not an immediate downloadable history feed; "
+                       "access is reviewed and time-bound.",
+    },
+)
+
 SOURCE_GUIDANCE = {
     "Real historical source":
         ("prices.csv", "dhan", EQUITY_HISTORY, "Use authorized original price records; verify identity and data rights."),
@@ -125,6 +227,7 @@ def _context(dataset_id: str, *, validation_start: str | None = None,
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "readiness": readiness, "summary": summary,
         "actions": actions,
+        "public_sources": [dict(row) for row in PUBLIC_SOURCE_GUIDE],
         "missing_security_month_count": len(missing_rows),
         "missing_security_month_preview": missing_rows[:PREVIEW_ROWS],
         "missing_calendar_months": coverage["missing_entire_months"] if coverage else [],
@@ -190,6 +293,10 @@ def export_zip(dataset_id: str, *, validation_start: str | None = None,
         pack.writestr("SOURCE_ACTIONS.csv", _csv(
             ["category", "status", "target", "flow", "official_source_url", "next_action"],
             report["actions"]))
+        pack.writestr("OFFICIAL_SOURCE_GUIDE.csv", _csv(
+            ["priority", "name", "access", "official_url", "page_action",
+             "quantlab_action", "route", "limitations"],
+            report["public_sources"]))
         pack.writestr("README.txt",
             "QuantLab Original-Source Worklist\n\n"
             "Read-only, derived missing-evidence identifiers and source checksums.\n"
