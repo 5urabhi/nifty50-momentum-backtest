@@ -23,7 +23,7 @@ from . import service
 NAME=re.compile(r"^[A-Za-z0-9][A-Za-z0-9._&-]{0,31}$")
 QUOTE_ID=re.compile(r"^oq_[0-9a-f]{20}$")
 COLUMNS={"captured_at","provider","underlying","underlying_spot",
-         "expiry","strike","option_type","bid","ask"}
+         "expiry_at","strike","option_type","bid","ask"}
 MAX_BYTES=350_000
 MAX_ROWS=300
 MAX_LIST=100
@@ -65,17 +65,18 @@ def _validate(raw: bytes) -> list[dict]:
             raise ValueError(f"Row {i+1}: original provider name required")
         try:
             captured=pd.Timestamp(values["captured_at"])
-            expiry=pd.Timestamp(values["expiry"])
+            expiry=pd.Timestamp(values["expiry_at"])
             if captured.tzinfo is None:
                 raise ValueError("Capture time needs explicit UTC offset")
             captured=captured.tz_convert("UTC")
             if captured>pd.Timestamp.now(tz="UTC")+pd.Timedelta(minutes=10):
                 raise ValueError("Source quote timestamp lies in the future")
-            if expiry.tzinfo is not None or len(values["expiry"])!=10:
-                raise ValueError("Use expiry in YYYY-MM-DD")
-            if expiry.date()<=captured.date():
+            if expiry.tzinfo is None:
+                raise ValueError("Option expiry needs an exact timezone-aware timestamp")
+            expiry=expiry.tz_convert("UTC")
+            if expiry<=captured:
                 raise ValueError("Option expiry must follow captured quote date")
-            if (expiry.date()-captured.date()).days>3650:
+            if (expiry-captured).days>3650:
                 raise ValueError("Option expiry is implausibly far away")
         except (TypeError,OverflowError,ValueError) as err:
             raise ValueError(f"Row {i+1}: invalid captured_at/expiry: {err}") from err
@@ -98,10 +99,9 @@ def _validate(raw: bytes) -> list[dict]:
         rows.append({
             "captured_at":captured.isoformat(), "provider":provider,
             "underlying":values["underlying"],"underlying_spot":spot,
-            "expiry":expiry.date().isoformat(),"strike":strike,
+            "expiry_at":expiry.isoformat(),"strike":strike,
             "option_type":option,"bid":bid,"ask":ask,
             "mid_price":.5*(bid+ask),
-            "quote_age_days":float((pd.Timestamp.now(tz="UTC")-captured).total_seconds()/86400),
         })
     return rows
 
@@ -157,8 +157,8 @@ def get(quote_id: str, dataset_id: str) -> dict:
     if _hash(file.read_bytes())!=content.get("source_sha256"):
         raise ValueError("Original option quote file changed after import: source integrity failure")
     parsed=_validate(file.read_bytes())
-    if len(parsed)!=len(content.get("contracts",[])):
-        raise ValueError("Option quote manifest no longer matches source")
+    if parsed!=content.get("contracts"):
+        raise ValueError("Option quote manifest no longer matches original source records")
     return content
 
 
@@ -179,7 +179,10 @@ def list_for(dataset_id: str) -> list[dict]:
         snapshots.append({
             "id":quote_id,"dataset_id":dataset_id,
             "captured_at":entry["captured_at"],
-            "contracts":[{**q,"row_index":i} for i,q in enumerate(entry["contracts"])],
+            "contracts":[{**q,"row_index":i,
+                          "quote_age_days":round((pd.Timestamp.now(tz="UTC")-
+                            pd.Timestamp(q["captured_at"])).total_seconds()/86400,2)}
+                         for i,q in enumerate(entry["contracts"])],
             "source_sha256":entry["source_sha256"],
             "warning":entry["warning"],
         })
