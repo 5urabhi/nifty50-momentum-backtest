@@ -47,6 +47,7 @@ type ModelSourceOptions={
     extendable?:boolean;missing_to_target?:number;missing_minimum?:number;
     from_date?:string|null;to_date?:string|null;reason:string}[];
   candidate_count?:number;extendable_count?:number;recommended_ticker?:string|null;
+  auto_download_supported?:boolean;
   tri:{runnable:boolean;returns:number;reason:string;index_name?:string}
 }
 type MarketQuoteSnapshot={id:string;dataset_id:string;captured_at:string;source_sha256:string;
@@ -793,7 +794,8 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
                   {onOpenData&&<button type="button" onClick={onOpenData}>
                     Open Data Library to fix source <ArrowRight size={14}/></button>}
                 </div>}
-              {singleSeries&&dataPlan.status==='select_ticker'&&recommendedStock&&
+              {singleSeries&&dataPlan.status==='select_ticker'&&
+                sourceChoices?.auto_download_supported&&recommendedStock&&
                 recommendedStock.extendable&&(recommendedStock.missing_to_target??0)>0&&
                 <div className="ql-download-offer ql-auto-recommended">
                   <h4>Complete recommended stock in one click</h4>
@@ -818,7 +820,8 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
                   <progress max={100} value={extensionJob.percent??0}/>
                 </div>
               </div>}
-            {extensionMessage&&<p className="ql-alert good" role="status">
+            {extensionMessage&&<p className={extensionJob?.result?.status==='ready'?
+                'ql-alert good':'ql-alert warning'} role="status">
               <CheckCircle2 size={16}/>{extensionMessage}</p>}
             {extensionError&&<p className="ql-alert bad" role="alert">{extensionError}</p>}
           </div>}
