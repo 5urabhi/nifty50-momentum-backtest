@@ -188,11 +188,44 @@ try {
     assert.equal(typeof gapAudit.existing_benchmark.state,'string',
       'Existing benchmark must be inspected before suggesting duplicate TRI import')
     assert.equal(gapAudit.existing_benchmark.independently_verified,false)
-    const officialMcp=gapPanel.locator('.hv-mcp-info')
-    assert.match(await officialMcp.innerText(),/NSE MCP, not website scraping/)
-    assert.match(await officialMcp.innerText(),/quantlab_nse_sources.py mcp-tools/)
-    assert.equal((await officialMcp.getByRole('link',{name:/Official NSE MCP documentation/})
-      .getAttribute('href')), 'https://www.nseindia.com/nse-mcp')
+    const assistant=gapPanel.getByRole('region',{name:'NSE Source Assistant'})
+    await assistant.waitFor()
+    assert.match(await assistant.innerText(),/No terminal, API key or website scraper required/)
+    assert.equal(await assistant.getByRole('tab',{name:'Corporate actions'})
+      .getAttribute('aria-selected'),'true')
+    let providerRequests=0
+    await page.route('**/api/workspace/nse-sources/query',async route=>{
+      providerRequests++
+      const request=route.request().postDataJSON()
+      assert.equal(request.task,'corporate_actions')
+      assert.equal(request.symbol,'RELIANCE')
+      await route.fulfill({status:200,contentType:'application/json',
+        body:JSON.stringify(providerRequests===1?{
+          status:'provider_unavailable',task:'corporate_actions',provider:'NSE Official MCP',
+          message:'Corporate actions for RELIANCE could not be fetched from NSE right now.',
+          data:null,warnings:[],research_data_updated:false,no_events_verified:false
+        }:{
+          status:'available',task:'corporate_actions',provider:'NSE Official MCP',
+          data:{events:[{symbol:'RELIANCE',exDate:'2026-10-01'}]},warnings:[],
+          research_data_updated:false,no_events_verified:false
+        })})
+    })
+    await assistant.getByRole('textbox',{name:'NSE stock symbol'}).fill('RELIANCE')
+    await assistant.getByRole('button',{name:'Check NSE source'}).click()
+    await assistant.getByRole('alert').filter({hasText:'NSE could not provide this source'}).waitFor()
+    assert.match(await assistant.innerText(),/does not.*mean there are zero corporate actions/s)
+    await assistant.getByRole('button',{name:'Retry source check'}).click()
+    await assistant.getByText('Informational NSE response received').waitFor()
+    assert.equal(providerRequests,2)
+    const upload=assistant.getByLabel('Select NSE source files')
+    await upload.setInputFiles({name:'test_weights.csv',mimeType:'text/csv',
+      buffer:Buffer.from('Symbol,Weightage (%)\\nA,50\\nB,50\\n')})
+    await assistant.getByRole('button',{name:'Prepare 1 source file'}).click()
+    await assistant.getByText('Original files safely prepared').waitFor({timeout:25000})
+    assert.match(await assistant.innerText(),/TRI is preserved/)
+    await page.unroute('**/api/workspace/nse-sources/query')
+    const capability=await apiJson('/api/workspace/nse-sources/capabilities')
+    assert.equal(capability.research_data_write_allowed,false)
     assert.equal(gapAudit.summary.independent_original_source_certified,false)
     assert.equal(gapAudit.summary.publication_certified,false)
     await screenshot('02-historical-source-readiness')
