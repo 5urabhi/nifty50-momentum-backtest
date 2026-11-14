@@ -262,7 +262,7 @@ def build_plot(dataset_id: str, fields: list[str], *, kind: str = "line",
                          else transform)
     y_unit = {
         "price": ("price level (currency unspecified)" if price_currency == "unspecified"
-                  else "price level (" + price_currency + ", user declared)"),
+                  else "price level (" + CURRENCIES[price_currency] + " " + price_currency + ", user declared)"),
         "return": "simple return, decimal fraction (0.01 = 1%)",
         "log_return": "log return (unitless; log(1 + simple return))",
         "base100": "index points (initial = 100)",
