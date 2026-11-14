@@ -97,7 +97,10 @@ def inspect_empirical_coverage(data_dir: str | Path,
     final=models.get("final_test_start")
     train_months=(int((labels<pd.Timestamp(validation)).sum())
                   if validation else None)
-    final_months=(int((labels>=pd.Timestamp(final)).sum())-1
+    # Portfolio backtest returns are stamped at price_dates[1:], not all
+    # input price dates. Count exactly the realized return labels within the
+    # declared untouched window; never subtract an arbitrary final month.
+    final_months=(int((labels[1:]>=pd.Timestamp(final)).sum())
                   if final else None)
     minimum_training=36
     preferred_training=ceil(minimum_training*1.2)
