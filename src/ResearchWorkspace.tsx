@@ -1327,10 +1327,10 @@ function JobsPanel({jobs,busy,perform,onPage}:{
         {(j.status==='queued'||(j.status==='running'&&j.cancellable))&&
           <button disabled={busy} onClick={()=>cancel(j)}><X size={14}/>
             {j.status==='running'?'Request safe cancellation':'Cancel queued'}</button>}
-        {(j.status==='error'||j.status==='cancelled')&&
+        {['error','cancelled','interrupted'].includes(j.status)&&
           j.retryable===true&&<button disabled={busy}
           onClick={()=>perform(()=>api<Raw>('/workspace/jobs/'+j.id+'/retry',{},'POST'))}>
-          <RotateCcw size={14}/> Retry</button>}
+          <RotateCcw size={14}/> Recheck inputs & retry</button>}
       </div>)}
       {!jobs.length&&<Empty title="No jobs recorded">Download history, parameter sweeps, and report creation will appear here.</Empty>}</div>
     </Box>
@@ -1349,7 +1349,7 @@ function JobsPanel({jobs,busy,perform,onPage}:{
       {item.queue_position!=null&&<p className="rw-help">Waiting in local queue,
         position {item.queue_position}. One numerical/data job runs at a time.</p>}
       {item.status==='interrupted'&&<p className="rw-caution">
-        The previous Python process exited while this job was active. Reopen the saved study or rerun its configuration; do not mistake this status for a completed research result.</p>}
+        The previous Python process exited before completion. When available, Recheck inputs & retry verifies saved source hashes and code before explicitly restarting. Otherwise reopen the original configuration; no result was completed.</p>}
       {item.result&&<><div className="rw-button-group">
         <button onClick={()=>safeDownload(item.id+'.json',JSON.stringify(item.result,null,2),'application/json')}>
           <Download size={15}/> Download results JSON</button>
