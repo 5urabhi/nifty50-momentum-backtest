@@ -80,5 +80,60 @@ class DuplicateScanTests(unittest.TestCase):
         self.assertEqual(result["identical_groups"], [])
 
 
+    def test_provenance_and_nested_files_must_match_before_cleanup(self):
+        (self.paths["upload_second"]/"BENCHMARK_SOURCE.json").write_text('{"is_total_return":false}')
+        def path_for(name):
+            return self.paths[name],{"id":name,"label":name}
+        with patch.object(service,"datasets",return_value=self.records), \\
+             patch.object(service,"dataset_path",side_effect=path_for), \\
+             patch.object(research_library,"resource_dependencies",return_value=[]):
+            self.assertEqual(source_inventory.scan()["identical_groups"], [])
+        (self.paths["upload_second"]/"BENCHMARK_SOURCE.json").unlink()
+        folder=self.paths["upload_second"]/"daily_ohlcv"
+        folder.mkdir()
+        (folder/"SECURITY_A.csv").write_text("date,close\\n2026-01-01,99\\n")
+        with patch.object(service,"datasets",return_value=self.records), \\
+             patch.object(service,"dataset_path",side_effect=path_for), \\
+             patch.object(research_library,"resource_dependencies",return_value=[]):
+            self.assertEqual(source_inventory.scan()["identical_groups"], [])
+
+    def test_only_confirmed_redundant_view_enters_recoverable_trash(self):
+        def path_for(name):
+            return self.paths[name],{"id":name,"label":name}
+        with patch.object(service,"datasets",return_value=self.records), \\
+             patch.object(service,"dataset_path",side_effect=path_for), \\
+             patch.object(research_library,"resource_dependencies",return_value=[]), \\
+             patch.object(research_library,"resource_action",
+                          return_value={"trashed":True}) as action:
+            report=source_inventory.scan()
+            key=report["identical_groups"][0]["signature_sha256"]
+            with self.assertRaisesRegex(ValueError,"Confirm"):
+                source_inventory.trash_exact_duplicate("upload_second",key)
+            with self.assertRaisesRegex(ValueError,"canonical"):
+                source_inventory.trash_exact_duplicate("upload_first",key,confirm=True)
+            result=source_inventory.trash_exact_duplicate("upload_second",key,confirm=True)
+            self.assertEqual(result["source_preserved"],"upload_first")
+            self.assertTrue(result["original_dhan_cache_untouched"])
+            action.assert_called_once_with("dataset","upload_second","trash",confirm=True)
+            (self.paths["upload_second"]/"prices.csv").write_text("date,STOCK\\n2026-01-01,1\\n")
+            with self.assertRaisesRegex(ValueError,"changed"):
+                source_inventory.trash_exact_duplicate("upload_second",key,confirm=True)
+            action.assert_called_once()
+
+    def test_cleanup_blocks_saved_dependents_even_for_identical_files(self):
+        def path_for(name):
+            return self.paths[name],{"id":name,"label":name}
+        with patch.object(service,"datasets",return_value=self.records), \\
+             patch.object(service,"dataset_path",side_effect=path_for), \\
+             patch.object(research_library,"resource_dependencies",
+                          side_effect=lambda kind, name: [{"kind":"study","id":"locked"}]
+                          if name=="upload_second" else []), \\
+             patch.object(research_library,"resource_action") as action:
+            key=source_inventory.scan()["identical_groups"][0]["signature_sha256"]
+            with self.assertRaisesRegex(ValueError,"Saved studies"):
+                source_inventory.trash_exact_duplicate("upload_second",key,confirm=True)
+            action.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
