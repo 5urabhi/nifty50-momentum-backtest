@@ -18,7 +18,7 @@ import uuid
 from . import research_library, service
 
 ID = re.compile(r"^[0-9a-f]{16}$")
-SENSITIVE = re.compile(r"(?i)(access[-_]?token|api[-_]?key|password|secret|bearer\\s|credential|private[-_]?key)")
+SENSITIVE = re.compile(r"(?i)(access[-_]?token|api[-_]?key|password|secret|bearer\s|credential|private[-_]?key)")
 ALLOWED = frozenset({
     "workspace_parameter_sweep", "workspace_grid_sweep",
     "workspace_validation", "workspace_report", "workspace_learning",
