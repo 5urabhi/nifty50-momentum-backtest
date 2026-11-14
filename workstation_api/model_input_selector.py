@@ -154,6 +154,26 @@ def inspect(dataset_id: str, model_id: str) -> dict:
         prices = read_matrix(folder / file, positive=True)
     candidates = rank_stocks(prices, frequency, MINIMUM[model_id],
                              daily_only=model_id in DAILY_ONLY)
+    # Canonical shared Dhan columns use exchange segment + security ID.
+    # Preserve exact identifiers for execution but show readable display
+    # symbols in the picker; do not alias different instruments together.
+    label_path = (folder / "SHARED_MARKET_PROVENANCE.json" if
+                  dataset_id == "dhan_shared" else
+                  folder / "DHAN_BATCH_PROVENANCE.json")
+    if label_path.is_file() and not label_path.is_symlink():
+        try:
+            info = json.loads(label_path.read_text(encoding="utf-8"))
+            labels = {str(row["column"]): str(row.get("display_symbol") or
+                      row["column"]) for row in info.get("columns", [])}
+            for candidate in candidates:
+                candidate["display_name"] = labels.get(
+                    candidate["ticker"], candidate["ticker"])
+        except (ValueError, OSError, KeyError, TypeError):
+            for candidate in candidates:
+                candidate["display_name"] = candidate["ticker"]
+    else:
+        for candidate in candidates:
+            candidate["display_name"] = candidate["ticker"]
     valid = [item for item in candidates if item["runnable"]]
     suggested = next((item for item in candidates if item.get("extendable")), None)
     tri = tri_source_info(folder, MINIMUM[model_id]) if model_id in {
