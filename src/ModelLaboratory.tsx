@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Activity, ArrowRight, BookOpen, CheckCircle2, CircleAlert, Database,
   Copy, Download, FlaskConical, Heart, Layers, LoaderCircle, Play, Save, ShieldCheck, SlidersHorizontal, Trash2} from 'lucide-react'
 import ResearchPlot, {type ResearchPlotData} from './ResearchPlots'
+import ModelResultBrief from './ModelResultBrief'
 import './model-lab.css'
 
 type Parameter={
@@ -19,10 +20,11 @@ type LabResult={
   generated_utc:string;params:Record<string,number|string>;source?:{
     dataset_id:string;dataset_label:string;frequency:string;observations:number;
     assets:string[];from_date:string;to_date:string;source_file:string;
-    selection_rule:string;benchmark_kind:string
+    selection_rule:string;benchmark_kind:string;dataset_kind?:string;
+    is_synthetic_fixture?:boolean;source_evidence?:string
   }|null;metrics:{label:string;value:string|number|null;unit:string}[];
   plots:ResearchPlotData[];table:Record<string,unknown>[];
-  limitations:string[];notes:string[]
+  limitations:string[];notes:string[];calibration?:Record<string,unknown>
 }
 type SavedRun={id:string;model_id:string;group:string;title:string;mode:string;
   generated_utc:string;dataset_id?:string|null;observations?:number|null;figures:number}
@@ -36,6 +38,13 @@ type ModelReadinessMatrix={
   data_problem:string;
   models:{id:string;group:string;title:string;mode:string;status:string;
     source_ready:boolean;mathematics_ready:boolean;detail:string;next_action:string}[]
+}
+type ModelSourceOptions={
+  dataset_id:string;model_id:string;dataset_label:string;source_file:string|null;
+  frequency:string;minimum:number;preferred_with_buffer:number;
+  synthetic_fixture:boolean;eligible_count:number;selection_is_explicit:boolean;
+  candidates:{ticker:string;returns:number;runnable:boolean;reason:string}[];
+  tri:{runnable:boolean;returns:number;reason:string;index_name?:string}
 }
 type MarketQuoteSnapshot={id:string;dataset_id:string;captured_at:string;source_sha256:string;
   contracts:{provider:string;underlying:string;strike:number;option_type:string;
@@ -120,6 +129,12 @@ function exportResult(modelId:string,result:LabResult,format:'json'|'csv'){
   URL.revokeObjectURL(url)
 }
 export default function ModelLaboratory({section,datasets,selectedDataset,onSelectDataset,onOpenGuide,onDataChanged,onOpenWorkspace}:Props){
+  const [modelSearch,setModelSearch]=useState('')
+  const [modelFilter,setModelFilter]=useState<'all'|'data'|'math'>('all')
+  const [quoteSearch,setQuoteSearch]=useState('')
+  const [sourceChoices,setSourceChoices]=useState<ModelSourceOptions|null>(null)
+  const [sourceChoiceError,setSourceChoiceError]=useState('')
+  const [sourceChoiceLoading,setSourceChoiceLoading]=useState(false)
   const [matrix,setMatrix]=useState<ModelReadinessMatrix|null>(null)
   const [matrixError,setMatrixError]=useState<string|null>(null)
   const [matrixLoading,setMatrixLoading]=useState(false)
@@ -283,14 +298,24 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     setModelId(section==='mathematics'?'gbm':'min_variance')
     setResult(null);setError(null);setView('configure')
   },[section])
-  const groupModels=catalog.filter(spec=>spec.group===group)
+  const groupModels=catalog.filter(spec=>spec.group===group
+    &&(modelFilter==='all'||(modelFilter==='data'
+      ?['historical','market'].includes(spec.mode)
+      :['theoretical','synthetic'].includes(spec.mode)))
+    &&(spec.title+' '+spec.description+' '+spec.id).toLowerCase().includes(modelSearch.trim().toLowerCase()))
   const selected=catalog.find(spec=>spec.id===modelId)
   const modelPair=MARKET_PAIRS.find(pair=>pair.base===selected?.id||pair.market===selected?.id)
+  const singleSeries=!!selected&&['gbm_fit','ou_fit','merton_fit','heston_proxy'].includes(selected.id)
+  const currentModelStatus=matrix?.models.find(item=>item.id===selected?.id)
   const quoteRefs=quoteSnapshots.flatMap(snapshot=>snapshot.contracts.map(contract=>({
     value:snapshot.id+':'+contract.row_index,
     label:contract.provider+' · '+contract.underlying+' '+contract.strike+' '+contract.option_type+
-      ' · '+contract.expiry_at.slice(0,10)+' · '+contract.captured_at.slice(0,16).replace('T',' ')
+      ' · '+contract.expiry_at.slice(0,10)+' · bid '+contract.bid+' / ask '+contract.ask+
+      ' · captured '+contract.captured_at.slice(0,16).replace('T',' ')
   })))
+  const shownQuoteRefs=quoteRefs.filter(item=>
+    item.value===String(params.quote||'')||
+    item.label.toLowerCase().includes(quoteSearch.trim().toLowerCase())).slice(0,150)
   const defaultParams=useCallback((spec:ModelSpec)=>Object.fromEntries(
     spec.parameters.map(p=>[p.key,p.default])
   ),[])
@@ -365,14 +390,27 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
   },[selectedDataset])
   const changeGroup=(next:string)=>{
     setGroup(next)
+    setModelSearch('');setModelFilter('all')
     const first=catalog.find(spec=>spec.group===next)
     setModelId(first?.id||'')
     setResult(null);setError(null);setView('configure')
   }
   const changeModel=(id:string)=>{
-    setModelId(id);setResult(null);setError(null);setView('configure')
+    setModelId(id);setModelSearch('');setModelFilter('all');setResult(null);setError(null);setView('configure')
   }
   const observedNeeded=selected?.mode==='historical'||selected?.mode==='market'
+  useEffect(()=>{
+    setSourceChoices(null);setSourceChoiceError('')
+    if(!singleSeries||!selectedDataset||!selected)return
+    let active=true
+    setSourceChoiceLoading(true)
+    getJSON<ModelSourceOptions>('/lab/model-inputs?dataset_id='+
+      encodeURIComponent(selectedDataset)+'&model_id='+encodeURIComponent(selected.id))
+      .then(choices=>{if(active)setSourceChoices(choices)})
+      .catch(err=>{if(active)setSourceChoiceError(err instanceof Error?err.message:String(err))})
+      .finally(()=>{if(active)setSourceChoiceLoading(false)})
+    return()=>{active=false}
+  },[singleSeries,selectedDataset,selected?.id])
   const syntheticHistory=selected?.mode==='historical'&&selectedDataset==='synthetic'
   const min=selected?.min_observations||0
   const requestedAssets=Number(params.assets??8)
@@ -466,6 +504,22 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     }catch(e){setError(e instanceof Error?e.message:String(e))}
     finally{setWorking(false)}
   }
+  const workflowInstruction=result&&result.model_id===selected?.id?
+    'Your run is saved. Inspect the diagnostic comparison and export any figure.':
+    !selected?'Choose a mathematical model.':
+    !observedNeeded?'Parameters are ready; click Run selected model to compute.':
+    !selectedDataset?'Choose one saved research dataset to continue.':
+    selected.mode==='market'&&!params.quote?
+      'Fetch a read-only Dhan option chain or import original option quotes, then choose a contract.':
+    singleSeries&&params.target==='stock'&&!params.ticker?
+      'Select an eligible stock symbol from the input checklist; QuantLab never silently substitutes one.':
+    planLoading?'Checking the exact input requirements…':
+    dataPlan&&!dataPlan.runnable?
+      dataPlan.message:
+    'The selected inputs pass preflight. Run the model and inspect its computed diagnostics.'
+  const workflowStage=!selected?1:
+    result&&result.model_id===selected.id?4:
+    observedNeeded&&(!selectedDataset||!!insufficient)?2:3
   const dataHint=useMemo(()=>{
     if(!observedNeeded)return 'Mathematical engine ready. Inputs are assumptions; any simulated paths are artificial.'
     if(selected?.mode==='market')return 'Use a saved original option bid/ask and expiry; option model outputs remain theoretical valuations.'
@@ -485,6 +539,14 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
       </button>
     </header>
 
+    <section className="ql-guided-next" aria-label="Research workflow">
+      <div className="ql-guided-track">
+        {['Choose model','Select real inputs','Run calculation','Interpret & export'].map((name,i)=>
+          <span key={name} className={workflowStage===i+1?'active':workflowStage>i+1?'done':''}>
+            <b>{i+1}</b>{name}</span>)}
+      </div>
+      <p><ArrowRight size={15}/>{workflowInstruction}</p>
+    </section>
     <nav className="ql-family-tabs" aria-label="Mathematical model families">
       {SECTIONS.map((name,i)=><button type="button" key={name} onClick={()=>changeGroup(name)}
         className={'ql-family-button '+(name===group?'active':'')} aria-current={name===group?'page':undefined}>
@@ -526,15 +588,28 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     {!catalogError&&!catalog.length&&<p className="ql-muted">Connecting to the local Python model registry…</p>}
     <div className="ql-content-grid">
       <section className="ql-card ql-model-selector">
-        <div className="ql-panel-title"><Layers size={17}/><h3>{group}</h3><span>{groupModels.length} algorithms</span></div>
+        <div className="ql-panel-title"><Layers size={17}/><h3>{group}</h3><span>{groupModels.length} visible</span></div>
+        <label className="ql-field"><span>Find a model</span>
+          <input type="search" value={modelSearch} placeholder="Search name or algorithm..."
+            onChange={e=>setModelSearch(e.target.value)} /></label>
+        <div className="ql-model-filters" role="group" aria-label="Show model types">
+          {([['all','All'],['data','Uses market data'],['math','Math & simulation']] as const).map(([key,label])=>
+            <button type="button" key={key} aria-pressed={modelFilter===key}
+              onClick={()=>setModelFilter(key)}>{label}</button>)}
+        </div>
         <div className="ql-model-list">{groupModels.map(spec=><button
           type="button" key={spec.id} className={'ql-model-option '+(modelId===spec.id?'selected':'')}
           onClick={()=>changeModel(spec.id)}>
           <span className="ql-model-title">{spec.title}</span>
           <span className={'ql-mode '+spec.mode}>{MODE_LABELS[spec.mode]}</span>
+          {matrix&&['historical','market'].includes(spec.mode)&&<span
+            className={'ql-model-check '+(matrix.models.find(item=>item.id===spec.id)?.source_ready?'ready':'missing')}>
+            {matrix.models.find(item=>item.id===spec.id)?.source_ready?
+              'Source available':'Needs inputs'}</span>}
           <small>{spec.description}</small>
           {modelId===spec.id&&<CheckCircle2 size={17} className="ql-check"/>}
         </button>)}</div>
+        {!groupModels.length&&<p className="ql-note">No models match that filter. Choose All or clear search.</p>}
         {savedRuns.length>0&&<div className="ql-saved-runs">
           <div className="ql-panel-title"><Database size={15}/><h3>Saved model runs</h3><span>{savedRuns.length}</span></div>
           {savedRuns.slice(0,8).map(run=><button type="button" key={run.id}
