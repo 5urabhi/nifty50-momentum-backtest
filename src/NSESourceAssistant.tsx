@@ -1,5 +1,5 @@
 import {useEffect,useState} from 'react'
-import {CheckCircle2,Database,Download,ExternalLink,RefreshCw,Search,ShieldAlert,Upload} from 'lucide-react'
+import {CheckCircle2,Database,ExternalLink,RefreshCw,Search,ShieldAlert,Upload} from 'lucide-react'
 import './nse-source-assistant.css'
 
 type Task='corporate_actions'|'stock_history'|'symbol_search'|'index_history'
@@ -63,10 +63,10 @@ export default function NSESourceAssistant({datasetId,suggestedSymbol='',onOpenD
     return()=>{active=false}
   },[])
   useEffect(()=>{
-    if(suggestedSymbol&&/^[A-Z][A-Z0-9&._-]{0,24}$/i.test(suggestedSymbol)&&!symbol){
+    if(suggestedSymbol&&/^[A-Z][A-Z0-9&._-]{0,24}$/i.test(suggestedSymbol)){
       setSymbol(suggestedSymbol.toUpperCase())
     }
-  },[suggestedSymbol,symbol])
+  },[suggestedSymbol,datasetId])
   useEffect(()=>{setResult(null);setError('')},[task,datasetId])
 
   const check=async()=>{
