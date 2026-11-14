@@ -124,7 +124,7 @@ def inspect(dataset_id: str | None, target: str = "benchmark_tri",
     try:
         _, returns, info = _series(dataset_id, target, ticker)
         n = len(returns)
-        return {"status": "ready_with_buffer" if n >= 24 else "ready_minimum",
+        return {"status": "ready_with_buffer" if n >= 12 else "ready_minimum",
                 "runnable": True, "common_returns": n, "assets_found": 1,
                 "selected_assets": info["assets"],
                 "message": ("Historical calibration available: " + str(n)
