@@ -52,6 +52,17 @@ The **Exact missing history and evidence to collect** panel now consolidates wha
 
 The displayed final-test count now follows the actual return labels produced by `backtest_index` (price dates after the first observation), fixing an older one-month undercount in the empirical coverage doctor. A corrupt source panel keeps the repair worklist visible with a blocked audit rather than hiding the next steps. These are **software improvements**, not independent NSE source review.
 
+## Official NSE public source navigation
+
+Experiment Studio now distinguishes six public archive pages (official NIFTY
+TRI, monthly constituent weightage, daily EOD Bhavcopy/volume, reconstitution
+notices, original corporate actions, issuer financial filings) from approval-
+required **Data for Research** and proposal-reviewed **Data for Analytics /
+NSE Data Room**. Import routes use existing Dhan/Data Library workflows; raw
+exchange observations are not automatically fetched or reclassified as
+certified. The source-worklist ZIP includes a public-source guide in addition
+to the previously verified missing-security and evidence reports.
+
 ## Why empirical research is still blocked
 
 A complete valid historical NIFTY study requires:

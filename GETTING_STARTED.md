@@ -29,6 +29,23 @@ This guide describes the verified `main` release. Feature-branch reviewers shoul
 6. **Audit authentic NIFTY evidence.** In **Experiment Studio → Historical evidence**, QuantLab now displays the exact missing eligible security-months, next-month return gaps, unresolved historical tickers, incomplete calendar months, preferred **+20%** training-buffer shortfall, official NSE source starting points, and source-specific import/download actions. Choose **Export missing-source ZIP** for a portable request/review package; it contains **identifiers and checksums, not licensed price rows or credentials**. Import authorized exports, then choose **Recheck dataset**. This report never grants source approval.
 7. **Manage the library.** Research Workspace supports archive, recoverable Trash, restore, report export, and protected source dependencies. Do not delete original Dhan history to hide an old result.
 
+## Collect useful official NSE data now (without waiting for an application)
+
+Open **Experiment Studio → Historical evidence → Public NSE reports you can collect**.
+This is a navigational guide to exchange pages, not an automatic scraper. You can
+start gathering records from the public pages, subject to their terms and date
+coverage, while the separate research-data access request is under review.
+
+1. **NIFTY 50 TRI:** In the NSE Indices Historical Data page, select **Total returns Index Values → NIFTY 50**, set the period including a prior month-end level, and save its original CSV. When a dataset has genuine **prices + historical membership** and lacks a benchmark, use **Data Library → Add TRI** to create a new immutable version. The source is not independently verified by a successful import.
+2. **Historical weights:** In **Monthly Reports**, get the Market Capitalisation / Weightage / Beta ZIPs for your study months. Keep each original and its publication date. The existing `import_nifty_weight_snapshots` importer requires a dated source manifest; a current weights file is not historical membership.
+3. **Equity close / volume:** In **NSE All Reports**, use **CM-UDiFF Common Bhavcopy Final (ZIP)** for modern daily sessions, or the corresponding older historic reports. NSE notes an older common bhavcopy format was discontinued on **July 8, 2024**. Compare exact session closes, traded volume and symbols with Dhan rather than treating unadjusted prices as dividend-inclusive stock wealth.
+4. **Historical membership & actions:** Use original dated NIFTY reconstitution notices, issuer corporate actions and financial result filings. Record first-publication dates and every dividend/delisting outcome before calculating factor returns.
+5. **Extra granular analytics:** **Data for Research** has an applicant request path. **Data for Analytics / NSE Data Room** is a separate research-grant proposal process; it is not an unrestricted free download. Both require appropriate permissions and license review.
+
+The source-worklist ZIP now includes **OFFICIAL_SOURCE_GUIDE.csv**.
+No raw licensed data or broker credentials are bundled, and viewing a public
+download does not automatically authorize publishing a derived financial index.
+
 ## What the readiness words mean
 
 | Status | Meaning | Next action |

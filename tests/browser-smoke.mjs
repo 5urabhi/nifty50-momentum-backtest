@@ -167,6 +167,15 @@ try {
     assert.match(await gapPanel.innerText(),/Exact missing history and evidence to collect/)
     assert.match(await gapPanel.innerText(),/Training history.*preferred.*20%/i)
     assert.match(await gapPanel.innerText(),/Original-source|NOT AUTO-CERTIFIED/)
+    const officialGuide=gapPanel.locator('.hv-public-guide')
+    await officialGuide.getByRole('heading',{name:/Public NSE reports you can collect/}).waitFor()
+    assert.equal(await officialGuide.locator('.hv-public-grid').first().locator('a').count(),6,
+      'Six public official-source pages must be actionable without an approval workflow')
+    const archiveLink=officialGuide.getByRole('link',{name:/Open official archive/}).first()
+    assert.equal((await archiveLink.getAttribute('href'))?.startsWith('https://'),true)
+    await officialGuide.getByText(/Approval-only NSE research programs/).click()
+    await officialGuide.getByText('NSE Data for Analytics / NSE Data Room').waitFor()
+    assert.match(await officialGuide.innerText(),/Research committee review/i)
     const gapDownload=page.waitForEvent('download')
     await gapPanel.getByRole('link',{name:'Export missing-source ZIP'}).click()
     const gapFile=await gapDownload

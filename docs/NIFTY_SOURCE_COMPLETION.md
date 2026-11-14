@@ -8,6 +8,28 @@ dividend, filing, or index level is fabricated by these utilities. They read
 local files only; no order submission, token sharing or scraping of an
 authenticated NSE portal occurs.
 
+## Public NSE sources available for immediate research preparation
+
+The **Research → Initiatives** menu in NSE includes two distinct access routes:
+
+- **Data for Research:** application for academic/noncommercial market data through EPR.
+- **Data for Analytics:** NSE Data Room access for granular data via research-proposal review; the program describes time-bound access and separate eligibility.
+
+Neither program prevents collecting material already offered by NSE and NSE
+Indices on their public archive pages, provided the intended use is allowed.
+The most useful records are **TRI levels, historical index weightage ZIPs,
+historical index inclusion/removal notices, corporate actions, issuer filings,
+and daily UDiFF Bhavcopy ZIPs**. Available date ranges vary by report.
+
+The historical-evidence screen lists verified *official starting pages* and
+distinct public-page vs research-application statuses. This source catalog is
+also saved in `OFFICIAL_SOURCE_GUIDE.csv` inside the missing-evidence ZIP.
+
+**Critical:** NSE's Data Sharing & Usage Policy places special conditions on
+redistribution and creating custom or composite financial indexes. Review the
+specific dataset permission and obtain separate authorization where required;
+a public web interface is not an unrestricted data license.
+
 ## 1. Obtain original records legally, then preserve them privately
 
 The following first-party NSE and NSE Indices reports are the preferred

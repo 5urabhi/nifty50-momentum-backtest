@@ -19,7 +19,12 @@ type Audit={dataset_id:string;dataset_kind:string;status:string;
   warning:string}
 type SourceAction={category:string;status:string;target:string;flow:string;
   official_source_url:string;why:string;next_action:string}
+type OfficialSource={key:string;priority:number;name:string;
+  access:'public_page'|'application_required'|'grant_review';
+  official_url:string;page_action:string;quantlab_action:string;
+  route:'data'|'dhan'|'application';limitations:string}
 type SourceWorklist={readiness:Audit;source_kind:string;warning:string;
+  public_sources:OfficialSource[];
   summary:{price_months:number|null;price_securities:number|null;
     missing_entire_months:number|null;missing_eligible_prices:number|null;
     missing_eligible_forward_returns:number|null;unresolved_historical_symbols:number|null;
@@ -212,6 +217,46 @@ export default function HistoricalValidationPanel({datasetId,config,hasDailyPric
           {statusText(worklist.summary.final_test_forward_returns)} /
           {' '}{worklist.summary.required_final_test_forward_returns} minimum
         </strong></div>
+      </div>
+      <div className="hv-public-guide" aria-label="Public NSE sources to collect now">
+        <div className="hv-audit-title">
+          <div><span className="hv-kicker">ACT NOW · OFFICIAL DATA SOURCES</span>
+            <h4>Public NSE reports you can collect without waiting for a research-data grant</h4></div>
+        </div>
+        <p className="hv-muted">These are public source pages, not proof that every date is
+          downloadable or licensed for creating/redistributing an index. Keep
+          the original CSV/ZIP and its publication date for an auditable import.</p>
+        <div className="hv-public-grid">
+          {worklist.public_sources.filter(source=>source.access==='public_page').map(source=>
+            <article className="hv-public-card" key={source.key}>
+              <div className="hv-public-card-top"><span>{String(source.priority).padStart(2,'0')}</span>
+                <strong>{source.name}</strong></div>
+              <p><b>On NSE:</b> {source.page_action}</p>
+              <p><b>In QuantLab:</b> {source.quantlab_action}</p>
+              <div className="hv-buttons">
+                <a className="hv-source-link" href={source.official_url}
+                  target="_blank" rel="noopener noreferrer">Open official archive <ArrowRight size={12}/></a>
+                {source.route==='data'&&<button onClick={onOpenData}>Open Data Library</button>}
+                {source.route==='dhan'&&<button onClick={onOpenDhan}>Compare Dhan data</button>}
+              </div>
+              <small>{source.limitations}</small>
+            </article>)}
+        </div>
+        <details className="hv-public-approval">
+          <summary>Approval-only NSE research programs (separate from public reports)</summary>
+          <div className="hv-public-grid">
+            {worklist.public_sources.filter(source=>source.access!=='public_page').map(source=>
+              <article className="hv-public-card" key={source.key}>
+                <div className="hv-public-card-top"><strong>{source.name}</strong>
+                  <span>{source.access==='grant_review'?'Research committee review':'Application required'}</span></div>
+                <p>{source.page_action}</p>
+                <p>{source.quantlab_action}</p>
+                <a className="hv-source-link" href={source.official_url}
+                  target="_blank" rel="noopener noreferrer">Open official program <ArrowRight size={12}/></a>
+                <small>{source.limitations}</small>
+              </article>)}
+          </div>
+        </details>
       </div>
       <div className="hv-buttons">
         <button onClick={onOpenDhan}><Download size={13}/> Get mapped Dhan history</button>
