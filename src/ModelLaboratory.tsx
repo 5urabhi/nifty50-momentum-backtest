@@ -65,7 +65,7 @@ type DataPlan={model_id:string;mode:string;status:string;runnable:boolean;min_re
   missing_instrument_calendar_days?:number;missing_uncovered_windows?:number;
   estimated_vendor_daily_requests?:number;
   next_action?:{kind:string;label:string;detail:string}}
-type ExtensionJob={id:string;status:string;kind:string;percent?:number;stage?:string;
+type ExtensionJob={id:string;status:string;kind:string;percent?:number;stage?:string;cancellable?:boolean;
   error?:string;result?:{dataset_id?:string;status:string;message:string;after?:DataPlan;
     selected_ticker?:string;original_ticker?:string;buffer_complete?:boolean;
     missing_to_target?:number;actual_returns?:number;target_returns?:number}}
@@ -502,6 +502,17 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
         stage:'Using cached candles before missing Dhan requests',percent:0})
     }catch(e){setExtensionError(e instanceof Error?e.message:String(e))}
   }
+  const cancelExtension=async()=>{
+    if(!extensionJob||!['queued','running'].includes(extensionJob.status))return
+    try{
+      const reply=await fetch('/api/workspace/jobs/'+encodeURIComponent(extensionJob.id)+'/cancel',{
+        method:'POST',credentials:'same-origin'})
+      if(!reply.ok)throw new Error(await errorText(reply))
+      const next=await reply.json() as ExtensionJob
+      setExtensionJob(next)
+      if(next.status==='cancelled')setExtensionError('Historical download cancelled safely; downloaded source windows remain cached.')
+    }catch(e){setExtensionError(e instanceof Error?e.message:String(e))}
+  }
   const insufficient=!!observedNeeded&&(
     !selectedDataset||planLoading||!!planError||
     (dataPlan? !dataPlan.runnable :
@@ -835,6 +846,8 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
                   <p>{Math.round(extensionJob.percent??0)}% · Reusing original Dhan cache,
                     fetching uncovered dates, then preparing shared stock history.</p>
                   <progress max={100} value={extensionJob.percent??0}/>
+                  <button type="button" disabled={extensionJob.cancellable===false}
+                    onClick={()=>void cancelExtension()}>Cancel at safe checkpoint</button>
                 </div>
               </div>}
             {extensionMessage&&<p className={extensionJob?.result?.status==='ready'?
