@@ -1,6 +1,7 @@
 import {useEffect,useMemo,useState} from 'react'
 import {BarChart3,BookOpen,Database,Gauge,LoaderCircle,Play,ShieldCheck,SlidersHorizontal} from 'lucide-react'
 import ResearchPlot,{type ResearchPlotData} from './ResearchPlots'
+import {formatMetric} from './metricDisplay'
 
 type Dataset={id:string;label:string;has_prices:boolean;ready:boolean}
 type Model={id:string;title:string;group:string;mode:string;formula?:string;
@@ -245,7 +246,8 @@ function Optimization({runs,onError}:Props){
         <th key={i}>{x.title}</th>)}</tr></thead><tbody>
           {metricNames.map(metric=><tr key={metric}><td>{metric}</td>
             {details.map((x,i)=>{const m=x.metrics.find(z=>z.label===metric)
-              return <td key={i}>{m?format(m.value)+' '+m.unit:'Not available'}</td>})}</tr>)}
+              return <td key={i}>{m?formatMetric(m.label,m.value,m.unit).value+
+                ' · '+formatMetric(m.label,m.value,m.unit).unit:'Not available'}</td>})}</tr>)}
         </tbody></table></div>
       <div className="rw-grid-plots">{details.flatMap((x,i)=>x.plots.slice(0,1)
         .map((plot,j)=><ResearchPlot key={i+'-'+j} plot={plot}/>))}</div>
