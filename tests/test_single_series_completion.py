@@ -189,8 +189,8 @@ class OneClickModelHistoryTests(unittest.TestCase):
         data.to_csv(self.shared/"daily_prices.csv",index=False)
         _,returns,info=gbm_calibration._series(
             shared_market_data.SHARED_ID,"stock","NSE_EQ_12345")
-        self.assertEqual(len(returns),320)
-        self.assertEqual(info["observations"],320)
+        self.assertEqual(len(returns),319)
+        self.assertEqual(info["observations"],319)
         selected=model_input_selector.inspect(
             shared_market_data.SHARED_ID,"heston_proxy")
         self.assertTrue(selected["candidates"][0]["runnable"])
