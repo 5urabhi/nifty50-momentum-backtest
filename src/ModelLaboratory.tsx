@@ -79,7 +79,9 @@ type Props={
   onOpenGuide:()=>void;
   onDataChanged?:()=>void;
   onOpenWorkspace?:()=>void;
-  onOpenData?:()=>void
+  onOpenData?:()=>void;
+  preferredModelId?:string;
+  onRunSaved?:(runId:string)=>void
 }
 type ResultView='configure'|'figures'|'numbers'|'method'
 const SECTIONS=['Stochastic Processes','Volatility & Econometrics','Derivatives & Options',
@@ -140,7 +142,8 @@ function exportResult(modelId:string,result:LabResult,format:'json'|'csv'){
   document.body.appendChild(link);link.click();link.remove()
   URL.revokeObjectURL(url)
 }
-export default function ModelLaboratory({section,datasets,selectedDataset,onSelectDataset,onOpenGuide,onDataChanged,onOpenWorkspace,onOpenData}:Props){
+export default function ModelLaboratory({section,datasets,selectedDataset,onSelectDataset,
+  onOpenGuide,onDataChanged,onOpenWorkspace,onOpenData,preferredModelId,onRunSaved}:Props){
   const [modelSearch,setModelSearch]=useState('')
   const [modelFilter,setModelFilter]=useState<'all'|'data'|'math'>('all')
   const [quoteSearch,setQuoteSearch]=useState('')
@@ -312,6 +315,15 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
     setModelId(section==='mathematics'?'gbm':'min_variance')
     setResult(null);setError(null);setView('configure')
   },[section])
+  // Guided Research uses the same registered parameters and readiness controls.
+  useEffect(()=>{
+    if(!preferredModelId||!catalog.length)return
+    const requested=catalog.find(m=>m.id===preferredModelId)
+    if(requested){
+      setGroup(requested.group);setModelId(requested.id)
+      setModelFilter('all');setModelSearch('')
+    }
+  },[preferredModelId,catalog])
   const groupModels=catalog.filter(spec=>spec.group===group
     &&(modelFilter==='all'||(modelFilter==='data'
       ?['historical','market'].includes(spec.mode)
@@ -532,6 +544,7 @@ export default function ModelLaboratory({section,datasets,selectedDataset,onSele
       const data=await response.json() as LabResult
       setResult(data);setView('figures')
       void refreshSaved()
+      if(data.run_id)onRunSaved?.(data.run_id)
     }catch(e){setError(e instanceof Error?e.message:String(e));setView('configure')}
     finally{setWorking(false)}
   }
