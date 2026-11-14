@@ -9,16 +9,15 @@
 ## 1. Start here (Ubuntu)
 
 1. Open a terminal in the existing project checkout.
-2. Switch to the branch holding this Model Laboratory implementation.
+2. Switch to the verified main branch, then pull the latest changes.
 3. Start both local processes with `bash run.sh`.
 4. Open **http://127.0.0.1:5173** in the same machine's browser.
 5. If the UI says **Engine Offline**, check that the Python backend is running on **http://127.0.0.1:8765**.
 
 ```bash
-cd "$HOME/Desktop/codes/nifty50-momentum-backtest/nifty50-momentum-backtest"
-git fetch origin
-git switch feature/quantlab-model-laboratory-and-guide-20261113
-git pull --ff-only origin feature/quantlab-model-laboratory-and-guide-20261113
+cd "$HOME/Desktop/codes/quantlab"
+git switch main
+git pull --ff-only origin main
 bash run.sh
 ```
 
@@ -209,3 +208,25 @@ Run the offline test suites with `python -m unittest discover -s tests -v` and t
 ---
 
 **Resume statement policy:** Only list algorithms implemented, tests passed, datasets actually validated, and research results supported by reproducible evidence. A passing mathematical unit test is not evidence of significant trading performance.
+
+## Completing missing model history automatically
+
+Model Laboratory shows each model's **minimum** and **preferred +20%**
+valid-return target. For Heston, 252 returns are required and 303
+preferred. If your current dataset has 225 stock closes, a complete
+individual security has 224 returns—not zero—and needs 79 additional
+valid returns for the preferred target.
+
+Select a stock even if it is currently incomplete, then click
+**Get missing data automatically (+20%)**. Or explicitly choose the
+displayed **Complete recommended [stock]** action. The local engine
+reuses existing Dhan downloads, fetches only uncovered past windows,
+appends source data to the shared dataset, selects the same Dhan
+security and recalculates model readiness. It reports partial coverage
+when enough source observations do not exist; it never invents them.
+
+Original TRI, options quotes, synthetic demonstrations and unmapped
+uploaded data have different acquisition requirements. QuantLab
+explains the source-specific action instead of pretending that Dhan
+spot prices can satisfy every data contract. See
+`docs/MODEL_LABORATORY_GUIDE.md` for details.
