@@ -6,7 +6,7 @@ import math
 import pandas as pd
 
 from index_research.data import read_matrix
-from . import dhan_workspace, gbm_calibration, model_registry, service, shared_market_data
+from . import dhan_workspace, gbm_calibration, stochastic_calibration, option_market, model_registry, service, shared_market_data
 
 EXTRA_FRACTION = 0.20
 MAX_AUTO_ASSETS = 18
@@ -87,10 +87,20 @@ def _mapping(dataset_id: str, selected_assets: list[str]) -> tuple[list[dict], s
 
 def inspect(model_id: str, dataset_id: str | None, params: dict | None = None) -> dict:
     req = requirement(model_id, params)
+    if req["mode"] == "market":
+        available=option_market.inspect(
+            dataset_id, str((params or {}).get("quote","")))
+        return {**req, **available, "assets_requested":1,
+                "missing_minimum":0,"missing_to_target":0}
     if req["mode"] != "historical":
         return {**req, "status": "not_applicable", "runnable": True,
                 "message": "This model does not require observed market data.",
                 "can_download": False}
+    if model_id in stochastic_calibration.MINIMUM:
+        status=stochastic_calibration.inspect(dataset_id, model_id, params or {})
+        return {**req, **status, "assets_requested":1,
+                "missing_minimum":max(0,req["min_returns"]-status.get("common_returns",0)),
+                "missing_to_target":max(0,req["target_returns"]-status.get("common_returns",0))}
     if model_id == "gbm_fit":
         status = gbm_calibration.inspect(
             dataset_id, str((params or {}).get("target", "benchmark_tri")),
