@@ -306,3 +306,61 @@ math as observed Dhan data, but **must not be counted as a historical-source
 ready model** in the readiness matrix. The all-model overview marks it
 `synthetic_fixture_only`, recommends switching to observed input, and
 does not treat generated prices as empirical source evidence.
+
+## Guided laboratory, exact series choice, and publication-quality figure downloads
+
+The Model Laboratory is now organized from top to bottom:
+**Choose model → Select real inputs → Run calculation → Interpret & export**.
+The step guidance follows the chosen algorithm; a mathematically executable
+simulation is *not* mislabeled observed-market ready. Search and the model
+type filter help navigate many registered algorithms without mixing the two
+versions of each model. The all-model overview still shows exact evidence
+classes and blockers.
+
+For `gbm_fit`, `ou_fit`, `merton_fit` and `heston_proxy`, the new input
+candidate API `GET /api/lab/model-inputs?dataset_id=...&model_id=...`
+returns ranked original **eligible named stock series**. For each stock it
+checks required sample depth, observed finite positive closes, no missing
+prices, chronological uniqueness, no daily calendar gap over 10 days,
+month continuity for monthly inputs, and nonzero log-return variance.
+Eligible symbols appear as a dropdown. QuantLab **never silently selects or
+substitutes an asset**—the user must choose one. If the original, monthly
+dividend-inclusive NIFTY TRI is present, it remains an explicit separate
+choice for GBM and Merton. A TRI-only dataset can be source-ready for GBM,
+without a corresponding stock-price file. These are *preflight checks*,
+not a guarantee of AR(1) stationarity, estimator convergence, or profitable
+forecasts.
+
+For quoted option models the default input path is read-only Dhan NIFTY
+50/BANK NIFTY capture; the manual **Import original provider quote CSV**
+is now a collapsible fallback instead of the first required action. The
+saved-contract picker is searchable and preserves its active selection.
+No additional account or provider is required if the configured Dhan
+data plan permits the option-chain endpoint.
+
+After any run, the **Research interpretation** panel shows the evidence
+class, sample split (only when the model actually supplies those counts),
+actual held-out comparison with a reported baseline (only when both
+metrics exist), limitations and a concrete next research action.
+It explicitly avoids inventing out-of-sample accuracy for in-sample,
+theoretical or synthetic-only models. Results are still archived with
+provenance and full mathematical outputs.
+
+Each 2D chart, 3D surface or heatmap now includes:
+- **Export SVG**: scalable rendered mathematical figure, with provenance
+  embedded in a `<desc>` annotation;
+- **Export CSV**: underlying computed coordinate / series values, not an
+  image screenshot, with complete rows even when the preview is truncated;
+- **Inspect plotted observations**: a local, accessible expandable
+  tabular preview of the first 40 rows;
+- **Cursor pinning** on 2D charts: hover/touch and click to pin, arrow keys
+  to move, Enter/Space to toggle, Escape to clear.
+
+CSV data preserves negative numeric measurements. Textual spreadsheet
+formula prefixes are neutralized in exports to avoid executable formulas
+when opened with a spreadsheet application.
+
+Regression coverage includes the new model input API, observed-data and
+date-gap rejection, TRI-only fallback, browser-guided workflow, exact-value
+inspection and actual SVG/CSV download acceptance. No live broker calls are
+made in CI; all tests use explicitly synthetic fixture series.
