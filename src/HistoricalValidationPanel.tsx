@@ -29,7 +29,8 @@ type SourceWorklist={readiness:Audit;source_kind:string;warning:string;
     required_final_test_forward_returns:number;independent_original_source_certified:boolean};
   actions:SourceAction[];missing_security_month_count:number;
   missing_security_month_preview:{date:string;ticker:string;problem:string}[];
-  missing_calendar_months:string[];unresolved_symbols:string[]}
+  missing_calendar_months:string[];unresolved_symbols:string[];
+  coverage_warnings:string[];exact_gap_calculation_available:boolean}
 type Frozen={id:string;sha256:string;dataset_id:string;state:string;
   validation_start:string;final_test_start:string;registered_utc:string;
   independent_source_certified:boolean;publication_certified:boolean;warning:string}
@@ -218,6 +219,10 @@ export default function HistoricalValidationPanel({datasetId,config,hasDailyPric
         <a className="hv-source-link" href="https://www.niftyindices.com/reports/historical-data"
           target="_blank" rel="noopener noreferrer">Official NIFTY TRI archive <ArrowRight size={13}/></a>
       </div>
+      {!worklist.exact_gap_calculation_available&&<p className="hv-source-shortfall" role="alert">
+        Exact security-month analysis could not run on this incomplete or invalid source.
+        {' '}{worklist.coverage_warnings.join(' ')}
+      </p>}
       {!!worklist.missing_calendar_months.length&&<p className="hv-source-shortfall">
         Unobserved months: {worklist.missing_calendar_months.slice(0,12).join(', ')}
         {worklist.missing_calendar_months.length>12?' … (complete list in ZIP)':''}.
