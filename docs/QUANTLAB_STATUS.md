@@ -1,6 +1,8 @@
 # QuantLab — Canonical Release and Empirical Evidence Status
 
-Last software review: **November 14, 2026**.\n\nRun `bash run.sh check` for current React build, Python regression, mathematics and a read-only original-source readiness doctor. `bash run.sh evaluate` additionally generates clearly labeled synthetic experiment and chart artifacts. Both keep unavailable authenticated/licensed input distinct from a code failure. The previous `scripts/local_acceptance.py` legacy-Streamlit default is retired; archived Streamlit checks require explicit `--legacy-streamlit`. This is the authoritative status
+Last software review: **November 14, 2026**.
+
+Run `bash run.sh check` for current React build, Python regression, mathematics and a read-only original-source readiness doctor. `bash run.sh evaluate` additionally generates clearly labeled synthetic experiment and chart artifacts. Both keep unavailable authenticated/licensed input distinct from a code failure. The previous `scripts/local_acceptance.py` legacy-Streamlit default is retired; archived Streamlit checks require explicit `--legacy-streamlit`. This is the authoritative status
 register; older archived Streamlit/branch-specific status documents are not.
 
 ## Acceptance matrix
@@ -35,6 +37,14 @@ PIT membership disagreement reporting, and exact missing security-month
 coverage. These tools address input *integration*, not independently establish
 original NSE data completeness. See
 [Authentic NIFTY Data Completion](NIFTY_SOURCE_COMPLETION.md).
+
+## Additional local engineering acceptance
+
+The source-locked job-recovery endpoint permits explicit retry after a Python restart only for registered idempotent research calculations (sweeps, validation, notebooks and learning). Any changed price, metadata, calculation code or edited notebook forces a new run. Existing Dhan bulk batch recovery remains separate and can resume its saved windows with the configured local token.
+
+The Data Quality duplicate scan now fingerprints *all files*, including nested source provenance. It offers only confirmed, dependency-protected, recoverable Trash for redundant prepared views; source candle caches are never deleted. Plot Builder accepts optional user-declared INR/USD/EUR/GBP labels and explicitly labels return fractions. Exact-date compatible figures can synchronize zoom and pan.
+
+These are **software capabilities**, not evidence that a real-market original-source study passed.
 
 ## Why empirical research is still blocked
 

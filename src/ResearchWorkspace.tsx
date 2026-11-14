@@ -1206,6 +1206,7 @@ function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan,onOpe
   const [disk,setDisk]=useState<{bytes:Record<string,number>;total_bytes:number}|null>(null)
   const [duplicates,setDuplicates]=useState<DuplicateInventory|null>(null)
   const [dupBusy,setDupBusy]=useState(false)
+  const [dedupNotice,setDedupNotice]=useState('')
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
   const inspect=async()=>{
@@ -1262,9 +1263,10 @@ function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan,onOpe
         JSON.stringify(quality,null,2),'application/json')}><Download size={15}/> Export audit JSON</button>
     </Box>}
     <Box title="Find exact duplicate prepared datasets">
-      <p className="rw-help">QuantLab compares user-owned prepared dataset views
-        by the SHA-256 of their actual allowlisted files. This does not merge,
-        overwrite or delete source data. Protected original Dhan candles remain reusable.</p>
+      <p className="rw-help">QuantLab fingerprints every regular file in each user-owned prepared dataset view,
+        including nested files and source metadata. Nothing is deleted automatically. A confirmed duplicate
+        with no saved dependencies can be moved to recoverable Trash; shared Dhan originals stay protected.</p>
+      {dedupNotice&&<p className="rw-success">{dedupNotice}</p>}
       <button type="button" disabled={dupBusy} onClick={()=>{
         setDupBusy(true);setError('')
         void api<DuplicateInventory>('/workspace/data-maintenance/duplicates')
@@ -1282,12 +1284,24 @@ function QualityPanel({datasets,selectedDataset,onSelectDataset,onOpenDhan,onOpe
           {' '}prepared views · potential redundant view storage
           {' '}{(group.potential_view_bytes_reclaimable/(1024*1024)).toFixed(2)} MB</strong>
           <p>{group.safe_action}</p>
-          {group.datasets.map(row=><div key={row.dataset_id} className="rw-list-item">
+          {group.datasets.map((row,index)=><div key={row.dataset_id} className="rw-list-item">
             <div><strong>{row.title}</strong><small>{row.dataset_id} ·
               {row.dependencies} dependent saved items ·
               {(row.file_bytes/(1024*1024)).toFixed(2)} MB</small></div>
-            <button type="button" onClick={()=>{onSelectDataset(row.dataset_id);onOpenLibrary()}}>
-              Inspect dependencies & management <ArrowRight size={14}/></button>
+            <div className="rw-inline-actions">
+              <button type="button" onClick={()=>{onSelectDataset(row.dataset_id);onOpenLibrary()}}>
+                Inspect dependencies <ArrowRight size={14}/></button>
+              {index>0&&row.can_trash_without_dependencies&&
+                <button type="button" disabled={dupBusy} onClick={()=>{
+                  if(!window.confirm('Move '+row.title+' to recoverable Trash? All files were byte-identical when scanned. QuantLab will re-hash and preserve the first copy and original Dhan cache.'))return
+                  setDupBusy(true);setError('');setDedupNotice('')
+                  void api<Raw>('/workspace/data-maintenance/duplicates/'+encodeURIComponent(row.dataset_id)+'/trash',
+                    {signature_sha256:group.signature_sha256,confirm:true},'POST')
+                    .then(()=>{setDuplicates(null);setDedupNotice('Exact duplicate moved to recoverable Trash. Restore it from Dataset Library if needed.')})
+                    .catch(e=>setError(e instanceof Error?e.message:String(e)))
+                    .finally(()=>setDupBusy(false))
+                }}><Trash2 size={14}/> Move exact duplicate to Trash</button>}
+            </div>
           </div>)}</div>)}
         {!duplicates.identical_groups.length&&<p className="rw-help">No complete byte-identical
           user-owned prepared views found in the bounded scan.</p>}
@@ -1327,10 +1341,10 @@ function JobsPanel({jobs,busy,perform,onPage}:{
         {(j.status==='queued'||(j.status==='running'&&j.cancellable))&&
           <button disabled={busy} onClick={()=>cancel(j)}><X size={14}/>
             {j.status==='running'?'Request safe cancellation':'Cancel queued'}</button>}
-        {(j.status==='error'||j.status==='cancelled')&&
+        {['error','cancelled','interrupted'].includes(j.status)&&
           j.retryable===true&&<button disabled={busy}
           onClick={()=>perform(()=>api<Raw>('/workspace/jobs/'+j.id+'/retry',{},'POST'))}>
-          <RotateCcw size={14}/> Retry</button>}
+          <RotateCcw size={14}/> Recheck inputs & retry</button>}
       </div>)}
       {!jobs.length&&<Empty title="No jobs recorded">Download history, parameter sweeps, and report creation will appear here.</Empty>}</div>
     </Box>
@@ -1349,7 +1363,7 @@ function JobsPanel({jobs,busy,perform,onPage}:{
       {item.queue_position!=null&&<p className="rw-help">Waiting in local queue,
         position {item.queue_position}. One numerical/data job runs at a time.</p>}
       {item.status==='interrupted'&&<p className="rw-caution">
-        The previous Python process exited while this job was active. Reopen the saved study or rerun its configuration; do not mistake this status for a completed research result.</p>}
+        The previous Python process exited before completion. When available, Recheck inputs & retry verifies saved source hashes and code before explicitly restarting. Otherwise reopen the original configuration; no result was completed.</p>}
       {item.result&&<><div className="rw-button-group">
         <button onClick={()=>safeDownload(item.id+'.json',JSON.stringify(item.result,null,2),'application/json')}>
           <Download size={15}/> Download results JSON</button>

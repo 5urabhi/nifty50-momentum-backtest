@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from index_research.dhan_data import (
     MASTER_URL, Instrument, build_monthly_close, download_candles, save_download,
 )
-from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, model_input_selector, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, research_assistant, selection_diagnostics, evidence_bundle, source_inventory, historical_readiness, frozen_study, corporate_action_import
+from . import dhan_auth, dhan_benchmark, dhan_workspace, model_data_manager, model_lab, model_registry, option_quotes, model_readiness, model_input_selector, dhan_option_chain, pit_index, service, shared_market_data, research_library, research_insights, research_advanced, project_bundles, research_integrity, dhan_live_verification, research_learning, research_next, active_risk_lab, research_publication, result_evidence, research_assistant, selection_diagnostics, evidence_bundle, source_inventory, historical_readiness, frozen_study, corporate_action_import, job_recovery
 
 load_dotenv(service.ROOT / ".env", override=False)
 # Explicit terminal sink for QuantLab diagnostics. It logs operation names,
@@ -52,6 +52,15 @@ JOB_FUTURES: dict[str, object] = {}
 JOB_RETRY_SPECS: dict[str, tuple] = {}
 JOB_STOP_SIGNALS: dict[str, Event] = {}
 CANCELLABLE_TASKS = {"workspace_parameter_sweep","workspace_grid_sweep","workspace_validation","workspace_learning","lab_shared_data_extension"}
+# Only idempotent, local calculations may be explicitly retried after a restart.
+# Never serialize or replay Dhan access, order activity, or single-use frozen tests.
+RECOVERABLE_ACTIONS = {
+    "workspace_parameter_sweep": research_insights.sweep,
+    "workspace_grid_sweep": research_advanced.grid_sweep,
+    "workspace_validation": research_insights.validate_out_of_sample,
+    "workspace_report": research_library.render_notebook_report,
+    "workspace_learning": research_learning.run,
+}
 
 
 class JobCancelled(RuntimeError):
@@ -123,6 +132,12 @@ def _spawn(kind: str, action, *args, **kwargs):
             JOB_RETRY_SPECS[task_id] = (kind, action, args, kwargs)
         queued_snapshot = dict(JOBS[task_id])
     _persist_job(queued_snapshot)
+    if RECOVERABLE_ACTIONS.get(kind) is action:
+        try:
+            job_recovery.save(task_id, kind, args, kwargs)
+        except (OSError, ValueError, TypeError, OverflowError) as exc:
+            LOG.warning("Persistent restart retry unavailable: kind=%s reason=%s",
+                        kind, type(exc).__name__)
 
     def work():
         LOG.info("QuantLab background job started: kind=%s job_id=%s", kind, task_id)
@@ -880,6 +895,21 @@ def inspect_duplicate_datasets():
     except (ValueError, OSError, FileNotFoundError, KeyError) as exc:
         bad(exc)
 
+class DuplicateTrashRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    signature_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    confirm: bool = False
+
+
+@app.post("/api/workspace/data-maintenance/duplicates/{dataset_id}/trash")
+def trash_verified_duplicate(dataset_id: str, body: DuplicateTrashRequest):
+    try:
+        return source_inventory.trash_exact_duplicate(
+            dataset_id, body.signature_sha256, confirm=body.confirm)
+    except (ValueError, OSError, FileNotFoundError, KeyError) as exc:
+        bad(exc)
+
+
 
 def _job_next_action(job: dict) -> str:
     status = job.get("status")
@@ -894,6 +924,9 @@ def _job_next_action(job: dict) -> str:
     if status == "cancelled":
         return "No more work is running. Check partial data in Data Library, then explicitly re-run if needed."
     if status == "interrupted":
+        if job.get("retryable"):
+            return ("Python restarted. Click Retry to recheck original file hashes and "
+                    "explicitly rerun the same calculation; never auto-resume.")
         return "Python restarted. Reopen your saved configuration and explicitly rerun; no completion is implied."
     if status != "error":
         return "Inspect the job details and associated local research evidence."
@@ -920,8 +953,8 @@ def workspace_jobs():
                   if row["id"] not in seen]
     all_jobs = (live + historical)[:100]
     for row in all_jobs:
-        row["retryable"] = row.get("status") in {"error", "cancelled"} and (
-            row["id"] in retry_ids)
+        row["retryable"] = row.get("status") in {"error", "cancelled", "interrupted"} and (
+            row["id"] in retry_ids or job_recovery.available(row["id"]))
         row["queue_position"] = (
             queued_ids.index(row["id"]) + 1 if row["id"] in queued_ids else None)
         row["next_action"] = _job_next_action(row)
@@ -958,11 +991,27 @@ def workspace_retry_job(job_id: str):
     with JOBS_LOCK:
         job = JOBS.get(job_id)
         spec = JOB_RETRY_SPECS.get(job_id)
-        if not job or job["status"] not in {"error","cancelled"} or not spec:
-            raise HTTPException(409, "Only failed local research/report jobs can be retried "
-                                     "without changing their saved parameters. "
-                                     "After restart, rerun the original configuration.")
-    kind, action, args, kwargs = spec
+        if job and job["status"] not in {"error", "cancelled"}:
+            raise HTTPException(409, "Only failed, cancelled or interrupted jobs can be retried")
+    if spec and job:
+        kind, action, args, kwargs = spec
+        if job_recovery.available(job_id):
+            try:
+                job_recovery.restore(job_id)  # Refuse changed data or code even within one process.
+            except (ValueError, OSError) as exc:
+                raise HTTPException(409, str(exc)) from exc
+        return _spawn(kind, action, *args, **kwargs)
+    record = next((row for row in research_library.list_job_history(100)
+                   if row["id"] == job_id), None)
+    if record is None or record["status"] not in {"interrupted", "error", "cancelled"}:
+        raise HTTPException(409, "No interrupted/failed research job available for explicit retry")
+    try:
+        kind, args, kwargs = job_recovery.restore(job_id)
+    except (ValueError, OSError, TypeError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    action = RECOVERABLE_ACTIONS.get(kind)
+    if action is None:
+        raise HTTPException(409, "This job cannot be safely retried after restart")
     return _spawn(kind, action, *args, **kwargs)
 
 
@@ -974,6 +1023,7 @@ class PlotBuildRequest(BaseModel):
     kind: Literal["line","scatter","histogram","kde","qq","drawdown",
                   "cumulative","rolling_volatility","correlation"] = "line"
     transform: Literal["price","return","log_return","base100","zscore"] = "return"
+    price_currency: Literal["unspecified","INR","USD","EUR","GBP"] = "unspecified"
     first: str | None = None
     last: str | None = None
     lookback: int = Field(default=20,ge=2,le=252)

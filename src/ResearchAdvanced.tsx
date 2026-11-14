@@ -5,7 +5,8 @@ import ResearchPlot,{type ResearchPlotData,type ResearchTrace} from './ResearchP
 type Json=Record<string,unknown>
 type Dataset={id:string;label:string;has_prices:boolean}
 type RecordItem={id:string;kind:string;title:string;payload:Json;trashed:boolean}
-type Source={dataset_id:string;dataset:string;source_sha256:string;source_file:string;frequency:string}
+type Source={dataset_id:string;dataset:string;source_sha256:string;source_file:string;frequency:string;
+  price_currency?:string;currency_declared_by_user?:boolean;currency_verified_by_source?:boolean}
 type PlotOutput={plot:ResearchPlotData;source:Source;sample_observations:number;displayed_observations:number;
   settings:Json;warning:string}
 type Columns={source:Source;columns:string[];total_columns:number;total_dates:number}
@@ -71,7 +72,7 @@ function FigureDownload({plot,source}:{plot:ResearchPlotData;source:Source}){
     if(!plot.x)return
     const traces=plot.traces||[]
     const escape=(x:unknown)=>'"'+String(x??'').replaceAll('"','""')+'"'
-    const rows=[['x',...traces.map(t=>t.name)].map(escape).join(','),
+    const rows=[[(plot.x_label||'X'),...traces.map(t=>t.name+' ['+(plot.y_label||'units unspecified')+']')].map(escape).join(','),
       ...plot.x.map((x,i)=>[x,...traces.map(t=>t.y[i])].map(escape).join(','))]
     save('quantlab_figure.csv',rows.join('\n'),'text/csv')
   }
@@ -102,6 +103,7 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,records,onMessage
   const [fields,setFields]=useState<string[]>([])
   const [kind,setKind]=useState('line')
   const [transform,setTransform]=useState('return')
+  const [priceCurrency,setPriceCurrency]=useState('unspecified')
   const [first,setFirst]=useState('')
   const [last,setLast]=useState('')
   const [lookback,setLookback]=useState('20')
@@ -151,7 +153,7 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,records,onMessage
     setBusy(true)
     try{
       const result=await request<PlotOutput>('plot-builder',{dataset_id:selectedDataset,fields,
-        kind,transform,first:first||null,last:last||null,lookback:Number(lookback),title})
+        kind,transform,price_currency:priceCurrency,first:first||null,last:last||null,lookback:Number(lookback),title})
       setPlot(result);setColors({});setHidden([]);setLogY(false)
       setXAxis(result.plot.x_label||'');setYAxis(result.plot.y_label||'')
       onMessage('Observed figure ready. The canonical dataset has not been modified.')
@@ -215,6 +217,11 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,records,onMessage
             Incompatible plot types are disabled.</p>
           <Choice title="Transformation" value={transform} onChange={setTransform}
             options={opt(['price','return','log_return','base100','zscore'])}/>
+          <Choice title="Price currency (user declared)" value={priceCurrency}
+            onChange={setPriceCurrency} options={[
+              {id:'unspecified',name:'Unknown / no currency label'},
+              {id:'INR',name:'₹ INR'},{id:'USD',name:'$ USD'},
+              {id:'EUR',name:'€ EUR'},{id:'GBP',name:'£ GBP'}]}/>
           <Field title="Start date" value={first} onChange={setFirst} type="date"/>
           <Field title="End date" value={last} onChange={setLast} type="date"/>
           <Field title="Rolling observations" value={lookback} onChange={setLookback} type="number"/>
@@ -222,6 +229,7 @@ function PlotBuilder({datasets,selectedDataset,onSelectDataset,records,onMessage
         </div>
         <button className="rw-primary" disabled={busy||!columns||!fields.length}
           onClick={()=>void build()}>{busy?<LoaderCircle size={15}/>:<Play size={15}/>} Plot selected observations</button>
+        <p className="rw-help">Price currency is declared by the user, not verified by the provider. Raw return and volatility values remain decimal fractions (0.01 means 1%); Sharpe and beta are unitless. Base-100 index points are not money.</p>
         <p className="rw-help">Scatter: exactly two columns. Histogram, KDE and Q–Q: one column. Correlation: at least two columns. Missing returns are never forward-filled.</p>
       </section>
       <section className="rw-box">

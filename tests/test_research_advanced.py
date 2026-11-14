@@ -83,6 +83,35 @@ class AdvancedResearchTests(unittest.TestCase):
         self.assertEqual(response.status_code,200,response.text)
         self.assertEqual(response.json()["plot"]["kind"],"heatmap2d")
 
+    def test_custom_plot_currency_and_fraction_units_are_declared_not_guessed(self):
+        raw=research_advanced.build_plot(self.id,["A"],kind="line",transform="price")
+        self.assertIn("currency unspecified",raw["plot"]["y_label"])
+        self.assertFalse(raw["plot"]["units"]["currency_verified_by_source"])
+        explicit=research_advanced.build_plot(self.id,["A"],kind="line",
+                                              transform="price",price_currency="INR")
+        self.assertIn("INR",explicit["plot"]["y_label"])
+        self.assertTrue(explicit["plot"]["units"]["price_currency_declared_by_user"])
+        self.assertFalse(explicit["source"]["currency_verified_by_source"])
+        self.assertEqual(explicit["plot"]["traces"][0]["y"],
+                         raw["plot"]["traces"][0]["y"],
+                         "Currency labeling must never alter observed numerical prices")
+        returns=research_advanced.build_plot(self.id,["A"],kind="line",
+                                             transform="return",price_currency="USD")
+        self.assertIn("decimal fraction",returns["plot"]["y_label"])
+        self.assertNotIn("USD",returns["plot"]["y_label"])
+        self.assertTrue(returns["plot"]["units"]["stored_values_unscaled"])
+        self.assertFalse(returns["plot"]["units"]["currency_verified_by_source"])
+        with self.assertRaisesRegex(ValueError,"currency"):
+            research_advanced.build_plot(self.id,["A"],price_currency="GUESS")
+        invalid=self.client.post("/api/workspace/plot-builder",json={
+            "dataset_id":self.id,"fields":["A"],"price_currency":"BTC"})
+        self.assertEqual(invalid.status_code,422)
+        ok=self.client.post("/api/workspace/plot-builder",json={
+            "dataset_id":self.id,"fields":["A"],"transform":"price",
+            "price_currency":"INR"})
+        self.assertEqual(ok.status_code,200,ok.text)
+        self.assertTrue(ok.json()["source"]["currency_declared_by_user"])
+
     def test_synthetic_data_is_not_labeled_observed(self):
         service.create_synthetic()
         with self.assertRaisesRegex(ValueError,"demonstration fixtures"):
