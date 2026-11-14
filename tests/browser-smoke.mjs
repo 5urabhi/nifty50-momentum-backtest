@@ -219,7 +219,7 @@ try {
     assert.equal(providerRequests,2)
     const upload=assistant.getByLabel('Select NSE source files')
     await upload.setInputFiles({name:'test_weights.csv',mimeType:'text/csv',
-      buffer:Buffer.from('Symbol,Weightage (%)\\nA,50\\nB,50\\n')})
+      buffer:Buffer.from('Symbol,Weightage (%)\nA,50\nB,50\n')})
     await assistant.getByRole('button',{name:'Prepare 1 source file'}).click()
     await assistant.getByText('Original files safely prepared').waitFor({timeout:25000})
     assert.match(await assistant.innerText(),/TRI is preserved/)
