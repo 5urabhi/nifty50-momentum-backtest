@@ -88,6 +88,30 @@ MODELS = [
            numeric("jump_intensity", 1, 0, 20, .1),
            numeric("jump_mean_log", -.08, -2, 2, .02),
            numeric("jump_std_log", .15, 0, 2, .02), SEED], "fan2d"),
+    model("ou_fit", "Stochastic Processes", "OU · Historical Volatility Fit", "historical", 90,
+          "Fit an exact AR(1)/OU mean-reverting process to 20-session log-realized stock volatility; "
+          "evaluate on a separate final 20%. An OU process is NOT blindly fitted to trending stock prices.",
+          "log RVₜ = a + φ log RVₜ₋₁ + εₜ; κ = −252 log φ",
+          [choice("target","stock",["stock"],"Original Dhan daily stock closes only"),
+           symbol_input("ticker","", "Select one exact stock symbol"),
+           YEARS,STEPS,PATHS,SEED], "line2d"),
+    model("merton_fit", "Stochastic Processes", "Merton · Historical Jump Proxy", "historical", 120,
+          "Measure robust-threshold tail-event frequency and Gaussian diffusion from historical "
+          "log returns; examine untouched 20% and simulate illustrative jump paths. "
+          "Threshold events are NOT identified market jumps or risk-neutral option calibration.",
+          "r = Gaussian diffusion + compound-Poisson jump proxy",
+          [choice("target","stock",["stock","benchmark_tri"],"Original stock or NIFTY TRI"),
+           symbol_input("ticker","", "Required for a stock target"),
+           YEARS,STEPS,PATHS,SEED], "line2d"),
+    model("heston_proxy", "Stochastic Processes",
+          "Heston · Historical Variance Proxy (not option calibrated)", "historical", 252,
+          "Fit a stationary rolling realized-variance proxy from daily stock closes. "
+          "Latent Heston risk-neutral parameters CANNOT be identified from stock closes alone; "
+          "use option-chain quotes for genuine option-surface calibration.",
+          "ΔRV ≈ κ(θ−RV)dt + ξ√RV dW; RV is an observed proxy, not latent v",
+          [choice("target","stock",["stock"],"Original daily stock candles"),
+           symbol_input("ticker","", "Select one exact stock symbol"),
+           YEARS,STEPS,PATHS,SEED], "line2d"),
     model("garch", "Volatility & Econometrics", "Gaussian GARCH(1,1)", "historical", 60,
           "In-sample conditional variance maximum likelihood on the observed return sample.",
           "hₜ=ω+αε²ₜ₋₁+βhₜ₋₁", [ASSETS], "line2d"),
